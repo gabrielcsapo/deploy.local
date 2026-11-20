@@ -3347,9 +3347,11 @@ button.dz-link-row:hover,
   top: auto;
   bottom: var(--ds-space-4);
 }
+/* Two decisions fit beside Play; a third, or longer words, wrap inside the row's end. */
 .dz-decisions {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
@@ -3360,7 +3362,7 @@ button.dz-link-row:hover,
 }
 .dz.reviewing .dz-right-top {
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--ds-space-1);
 }
 .dz.reviewing .dz-right-top .dl-btn {
   padding: 0 9px;
@@ -3563,7 +3565,7 @@ button.dz-link-row:hover,
 }
 
 /* Below 1180 px the left panel folds behind its show button at the start of the strip. */
-@media (max-width: 1179px) {
+@media (max-width: 1179px) and (min-width: 501px) {
   .dz.reviewing {
     grid-template-columns: minmax(0, 1fr) var(--dz-right);
   }
@@ -3619,6 +3621,9 @@ button.dz-link-row:hover,
     transition: none;
   }
   .dz.reviewing .dz-grab {
+    display: none;
+  }
+  .dz.reviewing.right-hidden .dz-right {
     display: none;
   }
   .dz.reviewing .dz-right-top {

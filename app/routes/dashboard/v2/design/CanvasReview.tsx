@@ -809,9 +809,12 @@ export function ReviewStrip({
   decision,
   loading,
   onShowLeft,
+  onShowRight,
   noBefore = false,
 }: {
   decision: ReviewDecision;
+  /** The right panel is hidden: its show button ends the strip. */
+  onShowRight?: () => void;
   /** Screens whose renders have arrived, of those being drawn; shown until all have. */
   loading?: { done: number; total: number } | null;
   /** The left panel is folded: its show button starts the strip. */
@@ -851,6 +854,17 @@ export function ReviewStrip({
         <span className="dz-strip-decide">
           <ReviewDecisions decision={decision} />
         </span>
+        {onShowRight && (
+          <button
+            type="button"
+            className="dl-icon-btn dz-strip-show-right"
+            aria-label="Show right panel"
+            title="Show right panel"
+            onClick={onShowRight}
+          >
+            <Icon name="panel" size={15} />
+          </button>
+        )}
       </div>
       <ReviewNotices decision={decision} />
     </>

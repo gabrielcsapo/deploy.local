@@ -492,9 +492,14 @@ function DesignCanvasPage({
   // Changed screens whose renders have arrived, of those being drawn, while a review opens.
   const [frameLoading, setFrameLoading] = useState<{ done: number; total: number } | null>(null);
   // Read after hydration: the server has no browser storage.
+  // A review opens with its Review panel showing, whatever the editor last hid.
   useEffect(
-    () => setHidden({ left: designPanelHidden('left'), right: designPanelHidden('right') }),
-    [],
+    () =>
+      setHidden({
+        left: designPanelHidden('left'),
+        right: !reviewId && designPanelHidden('right'),
+      }),
+    [reviewId],
   );
   const showPanel = useCallback((panel: DesignPanel, show: boolean) => {
     // The button pressed goes away with its panel. From the keyboard, focus moves to the button
@@ -1487,6 +1492,7 @@ function DesignCanvasPage({
               decision={decision}
               loading={loadingScreens ? { done: 0, total: shownScreens.length } : frameLoading}
               onShowLeft={showLeft}
+              onShowRight={hidden.right ? () => showPanel('right', true) : undefined}
             />
           )}
           {!reviewId &&
@@ -1520,9 +1526,10 @@ function DesignCanvasPage({
                 </a>
               </div>
             )}
-          {((hidden.left && !reviewId) || hidden.right) && (
+          {/* In a review, both show buttons are in the review strip. */}
+          {!reviewId && (hidden.left || hidden.right) && (
             <div className="dz-panel-shows">
-              {hidden.left && !reviewId && (
+              {hidden.left && (
                 <button
                   type="button"
                   className="dz-panel-show left"
