@@ -38,5 +38,12 @@ test('the guest directory can read the catalog without sending browser credentia
   const browser = { origin: 'http://deploy.local' };
   assert.equal(target('deploy.local', '/api/apps-home', 'GET', browser), 'existing');
   assert.equal(target('deploy.local', '/api/login', 'POST', browser), 'https');
-  assert.equal(target('deploy.local', '/api/deployments'), 'existing');
+  assert.equal(
+    target('deploy.local', '/api/auth/account', 'GET', { 'sec-fetch-site': 'same-origin' }),
+    'https',
+  );
+  assert.equal(
+    target('deploy.local', '/api/deployments', 'GET', { 'sec-fetch-mode': 'cors' }),
+    'existing',
+  );
 });
