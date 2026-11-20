@@ -1,4 +1,3 @@
-import { guestHttpTarget, redirectToHttps, attachPlainHttpUpgrades } from './edge/guest-http.ts';
 import './main/task-workspace-imports.ts';
 import { wireTaskRunStarter } from './main/task-run-starter.ts';
 import { wireQuestionAnswerResumer } from './main/question-answer-resumer.ts';
@@ -25,7 +24,6 @@ import { handleWebRedirect } from './web-redirects.ts';
 import { createSecureServer as createHttp2Server } from 'node:http2';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { wireServerWorkspacePorts } from './main/server-workspace-ports.ts';
-import { createHotPathHandler } from './edge/proxy.ts';
 import { apiMiddleware, setHotPathRouteSource } from './api.ts';
 import { setupWebSocket, handleDashboardUpgrade } from './ws.ts';
 import { syncContainerStates, startAllContainers } from './lifecycle.ts';
@@ -57,6 +55,8 @@ import { loadOrCreateSecretKey } from './secrets.ts';
 import { startAgentExecExpiry, stopAgentExecExpiry } from './agent-exec.ts';
 import { startRemovedProjectCleanup, stopRemovedProjectCleanup } from './v2/project-removal.ts';
 import { startPush, stopPush } from './v2/push.ts';
+import { guestHttpTarget, redirectToHttps, attachPlainHttpUpgrades } from './edge/guest-http.ts';
+import { createHotPathHandler } from './edge/proxy.ts';
 
 /** Serves the pages and assets of the web app: every request the API does not claim. */
 export type ClientHandler = (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
