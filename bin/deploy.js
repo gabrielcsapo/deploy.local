@@ -2629,7 +2629,8 @@ async function cmdDeploy(
       stdio: 'pipe',
       // gzip level 1 is substantially faster for LAN deploys. pigz uses all
       // available cores when installed; regular gzip remains the fallback.
-      env: { ...process.env, GZIP: '-1' },
+      // macOS tar must not synthesize AppleDouble entries outside the selected source files.
+      env: { ...process.env, GZIP: '-1', COPYFILE_DISABLE: '1' },
     });
   } catch (error) {
     rmSync(tarball, { force: true });

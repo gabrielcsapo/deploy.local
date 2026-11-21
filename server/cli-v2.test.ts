@@ -6,6 +6,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, test } from 'node:test';
+import { gunzipSync } from 'node:zlib';
+import { extract } from 'tar-stream';
 
 const root = mkdtempSync(join(tmpdir(), 'deploy-v2-cli-'));
 const home = join(root, 'account');
@@ -27,6 +29,7 @@ let waiting = true;
 let buildSuccess = true;
 let buildPending = false;
 let releasesSupported = true;
+let uploadContent: { body: Buffer; contentType: string } | undefined;
 const shipProject = join(root, 'ship', 'home-gym');
 mkdirSync(shipProject, { recursive: true });
 writeFileSync(join(shipProject, 'Dockerfile'), 'FROM scratch\n');
@@ -63,11 +66,13 @@ const item = {
   actions: [{ id: 'rollback', label: 'Roll back', confirm: 'Both apps go back. Continue?' }],
 };
 const server = createServer((request, response) => {
-  let body = '';
+  const chunks: Buffer[] = [];
   request.on('data', (chunk) => {
-    body += chunk;
+    chunks.push(chunk);
   });
   request.on('end', () => {
+    const rawBody = Buffer.concat(chunks);
+    const body = rawBody.toString();
     const path = request.url || '';
     requests.push({
       path,
@@ -84,6 +89,7 @@ const server = createServer((request, response) => {
     if (path === '/api/deploy-admission' || path.startsWith('/api/deploy-admission/')) {
       response.end(JSON.stringify({ placementReady: true }));
     } else if (path === '/api/upload') {
+      uploadContent = { body: rawBody, contentType: request.headers['content-type'] || '' };
       response.end(JSON.stringify({ accepted: true, name: 'home-gym', buildLogId: 42 }));
     } else if (path === '/api/projects/home-gym/releases') {
       response.statusCode = releasesSupported ? 200 : 404;
@@ -374,6 +380,42 @@ test('deploy associates a staged upload with the original hosted Git checkout', 
     requests.findLast((request) => request.path === '/api/upload')?.repository,
     repository,
   );
+});
+
+test('deploy archives only selected files, including real files named with an AppleDouble prefix', async () => {
+  const stage = join(root, 'archive', 'home-gym');
+  mkdirSync(stage, { recursive: true });
+  const file = join(stage, 'Dockerfile');
+  writeFileSync(file, 'FROM scratch\n');
+  writeFileSync(join(stage, '._intentional'), 'Tracked source data\n');
+  if (process.platform === 'darwin') {
+    const attr = spawnSync('xattr', ['-w', 'com.example.deploy-fixture', 'test metadata', file], {
+      encoding: 'utf8',
+    });
+    assert.equal(attr.status, 0, attr.stderr);
+  }
+  const deployed = await run(['deploy'], stage);
+  assert.equal(deployed.code, 0, deployed.stderr);
+  assert.ok(uploadContent);
+  const uploaded = await new Request('http://localhost/api/upload', {
+    method: 'POST',
+    headers: { 'content-type': uploadContent.contentType },
+    body: new Uint8Array(uploadContent.body),
+  }).formData();
+  const archive = uploaded.get('file');
+  assert.ok(archive instanceof Blob);
+  const names: string[] = [];
+  const reader = extract();
+  const finished = new Promise<void>((done, fail) => {
+    reader.on('error', fail).on('finish', done);
+    reader.on('entry', (header, stream, next) => {
+      names.push(header.name);
+      stream.on('end', next).resume();
+    });
+  });
+  reader.end(gunzipSync(Buffer.from(await archive.arrayBuffer())));
+  await finished;
+  assert.deepEqual(names.sort(), ['._intentional', 'Dockerfile']);
 });
 
 test('deploy follows its build receipt, hides build chatter and reports honest release steps', async () => {
