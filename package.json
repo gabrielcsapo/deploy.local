@@ -64,7 +64,7 @@
     "qrcode": "^1.5.4",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-flight-router": "https://deploy.local/npm/react-flight-router/-/react-flight-router-0.16.0.tgz",
+    "react-flight-router": "https://deploy.local/npm/react-flight-router/-/react-flight-router-0.16.1.tgz",
     "react-markdown": "^10.1.0",
     "react-server-dom-webpack": "catalog:",
     "rehype-highlight": "^7.0.2",
