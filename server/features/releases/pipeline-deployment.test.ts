@@ -205,7 +205,8 @@ function stubUpload(
     store.registerDeploymentStart(scope.application, scope.owner, 'application-graph');
     registerApplicationIdentity(scope.application);
     store.updateDeploymentArtifactDigests(scope.application, {
-      sourceArtifactDigest: 'sha256:' + randomUUID().replaceAll('-', '').repeat(2),
+      sourceArtifactDigest:
+        scope.source?.archiveDigest || 'sha256:' + randomUUID().replaceAll('-', '').repeat(2),
     });
     const buildLogId = store.createBuildLog(scope.application);
     store.updateCurrentBuildLogId(scope.application, buildLogId);
@@ -280,7 +281,7 @@ test('waits through a full release, and only gives up long after one should fini
   assert.equal(stalled.status, 'failed');
   assert.match(stalled.error, /Timed out waiting for build\/start/);
 });
-test('a run whose source is already live finishes on the running build', async () => {
+test('an unchanged upload response cannot borrow the previous build identity', async () => {
   const { run, application } = fullFixture();
   stubUpload();
   await advancePipelineDeployment('owner', run.id);
@@ -294,10 +295,249 @@ test('a run whose source is already live finishes on the running build', async (
   await advancePipelineDeployment('owner', again.id);
   assert.equal(uploads.length, 1);
   const repeated = get('pipeline-run', 'owner', again.id).deployment;
-  assert.equal(repeated.status, 'succeeded', repeated.error);
-  assert.equal(repeated.buildLogId, live.buildLogId);
+  assert.equal(repeated.status, 'failed');
+  assert.match(repeated.error, /admitted build identity/);
+  assert.equal(repeated.buildLogId, undefined);
+  assert.equal(store.readDeploymentRecord(application)?.currentBuildLogId, live.buildLogId);
   assert.equal(store.readDeploymentRecord(application)?.status, 'running');
 });
+test('a push reuses a verified current release when only excluded files changed', async () => {
+  const { run, source, project, application } = fullFixture();
+  const { compileDeployYaml } = await import('../../application-spec.ts');
+  const { resolveApplicationConfiguration } = await import('../../application-configuration.ts');
+  const { uploadedSourceDigest } = await import('./application-deployment.ts');
+  const baseline = await pipelineBundle(project.repositoryPath, run.commit, '.', application);
+  const { digest, canonicalJson } = compileDeployYaml(manifest(application));
+  store.registerDeploymentStart(application, 'owner', 'application-graph');
+  registerApplicationIdentity(application);
+  const buildLogId = store.createBuildLog(application);
+  store.updateCurrentBuildLogId(application, buildLogId);
+  store.updateDeploymentArtifactDigests(application, {
+    sourceArtifactDigest: baseline.sourceDigest,
+  });
+  store.saveDesiredApplicationSpec({
+    digest,
+    deploymentName: application,
+    apiVersion: baseline.spec.apiVersion,
+    source: 'repository',
+    manifestFormat: 'deploy.yaml',
+    normalizedSpec: canonicalJson,
+    createdBy: 'owner',
+  });
+  const configuration = resolveApplicationConfiguration({
+    deploymentName: application,
+    specDigest: digest,
+    declarations: baseline.spec.configuration,
+    siteId: 'coordinator',
+  });
+  store.activateDesiredApplicationSpec(application, digest, configuration.digest);
+  store.updateDeploymentStatus(application, 'running');
+  store.completeBuildLog(buildLogId, { success: true, duration: 1 });
+  recordApplicationOrigin({ owner: 'owner', projectId: project.id, application }, buildLogId, {
+    commit: run.commit,
+    effectiveSourceDigest: baseline.effectiveSourceDigest,
+  });
+  const releaseId = randomUUID();
+  save('v2-upload-release', 'owner', { id: String(buildLogId), releaseId });
+  save('v2-project-current', 'owner', { id: project.id, releaseId });
+  save('v2-release', 'owner', {
+    id: releaseId,
+    release: {
+      id: releaseId,
+      projectId: project.id,
+      source: { commit: run.commit },
+      apps: [{ appId: application }],
+      state: 'live',
+      steps: [{ name: 'verify', state: 'done' }],
+    },
+  });
+  const staged = mkdtempSync(join(data, 'owner-stage-'));
+  const { execFileSync } = await import('node:child_process');
+  execFileSync('tar', ['-xz', '-C', staged], { input: baseline.body });
+  assert.equal(await uploadedSourceDigest(staged), baseline.effectiveSourceDigest);
+  writeFileSync(join(staged, 'hello.txt'), 'modified owner upload');
+  assert.notEqual(await uploadedSourceDigest(staged), baseline.effectiveSourceDigest);
+
+  async function push(file: string) {
+    writeFileSync(join(source, file), 'new checked bytes');
+    git(source, ['add', file]);
+    git(source, ['commit', '-m', file]);
+    git(source, ['push', project.repositoryPath, 'HEAD:main']);
+    const candidate = save('pipeline-run', 'owner', {
+      ...run,
+      id: randomUUID(),
+      commit: git(source, ['rev-parse', 'HEAD']),
+      trigger: 'push',
+      branch: 'main',
+    });
+    await advancePipelineDeployment('owner', candidate.id);
+    return get('pipeline-run', 'owner', candidate.id).deployment;
+  }
+  const uploads = stubUpload();
+  const reused = await push('excluded/private.txt');
+  assert.equal(reused.status, 'succeeded', reused.error);
+  assert.equal(reused.reusedReleaseId, releaseId);
+  assert.equal(uploads.length, 0);
+  assert.equal(store.readDeploymentRecord(application)?.currentBuildLogId, buildLogId);
+
+  mock.restoreAll();
+  let fallbackUploads = 0;
+  mock.method(globalThis, 'fetch', async () => {
+    fallbackUploads += 1;
+    return Response.json({ error: 'stop after proving upload fallback' }, { status: 409 });
+  });
+  const setDesiredNode = store
+    .getSqlite()!
+    .prepare('UPDATE deployments SET desired_node_id=? WHERE name=?');
+  const guards = [
+    () => store.updateDeploymentConfigurationDigest(application, 'different-configuration'),
+    () => save('v2-project-current', 'owner', { id: project.id, releaseId: 'a-different-release' }),
+    () => setDesiredNode.run('another-computer', application),
+  ];
+  for (const change of guards) {
+    change();
+    const candidate = save('pipeline-run', 'owner', {
+      ...run,
+      id: randomUUID(),
+      commit: git(source, ['rev-parse', 'HEAD']),
+      trigger: 'push',
+      branch: 'main',
+    });
+    await advancePipelineDeployment('owner', candidate.id);
+    assert.match(get('pipeline-run', 'owner', candidate.id).deployment.error, /upload fallback/);
+    store.updateDeploymentConfigurationDigest(application, configuration.digest);
+    save('v2-project-current', 'owner', { id: project.id, releaseId });
+    setDesiredNode.run(null, application);
+  }
+  assert.equal(fallbackUploads, 3);
+  mock.restoreAll();
+  const changedUploads = stubUpload();
+  const changed = await push('hello.txt');
+  assert.equal(changed.status, 'publishing', changed.error);
+  assert.equal(changedUploads.length, 1);
+});
+
+test('an admitted candidate follows its exact release after a failed orchestration log', async () => {
+  const { run, project, application } = fullFixture();
+  const uploads = stubUpload({ releasing: true });
+  await advancePipelineDeployment('owner', run.id);
+  const buildLogId = uploads[0].buildLogId;
+  const releaseId = randomUUID();
+  const release = {
+    id: releaseId,
+    projectId: project.id,
+    source: { commit: run.commit },
+    apps: [{ appId: application }],
+    state: 'failed',
+    steps: [
+      { name: 'verify', state: 'done' },
+      { name: 'watch', state: 'failed' },
+    ],
+  };
+  save('v2-upload-release', 'owner', { id: String(buildLogId), releaseId });
+  save('v2-release', 'owner', { id: releaseId, release, recoveryRequired: true });
+  store.completeBuildLog(buildLogId, { success: false, duration: 1 });
+  store.updateDeploymentStatus(application, 'running');
+  await advancePipelineDeployment('owner', run.id);
+  assert.equal(get('pipeline-run', 'owner', run.id).deployment.status, 'publishing');
+
+  save('v2-project-current', 'owner', { id: project.id, releaseId });
+  save('v2-release', 'owner', {
+    id: releaseId,
+    release: {
+      ...release,
+      state: 'live',
+      steps: [
+        { name: 'verify', state: 'done' },
+        { name: 'watch', state: 'done' },
+      ],
+    },
+  });
+  await advancePipelineDeployment('owner', run.id);
+  const deployment = get('pipeline-run', 'owner', run.id).deployment;
+  assert.equal(deployment.status, 'succeeded', deployment.error);
+  assert.equal(deployment.releaseId, releaseId);
+  assert.equal(deployment.buildLogId, buildLogId);
+  assert.equal(uploads.length, 1);
+});
+
+test('a terminal Watch failure stays failed even after the candidate starts serving', async () => {
+  const { run, project, application } = fullFixture();
+  const uploads = stubUpload({ releasing: true });
+  await advancePipelineDeployment('owner', run.id);
+  const buildLogId = uploads[0].buildLogId;
+  const releaseId = randomUUID();
+  save('v2-upload-release', 'owner', { id: String(buildLogId), releaseId });
+  save('v2-project-current', 'owner', { id: project.id, releaseId });
+  save('v2-release', 'owner', {
+    id: releaseId,
+    release: {
+      id: releaseId,
+      projectId: project.id,
+      source: { commit: run.commit },
+      state: 'failed',
+      apps: [{ appId: application }],
+      steps: [
+        { name: 'verify', state: 'done' },
+        { name: 'watch', state: 'failed' },
+      ],
+    },
+  });
+  store.completeBuildLog(buildLogId, { success: false, duration: 1 });
+  store.updateDeploymentStatus(application, 'running');
+  await advancePipelineDeployment('owner', run.id);
+  const deployment = get('pipeline-run', 'owner', run.id).deployment;
+  assert.equal(deployment.status, 'failed');
+  assert.match(deployment.error, /Release watch failed/);
+  assert.equal(uploads.length, 1);
+});
+
+test('busy release reservation waits, then a newer checked push supersedes the queued upload', async () => {
+  const { run, project, application } = fullFixture();
+  save('pipeline-run', 'owner', { ...run, trigger: 'push', branch: 'main' });
+  save('v2-project-run', 'owner', { id: project.id, apps: [application] });
+  const uploads = stubUpload();
+  await advancePipelineDeployment('owner', run.id);
+  const waiting = get('pipeline-run', 'owner', run.id).deployment;
+  assert.equal(waiting.status, 'ready');
+  assert.ok(waiting.waitingSince);
+  assert.equal(uploads.length, 0);
+  const newer = save('pipeline-run', 'owner', {
+    ...run,
+    trigger: 'push',
+    branch: 'main',
+    id: randomUUID(),
+  });
+  db.prepare("DELETE FROM records WHERE kind='v2-project-run' AND id=?").run(project.id);
+  await advancePipelineDeployment('owner', run.id);
+  assert.equal(get('pipeline-run', 'owner', run.id).deployment.status, 'superseded');
+  await advancePipelineDeployment('owner', newer.id);
+  await advancePipelineDeployment('owner', newer.id);
+  assert.equal(get('pipeline-run', 'owner', newer.id).deployment.status, 'succeeded');
+  assert.equal(uploads.length, 1);
+});
+
+test('a typed reservation conflict during upload retries before a build can be admitted', async () => {
+  const { run } = fullFixture();
+  mock.method(globalThis, 'fetch', async () =>
+    Response.json(
+      { error: 'Release in progress', code: 'release-reservation-busy' },
+      { status: 409 },
+    ),
+  );
+  await advancePipelineDeployment('owner', run.id);
+  const waiting = get('pipeline-run', 'owner', run.id).deployment;
+  assert.equal(waiting.status, 'ready');
+  assert.equal(waiting.startedAt, undefined);
+  assert.equal(waiting.buildLogId, undefined);
+  mock.restoreAll();
+  const uploads = stubUpload();
+  await advancePipelineDeployment('owner', run.id);
+  await advancePipelineDeployment('owner', run.id);
+  assert.equal(get('pipeline-run', 'owner', run.id).deployment.status, 'succeeded');
+  assert.equal(uploads.length, 1);
+});
+
 test('volume resources use the full upload path', async () => {
   const { run, source, project } = fullFixture(`resources:
   data:

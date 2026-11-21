@@ -12,6 +12,7 @@ export type AgentUpload = {
   taskTitle?: string;
   projectId?: string;
   pipelineId?: string;
+  source?: { commit: string; archiveDigest: string; effectiveSourceDigest: string };
   application: string;
   deploymentRecordId: string;
 };

@@ -7,6 +7,7 @@ import { projectReleasePolicy, retainProjectReleases } from './project-policy.ts
 import {
   assertNoApplicationMutations,
   clearInterruptedMutations,
+  releaseReservationBusy,
   withinProjectRelease,
 } from './releases-fence.ts';
 import type { ShipChoices } from './releases-plan.ts';
@@ -445,7 +446,7 @@ export class ProjectReleaseService {
     }
   }
 
-  ship(owner: string, project: Project, body: any): Release {
+  ship(owner: string, project: Project, body: any, verifiedUploadCommit?: string): Release {
     if (
       !body ||
       !body.source ||
@@ -461,7 +462,11 @@ export class ProjectReleaseService {
     const release: Release = {
       id: id(),
       projectId: project.id,
-      source: { kind: body.source.kind, ref: body.source.ref },
+      source: {
+        kind: body.source.kind,
+        ref: body.source.ref,
+        ...(verifiedUploadCommit ? { commit: verifiedUploadCommit } : {}),
+      },
       startedBy: owner,
       apps: [],
       migrations: [],
@@ -838,5 +843,5 @@ export class ProjectReleaseService {
 
 export function assertApplicationReleaseIdle(owner: string, application: string) {
   if (list('v2-project-run', owner).some((run) => run.apps.includes(application)))
-    fail('A project release or rollback is already running', 409);
+    releaseReservationBusy('A project release or rollback is already running');
 }

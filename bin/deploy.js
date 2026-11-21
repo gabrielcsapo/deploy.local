@@ -79,7 +79,7 @@ import {
   releaseSteps,
   printRelease,
 } from './cli-v2.mjs';
-import { DESIGN_HELP, runDesign } from './cli-design.mjs';
+import { DESIGN_HELP, projectFromRemote, runDesign } from './cli-design.mjs';
 
 import { parseArgs, format } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
@@ -2505,10 +2505,59 @@ async function cmdAgentStatus(json = false) {
     process.exitCode = 1;
 }
 
+function deploymentRepository(directory, serverUrl, projectId) {
+  const git = (...args) =>
+    spawnSync('git', args, { cwd: directory, encoding: 'utf8', timeout: 3000 }).stdout?.trim();
+  const commit = git('rev-parse', '--verify', 'HEAD');
+  const prefix = git('rev-parse', '--show-prefix');
+  if (!projectId) {
+    const coordinator = new URL(serverUrl);
+    const remotes = new Set();
+    for (const remote of (git('remote') || '').split('\n').filter(Boolean)) {
+      const address = git('remote', 'get-url', remote);
+      if (!address) continue;
+      const short = /^(?:[^@/\s]+@)?([^:/\s]+):(.+)$/.exec(address);
+      try {
+        const url = address.includes('://') ? new URL(address) : null;
+        const host = url?.hostname ?? short?.[1];
+        if (host?.toLowerCase() !== coordinator.hostname.toLowerCase()) continue;
+        if (url && ['http:', 'https:'].includes(url.protocol) && url.origin !== coordinator.origin)
+          continue;
+        const path = url?.pathname;
+        const explicit = path?.match(
+          /^\/api\/(?:workspace\/)?git\/([a-f0-9-]{36})(?:\.git|\/|$)/i,
+        )?.[1];
+        const project = explicit || projectFromRemote(address, serverUrl);
+        if (project) {
+          if (remote === 'origin') {
+            projectId = project;
+            break;
+          }
+          remotes.add(project);
+        }
+      } catch {
+        // Ignore unrecognized remote addresses.
+      }
+    }
+    if (!projectId && remotes.size === 1) projectId = [...remotes][0];
+  }
+  return {
+    projectId,
+    sourceCommit: projectId && /^[a-f0-9]{40}$/.test(commit) ? commit : undefined,
+    sourcePath: projectId && prefix ? prefix.replace(/\/$/, '') : undefined,
+  };
+}
+
 async function cmdDeploy(
   serverUrl,
   appName,
-  { noCache = false, revisionResolution = null, confirmDestructive = false, projectId } = {},
+  {
+    noCache = false,
+    revisionResolution = null,
+    confirmDestructive = false,
+    projectId,
+    sourceDirectory,
+  } = {},
 ) {
   const config = loadConfig();
   if (!config.token) {
@@ -2517,6 +2566,7 @@ async function cmdDeploy(
 
   const dir = process.cwd();
   const name = (appName || basename(dir)).toLowerCase();
+  const repository = deploymentRepository(sourceDirectory || dir, serverUrl, projectId);
 
   // Ask the coordinator before doing any bundling work. Older servers omit
   // placementReady, in which case the legacy single-node behavior continues.
@@ -2631,7 +2681,11 @@ async function cmdDeploy(
   try {
     deployment = await uploadWithProgress(`${serverUrl}/api/upload`, bodyParts, {
       ...authHeaders(config),
-      ...(projectId ? { 'x-deploy-project-id': projectId } : {}),
+      ...(repository.projectId ? { 'x-deploy-project-id': repository.projectId } : {}),
+      ...(repository.sourceCommit ? { 'x-deploy-source-commit': repository.sourceCommit } : {}),
+      ...(repository.sourcePath
+        ? { 'x-deploy-source-path': encodeURIComponent(repository.sourcePath) }
+        : {}),
       'Content-Type': `multipart/form-data; boundary=${boundary}`,
     });
   } finally {
@@ -3523,6 +3577,7 @@ Options:
       --passphrase <value>   Recovery passphrase (prompted when omitted)
       --variables <json>     Component profile operation variables
       --project <id>         Associate this manual deploy with an owned hosted repository
+      --source-directory <path> Git checkout to associate when deploying staged files
       --confirm-destructive  Confirm destructive application graph changes
       --no-cache             Build without using cached layers (deploy only).
                              Use when a previous build cached a bad layer
@@ -3595,6 +3650,7 @@ try {
       'wait-timeout': { type: 'string' },
       wait: { type: 'boolean', default: false },
       project: { type: 'string' },
+      'source-directory': { type: 'string' },
       'confirm-destructive': { type: 'boolean', default: false },
       result: { type: 'string' },
       title: { type: 'string' },
@@ -3887,6 +3943,7 @@ try {
         revisionResolution: values.rebase ? 'rebase' : values.replace ? 'replace' : null,
         confirmDestructive: values['confirm-destructive'] === true,
         projectId: values.project,
+        sourceDirectory: values['source-directory'],
       });
       break;
     case 'packages':

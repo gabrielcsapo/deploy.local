@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, readdirSync, openSync, readSync, closeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve as resolvePath, join, isAbsolute } from 'node:path';
+import { resolve as resolvePath, join, isAbsolute, relative, dirname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { pack } from 'tar-stream';
 import { listBundleFiles } from '../../../bin/bundle-files.mjs';
@@ -68,7 +68,42 @@ export async function checkpointBundle(
   }
 }
 
-export async function directoryBundle(directory: string, name?: string) {
+function digestSourceFiles(files: [string, number, string][]) {
+  return (
+    'sha256:' +
+    createHash('sha256')
+      .update(JSON.stringify(files.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))))
+      .digest('hex')
+  );
+}
+
+function sourceFile(file: string, mode: number, bytes: Buffer): [string, number, string] {
+  return [file, mode, createHash('sha256').update(bytes).digest('hex')];
+}
+
+export async function uploadedSourceDigest(directory: string) {
+  directory = resolvePath(directory);
+  const files: [string, number, string][] = [];
+  const directories = new Set<string>();
+  const implicit = new Set<string>();
+  for (const entry of readdirSync(directory, { recursive: true, withFileTypes: true })) {
+    const absolute = join(entry.parentPath, entry.name);
+    const mode = statSync(absolute).mode & 0o7777;
+    if (entry.isDirectory() && mode === (0o777 & ~process.umask())) {
+      directories.add(absolute);
+      continue;
+    }
+    if (!entry.isFile()) throw new Error('Uploaded source is not a regular file tree');
+    for (let parent = dirname(absolute); parent !== directory; parent = dirname(parent))
+      implicit.add(parent);
+    files.push(sourceFile(relative(directory, absolute), mode, await readFile(absolute)));
+  }
+  if ([...directories].some((path) => !implicit.has(path)))
+    throw new Error('Uploaded source contains a directory that is not implied by a file');
+  return digestSourceFiles(files);
+}
+
+export async function directorySource(directory: string, name?: string) {
   let source: string;
   try {
     source = await readFile(join(directory, 'deploy.yaml'), 'utf8');
@@ -80,23 +115,35 @@ export async function directoryBundle(directory: string, name?: string) {
   if (!application) throw new Error('deploy.yaml metadata.name is required');
   if (name !== undefined && name !== application)
     throw new Error(`name "${name}" must match deploy.yaml metadata.name "${application}"`);
-  const archive = pack();
+  const files: { file: string; mode: number; bytes: Buffer }[] = [];
+  const sourceFiles: [string, number, string][] = [];
   for (const file of listBundleFiles(directory)) {
     const absolute = join(directory, file);
-    archive.entry(
-      { name: file, mode: statSync(absolute).mode & 0o777, mtime: new Date(0) },
-      await readFile(absolute),
-    );
+    const mode = statSync(absolute).mode & 0o777;
+    const bytes = await readFile(absolute);
+    files.push({ file, mode, bytes });
+    sourceFiles.push(sourceFile(file, mode, bytes));
   }
-  archive.finalize();
-  const chunks: Buffer[] = [];
-  for await (const chunk of archive) chunks.push(Buffer.from(chunk as Uint8Array));
   return {
-    body: gzipSync(Buffer.concat(chunks)),
     application,
+    effectiveSourceDigest: digestSourceFiles(sourceFiles),
     spec: compiled.spec,
     declaredBaseDigest: parseRepositoryBaseDigest(source),
+    async archive() {
+      const archive = pack();
+      for (const { file, mode, bytes } of files)
+        archive.entry({ name: file, mode, mtime: new Date(0) }, bytes);
+      archive.finalize();
+      const chunks: Buffer[] = [];
+      for await (const chunk of archive) chunks.push(Buffer.from(chunk as Uint8Array));
+      return Buffer.concat(chunks);
+    },
   };
+}
+
+export async function directoryBundle(directory: string, name?: string) {
+  const { archive, ...source } = await directorySource(directory, name);
+  return { ...source, body: gzipSync(await archive()) };
 }
 
 export function redactDeploymentLog(value: string, secrets: string[] = []) {
@@ -205,7 +252,7 @@ export async function uploadApplication(
     if (!response.ok)
       throw Object.assign(
         new Error(result.error || `Deployment upload rejected (${response.status})`),
-        { buildLogId: result.buildLogId },
+        { buildLogId: result.buildLogId, status: response.status, code: result.code },
       );
     return result;
   } finally {

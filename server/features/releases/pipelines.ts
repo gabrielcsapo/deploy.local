@@ -164,11 +164,13 @@ export function presentPipelineRun(run: any) {
   const status =
     deployment === 'succeeded'
       ? 'succeeded'
-      : ['waiting', 'ready', 'publishing'].includes(deployment)
-        ? 'deploying'
-        : deployment === 'unknown'
-          ? 'unknown'
-          : 'failed';
+      : deployment === 'superseded'
+        ? 'cancelled'
+        : ['waiting', 'ready', 'publishing'].includes(deployment)
+          ? 'deploying'
+          : deployment === 'unknown'
+            ? 'unknown'
+            : 'failed';
   return { ...run, status, jobsStatus: run.status };
 }
 export function pipelineRead(owner: string, projectId: string, pipelineId?: string) {

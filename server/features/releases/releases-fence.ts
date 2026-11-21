@@ -6,6 +6,10 @@ const operation = new AsyncLocalStorage<string>();
 export const withinProjectRelease = <T>(operationId: string, work: () => T): T =>
   operation.run(operationId, work);
 
+export function releaseReservationBusy(message: string): never {
+  throw Object.assign(new Error(message), { status: 409, code: 'release-reservation-busy' });
+}
+
 export function assertReleaseMutation(application: string) {
   const rows = db.prepare("SELECT data FROM records WHERE kind='v2-project-run'").all() as {
     data: string;
@@ -16,7 +20,7 @@ export function assertReleaseMutation(application: string) {
       return run.apps.includes(application) && run.operationId !== operation.getStore();
     })
   )
-    fail('A project release or rollback is running; try again after it finishes', 409);
+    releaseReservationBusy('A project release or rollback is running; try again after it finishes');
 }
 export function assertNoApplicationMutations(owner: string, applications: string[]) {
   if (

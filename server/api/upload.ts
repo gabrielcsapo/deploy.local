@@ -134,6 +134,10 @@ import {
   carryForwardCompatibleConfiguration,
   resolveApplicationConfiguration,
 } from '../application-configuration.ts';
+import { findRepository } from '../workspace/repositories.ts';
+import { get } from '../workspace/store.ts';
+import { pipelineCandidate } from '../features/releases/pipeline-deployment.ts';
+import { uploadedSourceDigest } from '../features/releases/application-deployment.ts';
 import { shipUploadedProject } from '../v2/releases-upload.ts';
 import {
   type ResolvedApplicationGraphRuntime,
@@ -457,15 +461,22 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
           if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
             return error(res, 'Only a signed-in person can start a release', 403);
           const { username } = auth;
-          const repositoryProjectId = req.headers['x-deploy-project-id'];
-          if (repositoryProjectId !== undefined) {
-            if (agentUpload || ciUpload || typeof repositoryProjectId !== 'string')
+          const requestedRepository = req.headers['x-deploy-project-id'];
+          const requestedCommit = req.headers['x-deploy-source-commit'];
+          const requestedSourcePath = req.headers['x-deploy-source-path'];
+          let repositoryProjectId: string | undefined;
+          let repositoryPath: string | undefined;
+          if (requestedRepository !== undefined) {
+            if (agentUpload || ciUpload || typeof requestedRepository !== 'string')
               return error(
                 res,
                 'Repository association requires an authenticated manual upload',
                 403,
               );
-            assertRepositoryOwner(username, repositoryProjectId);
+            const repository = findRepository(username, requestedRepository);
+            repositoryProjectId = repository.id;
+            repositoryPath = repository.repositoryPath;
+            assertRepositoryOwner(username, repository.id);
           }
           const uploadEvent = (value: Parameters<typeof emit>[0]) =>
             emit({
@@ -531,6 +542,7 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
           let statusBeforeUpload: string | null = null;
           let uploadLimitError: UploadArchiveError | null = null;
           let clientAborted = false;
+          let verifiedSource: { commit: string; effectiveSourceDigest: string } | undefined;
           let repositoryRevisionUnchanged = false;
           let repositoryRuntimeCanBeSkipped = false;
           let repositorySourceChanged = false;
@@ -650,6 +662,19 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                       }
                       if ('sha256:' + archiveHash.digest('hex') !== ciUpload.source_archive_digest)
                         ciError('Tested source archive digest mismatch', 400);
+                    }
+                    if (agentUpload?.pipelineId && agentUpload.source) {
+                      const run = get('pipeline-run', username, agentUpload.pipelineId);
+                      const digest = createHash('sha256');
+                      for await (const chunk of createReadStream(tmpFile)) digest.update(chunk);
+                      if (
+                        run.commit !== agentUpload.source.commit ||
+                        'sha256:' + digest.digest('hex') !== agentUpload.source.archiveDigest
+                      )
+                        throw Object.assign(
+                          new Error('Pipeline upload does not match the pinned candidate'),
+                          { status: 400 },
+                        );
                     }
                     assertNoCiRelease(name, ciUpload?.id);
                     assertApplicationReleaseIdle(username, name);
@@ -829,6 +854,39 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                         }
                       }
 
+                      if (stagedDefinition.format === 'deploy.yaml') {
+                        if (agentUpload?.pipelineId && agentUpload.source) {
+                          const effectiveSourceDigest = await uploadedSourceDigest(
+                            stagingDir,
+                          ).catch(() => undefined);
+                          if (effectiveSourceDigest === agentUpload.source.effectiveSourceDigest)
+                            verifiedSource = {
+                              commit: agentUpload.source.commit,
+                              effectiveSourceDigest,
+                            };
+                        } else if (
+                          repositoryPath &&
+                          typeof requestedCommit === 'string' &&
+                          /^[a-f0-9]{40}$/.test(requestedCommit)
+                        ) {
+                          try {
+                            const expected = await pipelineCandidate(
+                              repositoryPath,
+                              requestedCommit,
+                              typeof requestedSourcePath === 'string'
+                                ? decodeURIComponent(requestedSourcePath)
+                                : '.',
+                              name,
+                            );
+                            const effectiveSourceDigest = await uploadedSourceDigest(stagingDir);
+                            if (expected.effectiveSourceDigest === effectiveSourceDigest)
+                              verifiedSource = { commit: requestedCommit, effectiveSourceDigest };
+                          } catch {
+                            // A local commit or modified build input can still be deployed without a verified commit.
+                          }
+                        }
+                      }
+
                       if (existsSync(finalDeployDir)) await rename(finalDeployDir, displacedDir);
                       try {
                         await rename(stagingDir, finalDeployDir);
@@ -873,7 +931,10 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                     repositoryRetryAfterFailure = existingDeployment?.status === 'failed';
                     repositoryRuntimeCanBeSkipped = repositoryUploadCanSkipRuntime({
                       revisionUnchanged: repositoryRevisionUnchanged,
-                      forceBuild: !!ciUpload || fields.noCache === '1' || fields.noCache === 'true',
+                      forceBuild:
+                        Boolean(ciUpload || agentUpload?.pipelineId) ||
+                        fields.noCache === '1' ||
+                        fields.noCache === 'true',
                       runtimeReady: existingDeployment?.status === 'running',
                       desiredDigest: existingDeployment?.desiredSpecDigest || null,
                       activeDigest: existingDeployment?.activeSpecDigest || null,
@@ -931,7 +992,13 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                 409,
               );
             }
-            const typedUploadError = uploadErr as Error & { status?: number };
+            const typedUploadError = uploadErr as Error & { status?: number; code?: string };
+            if (typedUploadError.code === 'release-reservation-busy')
+              return json(
+                res,
+                { error: typedUploadError.message, code: typedUploadError.code },
+                409,
+              );
             return error(
               res,
               typedUploadError.message || 'Upload failed',
@@ -1101,12 +1168,13 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
           const deployStartedAtMs = Date.now();
           const orchestrationBuildLogId = createBuildLog(name);
           updateCurrentBuildLogId(name, orchestrationBuildLogId);
-          if (agentUpload) recordAgentUpload(agentUpload, orchestrationBuildLogId);
+          if (agentUpload) recordAgentUpload(agentUpload, orchestrationBuildLogId, verifiedSource);
           if (ciUpload) recordCiBuild(ciUpload.id, orchestrationBuildLogId);
           if (repositoryProjectId)
             recordApplicationOrigin(
               { owner: username, application: name, projectId: repositoryProjectId },
               orchestrationBuildLogId,
+              verifiedSource,
             );
           const appendOrchestrationLog = (message: string) => {
             const timestamp = new Date().toISOString();
@@ -1144,8 +1212,14 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                 username,
                 name,
                 {
-                  kind: ciUpload ? 'pipeline' : deploySource === 'cli' ? 'cli' : 'ship',
-                  ref: ciUpload?.source_commit || 'Uploaded source',
+                  kind:
+                    ciUpload || agentUpload?.pipelineId
+                      ? 'pipeline'
+                      : deploySource === 'cli'
+                        ? 'cli'
+                        : 'ship',
+                  ref: ciUpload?.source_commit || verifiedSource?.commit || 'Uploaded source',
+                  commit: verifiedSource?.commit,
                 },
                 orchestrationBuildLogId,
                 releaseProjectMutation,

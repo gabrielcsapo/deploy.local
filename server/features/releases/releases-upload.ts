@@ -9,7 +9,7 @@ import { fail } from '../../kernel/errors.ts';
 export async function shipUploadedProject(
   owner: string,
   application: string,
-  source: { kind: 'cli' | 'ship' | 'pipeline'; ref: string },
+  source: { kind: 'cli' | 'ship' | 'pipeline'; ref: string; commit?: string },
   buildLogId?: number,
   releaseAdmission?: () => unknown,
 ) {
@@ -18,7 +18,8 @@ export async function shipUploadedProject(
   );
   if (!project) fail('Project for the uploaded app was not found', 409);
   releaseAdmission?.();
-  const accepted = projectReleaseService.ship(owner, project, { source });
+  const { commit, ...origin } = source;
+  const accepted = projectReleaseService.ship(owner, project, { source: origin }, commit);
   if (buildLogId !== undefined)
     save('v2-upload-release', owner, { id: String(buildLogId), releaseId: accepted.id });
   for (;;) {

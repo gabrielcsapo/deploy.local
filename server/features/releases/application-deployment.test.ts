@@ -9,6 +9,7 @@ import { gunzipSync } from 'node:zlib';
 import type { IncomingMessage, ServerResponse, RequestListener } from 'node:http';
 import { Readable } from 'node:stream';
 import { extract } from 'tar-stream';
+import { EventEmitter } from 'node:events';
 import { captureSnapshot } from '../../workspace/checkpoint.ts';
 
 const data = mkdtempSync(join(tmpdir(), 'deploy-agent-application-test-'));
@@ -93,16 +94,18 @@ async function listen(handler: RequestListener) {
     return new Promise<Response>((resolve, reject) => {
       let status = 200,
         headers = {};
-      const res = {
+      const events = new EventEmitter();
+      const res = Object.assign(events, {
         writeHead(code: number, values = {}) {
           status = code;
           headers = values;
           return res;
         },
         end(body: string) {
+          events.emit('finish');
           resolve(new Response(body, { status, headers }));
         },
-      } as unknown as ServerResponse;
+      }) as unknown as ServerResponse;
       Promise.resolve(handler(req, res)).catch(reject);
     });
   });
@@ -481,6 +484,143 @@ test('deployment instructions and tool schema teach the complete deploy and cros
       'systemd',
     ])
       assert.ok(text.includes(guidance), `Missing ${guidance}`);
+});
+
+test('owner uploads record the hosted commit only when the uploaded source matches', async () => {
+  const { apiMiddleware } = await import('../../api.ts');
+  const { stopMetricsCollector } = await import('../../metrics-collector.ts');
+  const { stopDockerEventStream } = await import('../../docker.ts');
+  const { stopStatsMonitor } = await import('../../docker-api.ts');
+  const { createProject } = await import('../../workspace/test-repository.ts');
+  const { projectReleaseService } = await import('./project-release-service.ts');
+  const application = 'owner-source';
+  const source = mkdtempSync(join(data, 'owner-source-'));
+  const git = (...args: string[]) =>
+    execFileSync('git', args, { cwd: source, encoding: 'utf8' }).trim();
+  git('init', '--initial-branch=main');
+  writeFileSync(join(source, 'deploy.yaml'), manifest(application), { mode: 0o644 });
+  writeFileSync(join(source, 'Dockerfile'), 'FROM scratch\n', { mode: 0o644 });
+  mkdirSync(join(source, 'bin'));
+  writeFileSync(join(source, 'bin', 'run.sh'), '#!/bin/sh\n', { mode: 0o755 });
+  git('add', '.');
+  git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'Test');
+  const commit = git('rev-parse', 'HEAD');
+  const project = createProject(owner, { name: 'Owner Source', sourcePath: source });
+  const account = store.registerUser(owner, 'fixture-password');
+  assert.ok(account.token);
+  store.ensureCoordinatorNode();
+  store.setDefaultNode('coordinator');
+  const api = apiMiddleware();
+  try {
+    await listen((req, res) => {
+      void api(req, res, () => {
+        res.writeHead(404);
+        res.end('{}');
+      });
+    });
+    mock.method(
+      projectReleaseService,
+      'ship',
+      (
+        ...[_owner, target, body, verifiedCommit]: Parameters<typeof projectReleaseService.ship>
+      ) => {
+        assert.equal(target.id, project.id);
+        const id = randomUUID();
+        const release = {
+          id,
+          projectId: target.id,
+          source: { ...body.source, commit: verifiedCommit },
+          state: 'live',
+        };
+        workspace.save('v2-release', owner, { id, release });
+        return release as ReturnType<typeof projectReleaseService.ship>;
+      },
+    );
+    async function upload() {
+      const bytes = execFileSync('tar', ['-czf', '-', '--null', '-T', '-'], {
+        cwd: source,
+        input: 'deploy.yaml\0Dockerfile\0bin/run.sh',
+      });
+      const form = new FormData();
+      form.set('name', application);
+      form.set('file', new Blob([new Uint8Array(bytes)]), 'source.tar.gz');
+      const response = await fetch('http://127.0.0.1:7843/api/upload', {
+        method: 'POST',
+        headers: {
+          'x-deploy-username': owner,
+          'x-deploy-token': account.token!,
+          'x-deploy-project-id': 'owner-source',
+          'x-deploy-source-commit': commit,
+        },
+        body: form,
+      });
+      const body = (await response.json()) as any;
+      assert.equal(response.status, 201, JSON.stringify(body));
+      return body.release;
+    }
+    const matched = await upload();
+    assert.equal(matched.source.commit, commit);
+    assert.equal(workspace.get('application-origin', owner, application).projectId, project.id);
+    assert.equal(workspace.get('application-origin', owner, application).sourceCommit, commit);
+    writeFileSync(join(source, 'Dockerfile'), 'FROM scratch\n# Local-only change\n');
+    const modified = await upload();
+    assert.equal(modified.source.commit, undefined);
+    assert.equal(workspace.get('application-origin', owner, application).sourceCommit, undefined);
+
+    const { pipelineBundle } = await import('./pipeline-deployment.ts');
+    const candidate = await pipelineBundle(project.repositoryPath, commit, '.', application);
+    const pipelineId = randomUUID();
+    workspace.save('pipeline-run', owner, { id: pipelineId, projectId: project.id, commit });
+    async function pipelineUpload(bytes: Buffer) {
+      const capability = issueAgentUpload({
+        owner,
+        projectId: project.id,
+        pipelineId,
+        application,
+        deploymentRecordId: pipelineId,
+        source: {
+          commit,
+          archiveDigest: candidate.sourceDigest,
+          effectiveSourceDigest: candidate.effectiveSourceDigest,
+        },
+      });
+      const form = new FormData();
+      form.set('name', application);
+      form.set('detached', '1');
+      form.set('file', new Blob([new Uint8Array(bytes)]), 'source.tar.gz');
+      return fetch('http://127.0.0.1:7843/api/upload', {
+        method: 'POST',
+        headers: { 'x-deploy-internal-upload': capability.token },
+        body: form,
+      });
+    }
+    const bad = await pipelineUpload(Buffer.from('wrong candidate archive'));
+    assert.equal(bad.status, 400);
+    assert.match(((await bad.json()) as any).error, /pinned candidate/);
+    const good = await pipelineUpload(candidate.body);
+    assert.equal(good.status, 202, await good.clone().text());
+    const { buildLogId } = (await good.json()) as any;
+    const deadline = Date.now() + 2000;
+    while (
+      store.getBuildLogResult(application, buildLogId)?.status === 'building' &&
+      Date.now() < deadline
+    )
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(store.getBuildLogResult(application, buildLogId)?.status, 'complete');
+    const receipt = workspace.get('v2-upload-release', owner, String(buildLogId));
+    assert.equal(
+      workspace.get('v2-release', owner, receipt.releaseId).release.source.commit,
+      commit,
+    );
+    assert.equal(
+      workspace.get('application-origin', owner, application).effectiveSourceDigest,
+      candidate.effectiveSourceDigest,
+    );
+  } finally {
+    stopMetricsCollector();
+    stopDockerEventStream();
+    stopStatsMonitor();
+  }
 });
 
 test('actual upload handler enforces scoped fields, placement and destructive confirmation before deployment', async () => {

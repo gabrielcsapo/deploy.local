@@ -65,28 +65,57 @@ export function assertRepositoryOwner(owner: string, projectId: string) {
 export function recordApplicationOrigin(
   scope: Pick<AgentUpload, 'owner' | 'application' | 'projectId' | 'pipelineId' | 'taskId'>,
   buildLogId: number,
+  source?: { commit: string; effectiveSourceDigest: string },
 ) {
   const deployment = getDeployment(scope.application)!;
+  const projectId =
+    scope.projectId ||
+    (scope.taskId ? get('task', scope.owner, scope.taskId).projectId : undefined);
+  if (!source && projectId) {
+    try {
+      const previous = get('application-origin', scope.owner, scope.application);
+      if (
+        previous.projectId === projectId &&
+        previous.appId === deployment.appId &&
+        previous.buildLogId === buildLogId &&
+        previous.sourceArtifactDigest === deployment.sourceArtifactDigest &&
+        previous.sourceCommit &&
+        previous.effectiveSourceDigest
+      ) {
+        source = {
+          commit: previous.sourceCommit,
+          effectiveSourceDigest: previous.effectiveSourceDigest,
+        };
+      }
+    } catch {
+      // The first upload has no previous origin.
+    }
+  }
   save('application-origin', scope.owner, {
     id: scope.application,
     app: scope.application,
     taskId: scope.taskId,
-    projectId:
-      scope.projectId ||
-      (scope.taskId ? get('task', scope.owner, scope.taskId).projectId : undefined),
+    projectId,
     pipelineId: scope.pipelineId,
     owner: scope.owner,
     appId: deployment.appId,
     buildLogId,
     sourceArtifactDigest: deployment.sourceArtifactDigest,
+    ...(source
+      ? { sourceCommit: source.commit, effectiveSourceDigest: source.effectiveSourceDigest }
+      : {}),
     status: 'building',
     updatedAt: now(),
   });
 }
 
-export function recordAgentUpload(scope: AgentUpload, buildLogId: number) {
+export function recordAgentUpload(
+  scope: AgentUpload,
+  buildLogId: number,
+  source?: { commit: string; effectiveSourceDigest: string },
+) {
   // Record failed first attempts too, so this task can fix and retry its own app.
-  recordApplicationOrigin(scope, buildLogId);
+  recordApplicationOrigin(scope, buildLogId, source);
   if (scope.pipelineId) {
     const run = get('pipeline-run', scope.owner, scope.pipelineId);
     save('pipeline-run', scope.owner, {

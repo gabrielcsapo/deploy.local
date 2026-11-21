@@ -15,7 +15,13 @@ mkdirSync(project);
 writeFileSync(join(home, '.deployrc'), JSON.stringify({ username: 'fixture', token: 'stub-only' }));
 writeFileSync(join(project, 'deploy.yaml'), 'apiVersion: deploy/v1\n');
 const cli = resolve('bin/deploy.js');
-const requests: { path: string; method: string; body: any }[] = [];
+const requests: {
+  path: string;
+  method: string;
+  body: any;
+  repository?: string;
+  commit?: string;
+}[] = [];
 let inboxStatus = 200;
 let waiting = true;
 let buildSuccess = true;
@@ -66,6 +72,12 @@ const server = createServer((request, response) => {
     requests.push({
       path,
       method: request.method || '',
+      ...(path === '/api/upload'
+        ? {
+            repository: request.headers['x-deploy-project-id'] as string | undefined,
+            commit: request.headers['x-deploy-source-commit'] as string | undefined,
+          }
+        : {}),
       body: body ? (body.startsWith('----') ? body : JSON.parse(body)) : null,
     });
     response.setHeader('Content-Type', 'application/json');
@@ -327,6 +339,41 @@ test('logs --build uses stored build output and logs --json emits JSON records',
   assert.equal(JSON.parse(build.stdout).build.output, 'build output\n');
   const logs = await run(['logs', 'home-gym', '--json']);
   assert.deepEqual(JSON.parse(logs.stdout), { app: 'home-gym', output: 'runtime output\n' });
+});
+
+test('deploy associates a staged upload with the original hosted Git checkout', async () => {
+  const checkout = join(root, 'checkout');
+  mkdirSync(checkout);
+  const git = (...args: string[]) => {
+    const result = spawnSync('git', args, { cwd: checkout, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  git('init');
+  git(
+    '-c',
+    'user.email=test@example.invalid',
+    '-c',
+    'user.name=Test',
+    'commit',
+    '--allow-empty',
+    '-m',
+    'Test',
+  );
+  git('remote', 'add', 'origin', 'ssh://git@127.0.0.1:2222/home-gym.git');
+  const result = await run(['deploy', '--source-directory', checkout], shipProject);
+  assert.equal(result.code, 0, result.stderr);
+  const upload = requests.findLast((request) => request.path === '/api/upload');
+  assert.equal(upload?.repository, 'home-gym');
+  assert.equal(upload?.commit, git('rev-parse', 'HEAD'));
+  const repository = 'd1220772-07ce-4886-bc1e-c0383ff74c40';
+  git('remote', 'set-url', 'origin', `http://127.0.0.1:${port}/api/git/${repository}/home-gym.git`);
+  const http = await run(['deploy', '--source-directory', checkout], shipProject);
+  assert.equal(http.code, 0, http.stderr);
+  assert.equal(
+    requests.findLast((request) => request.path === '/api/upload')?.repository,
+    repository,
+  );
 });
 
 test('deploy follows its build receipt, hides build chatter and reports honest release steps', async () => {

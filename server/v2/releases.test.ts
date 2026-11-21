@@ -85,6 +85,21 @@ function fixture() {
   return { owner, runtime, service, running, calls, ship };
 }
 
+test('release reports only the trusted upload commit', async () => {
+  const { service, owner } = fixture();
+  const unverified = 'a'.repeat(40);
+  const verified = 'b'.repeat(40);
+  const body = { source: { kind: 'cli', ref: 'Uploaded source', commit: unverified } };
+  assert.equal(service.ship(owner, project, body).source.commit, undefined);
+  await service.settled();
+  const accepted = service.ship(owner, project, body, verified);
+  await service.settled();
+  assert.equal(
+    projectReleases(owner, project.id).find((release) => release.id === accepted.id)?.source.commit,
+    verified,
+  );
+});
+
 test('workspace membership, two apps, and one-app fallback use one projection', () => {
   assert.deepEqual(
     groupProjects(
