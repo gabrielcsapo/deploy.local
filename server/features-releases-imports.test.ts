@@ -40,6 +40,10 @@ const exceptions: Record<string, string> = {
     'Existing streaming tar implementation; preserve source archive bytes and validation.',
   'pipeline-deployment.ts -> server/agent-upload.ts':
     'Existing scoped upload capabilities and ownership checks; preserve deployment admission.',
+  'pipeline-deployment.ts -> server/application-configuration.ts':
+    'Resolve the current effective settings for a checked candidate, lazily after worker bootstrap.',
+  'pipeline-deployment.ts -> shared/v2/contracts.ts':
+    'Use the public release receipt type when tracking an admitted pipeline build.',
   'pipeline-deployment.ts -> server/application-spec.ts':
     'Existing manifest compiler and types; preserve canonical digests and validation.',
   'pipeline-deployment.ts -> server/ci-releases.ts':

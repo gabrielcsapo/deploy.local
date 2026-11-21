@@ -7,7 +7,6 @@ import { projectReleasePolicy, retainProjectReleases } from './project-policy.ts
 import {
   assertNoApplicationMutations,
   clearInterruptedMutations,
-  releaseReservationBusy,
   withinProjectRelease,
 } from './releases-fence.ts';
 import type { ShipChoices } from './releases-plan.ts';
@@ -841,7 +840,4 @@ export class ProjectReleaseService {
   }
 }
 
-export function assertApplicationReleaseIdle(owner: string, application: string) {
-  if (list('v2-project-run', owner).some((run) => run.apps.includes(application)))
-    releaseReservationBusy('A project release or rollback is already running');
-}
+export { assertApplicationReleaseIdle } from './releases-fence.ts';

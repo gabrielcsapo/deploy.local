@@ -10,6 +10,11 @@ export function releaseReservationBusy(message: string): never {
   throw Object.assign(new Error(message), { status: 409, code: 'release-reservation-busy' });
 }
 
+export function assertApplicationReleaseIdle(owner: string, application: string) {
+  if (list('v2-project-run', owner).some((run) => run.apps.includes(application)))
+    releaseReservationBusy('A project release or rollback is already running');
+}
+
 export function assertReleaseMutation(application: string) {
   const rows = db.prepare("SELECT data FROM records WHERE kind='v2-project-run'").all() as {
     data: string;

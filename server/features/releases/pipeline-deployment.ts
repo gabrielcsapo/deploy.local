@@ -18,13 +18,11 @@ import {
 } from '../../agent-upload.ts';
 import { readDeploymentRecord, getBuildLogResult } from '../../store.ts';
 import { applicationSpecDigest } from '../../application-spec.ts';
-import { resolveApplicationConfiguration } from '../../application-configuration.ts';
 import { promisify } from 'node:util';
 import { repositoryGit, gitText } from '../../workspace/repository-git.ts';
 import { db, get, now, save } from '../../workspace/store.ts';
 import { expandLfsArchive } from '../../workspace/lfs-archive.ts';
-import { assertApplicationReleaseIdle } from '../../v2/releases.ts';
-import { assertNoApplicationMutations } from './releases-fence.ts';
+import { assertApplicationReleaseIdle, assertNoApplicationMutations } from './releases-fence.ts';
 import type { Release } from '../../../shared/v2/contracts.ts';
 
 const compress = promisify(gzip);
@@ -223,6 +221,7 @@ function equivalentLiveRelease(
   projectId: string,
   application: string,
   bundle: Pick<Awaited<ReturnType<typeof pipelineCandidate>>, 'effectiveSourceDigest' | 'spec'>,
+  resolveConfiguration: typeof import('../../application-configuration.ts').resolveApplicationConfiguration,
 ) {
   try {
     assertApplicationReleaseIdle(owner, application);
@@ -240,7 +239,7 @@ function equivalentLiveRelease(
       getBuildLogResult(application, current.currentBuildLogId)?.status !== 'complete'
     )
       return;
-    const configuration = resolveApplicationConfiguration({
+    const configuration = resolveConfiguration({
       deploymentName: application,
       specDigest: spec,
       declarations: bundle.spec.configuration,
@@ -410,6 +409,8 @@ export async function advancePipelineDeployment(
         deployment.application,
       );
       if (!access && run.trigger === 'push') {
+        const { resolveApplicationConfiguration } =
+          await import('../../application-configuration.ts');
         const reused = db
           .transaction(() => {
             const reusedReleaseId = equivalentLiveRelease(
@@ -417,6 +418,7 @@ export async function advancePipelineDeployment(
               project.id,
               deployment.application,
               candidate,
+              resolveApplicationConfiguration,
             );
             if (!reusedReleaseId) return false;
             // Keep the original release identity and record which checked commit reused it.

@@ -136,7 +136,6 @@ import {
 } from '../application-configuration.ts';
 import { findRepository } from '../workspace/repositories.ts';
 import { get } from '../workspace/store.ts';
-import { pipelineCandidate } from '../features/releases/pipeline-deployment.ts';
 import { uploadedSourceDigest } from '../features/releases/application-deployment.ts';
 import { shipUploadedProject } from '../v2/releases-upload.ts';
 import {
@@ -870,6 +869,8 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                           /^[a-f0-9]{40}$/.test(requestedCommit)
                         ) {
                           try {
+                            const { pipelineCandidate } =
+                              await import('../features/releases/pipeline-deployment.ts');
                             const expected = await pipelineCandidate(
                               repositoryPath,
                               requestedCommit,
