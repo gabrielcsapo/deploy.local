@@ -28,6 +28,9 @@ import { apiMiddleware, setHotPathRouteSource } from './api.ts';
 import { setupWebSocket, handleDashboardUpgrade } from './ws.ts';
 import { syncContainerStates, startAllContainers } from './lifecycle.ts';
 import { startMaintenance } from './maintenance.ts';
+import { startRepositoryPacking } from './features/repositories/repository-packing.ts';
+import { root as workspaceRoot } from './workspace/store.ts';
+import { resolve } from 'node:path';
 import { startManagedWorkers, stopManagedWorkers } from './workspace/managed-worker.ts';
 import {
   cleanupStaleBuildLogs,
@@ -151,6 +154,7 @@ async function start(options: BootOptions) {
       .then(() =>
         startAllContainers().catch((err) => console.error('Error starting containers:', err)),
       );
+    startRepositoryPacking(resolve(workspaceRoot, 'repositories'));
     npmRegistry.copy.startChecks();
     queueAllCopies();
     startCodeIndex();

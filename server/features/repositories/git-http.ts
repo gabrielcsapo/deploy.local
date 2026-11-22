@@ -1,5 +1,6 @@
 import { repositoryChanged } from '../../git-changes.ts';
 import { pruneIfRewritten } from './repository-prune.ts';
+import { schedulePacking, uploadPackConfig } from './repository-packing.ts';
 import { createGunzip } from 'node:zlib';
 import { PushResult } from '../../workspace/pipeline-triggers.ts';
 import { spawn } from 'node:child_process';
@@ -29,23 +30,27 @@ export function serveRepositoryGit(
   const firstPush = receiving
     ? openFirstPush(project.repositoryPath, project.defaultBranch || 'main')
     : null;
-  const child = spawn('git', ['-c', 'core.hooksPath=/dev/null', 'http-backend'], {
-    env: {
-      ...gitEnvironment(),
-      GIT_PROJECT_ROOT: dirname(project.repositoryPath),
-      GIT_HTTP_EXPORT_ALL: '1',
-      PATH_INFO: `/${project.id}.git${suffix}`,
-      REQUEST_METHOD: req.method!,
-      QUERY_STRING: url.search.slice(1),
-      CONTENT_TYPE: String(req.headers['content-type'] || ''),
-      CONTENT_LENGTH: String(req.headers['content-length'] || ''),
-      HTTP_CONTENT_ENCODING: String(req.headers['content-encoding'] || ''),
-      REMOTE_USER: owner,
-      GIT_PROTOCOL: req.headers['git-protocol'] === 'version=2' ? 'version=2' : '',
+  const child = spawn(
+    'git',
+    ['-c', 'core.hooksPath=/dev/null', ...uploadPackConfig, 'http-backend'],
+    {
+      env: {
+        ...gitEnvironment(),
+        GIT_PROJECT_ROOT: dirname(project.repositoryPath),
+        GIT_HTTP_EXPORT_ALL: '1',
+        PATH_INFO: `/${project.id}.git${suffix}`,
+        REQUEST_METHOD: req.method!,
+        QUERY_STRING: url.search.slice(1),
+        CONTENT_TYPE: String(req.headers['content-type'] || ''),
+        CONTENT_LENGTH: String(req.headers['content-length'] || ''),
+        HTTP_CONTENT_ENCODING: String(req.headers['content-encoding'] || ''),
+        REMOTE_USER: owner,
+        GIT_PROTOCOL: req.headers['git-protocol'] === 'version=2' ? 'version=2' : '',
+      },
+      detached: true,
+      stdio: ['pipe', 'pipe', 'ignore'],
     },
-    detached: true,
-    stdio: ['pipe', 'pipe', 'ignore'],
-  });
+  );
   const push = suffix === '/git-receive-pack' && req.method === 'POST' ? new PushResult() : null;
   if (push) {
     if (req.headers['content-encoding'] === 'gzip') {
@@ -127,6 +132,7 @@ export function serveRepositoryGit(
     if (push) {
       push.queue(owner, project.id);
       void pruneIfRewritten(owner, project, push.accepted());
+      schedulePacking(project);
     }
     res.end();
   });

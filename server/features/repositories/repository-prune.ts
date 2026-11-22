@@ -184,6 +184,12 @@ export function schedulePrune(owner: string, project: Project, delayMs = pruneSe
   scheduled.set(key, timer);
 }
 
+/** True while a prune is waiting or running for the project, whoever owns it. */
+export function pruneBusy(projectId: string) {
+  const mine = (key: string) => key.endsWith(`:${projectId}`);
+  return [...scheduled.keys()].some(mine) || [...running.keys()].some(mine);
+}
+
 /** True while a prune is waiting to run for the project. */
 export function pruneScheduled(owner: string, projectId: string) {
   return scheduled.has(`${owner}:${projectId}`);

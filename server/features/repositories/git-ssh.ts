@@ -1,5 +1,6 @@
 import { repositoryChanged } from '../../git-changes.ts';
 import { pruneIfRewritten } from './repository-prune.ts';
+import { schedulePacking, uploadPackConfig } from './repository-packing.ts';
 import { spawn } from 'node:child_process';
 import { createServer, type Socket } from 'node:net';
 import ssh2, { type AuthenticationType, type Connection, type ServerChannel } from 'ssh2';
@@ -217,7 +218,7 @@ export function createGitSshTransport(privateKey: Buffer) {
             : null;
         const child = spawn(
           'git',
-          ['-c', 'core.hooksPath=/dev/null', service, project.repositoryPath],
+          ['-c', 'core.hooksPath=/dev/null', ...uploadPackConfig, service, project.repositoryPath],
           {
             env: { ...gitEnvironment(), ...(protocol ? { GIT_PROTOCOL: protocol } : {}) },
             detached: true,
@@ -264,6 +265,7 @@ export function createGitSshTransport(privateKey: Buffer) {
           if (code === 0 && push) {
             push.queue(owner, project.id);
             void pruneIfRewritten(owner, project, push.accepted());
+            schedulePacking(project);
           }
           if (!channel.destroyed) {
             channel.exit(code ?? 1);
