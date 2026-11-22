@@ -1,3 +1,5 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { getRequestsSqlite } from '../../requests-db.ts';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -359,4 +361,47 @@ test('control OTLP exports appear only in the authenticated owner’s list and d
     [],
   );
   assert.equal((await fetch(base + '/otel/v1/traces', { method: 'POST', body })).status, 401);
+});
+
+test('authenticated Live and Inbox each record one server child of the caller', async () => {
+  const server = createServer((req, res) => {
+    const path = req.url!;
+    void v2Api(
+      req,
+      res,
+      (request) =>
+        authenticate(owner, request.headers['x-deploy-token'] as string)
+          ? { username: owner }
+          : null,
+      path === '/api/live' ? 'v2/live' : 'v2/api',
+      path,
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    for (const route of ['/api/live', '/api/inbox']) {
+      const traceId = crypto.randomUUID().replaceAll('-', '');
+      const parent = '0123456789abcdef';
+      const response = await globalThis.fetch(
+        'http://127.0.0.1:' + (server.address() as AddressInfo).port + route,
+        { headers: { ...headers, traceparent: '00-' + traceId + '-' + parent + '-01' } },
+      );
+      await response.arrayBuffer();
+      assert.equal(response.status, 200);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const rows = sqlite
+        .prepare('SELECT span FROM otlp_spans WHERE project = ? AND trace_id = ?')
+        .all('control:' + owner, traceId) as { span: string }[];
+      assert.deepEqual(
+        rows.map(({ span }) => {
+          const s = JSON.parse(span);
+          return [s.name, s.parentSpanId, s.attributes['http.response.status_code']];
+        }),
+        [['GET ' + route, parent, 200]],
+      );
+    }
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

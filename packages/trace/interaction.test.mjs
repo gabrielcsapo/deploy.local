@@ -53,3 +53,19 @@ test('one terminal event, two independent requests, retry after reload', async (
   assert.equal(event.spans[2].failed, true);
   assert.equal(map.size, 0);
 });
+
+test('a presented frame uses the compositor timestamp even if its callback runs later', async () => {
+  let event;
+  const tracer = interactionTracer({
+    scope: 'test',
+    send: async (value) => {
+      event = value;
+      return true;
+    },
+  });
+  const tap = performance.now() - 100;
+  tracer.start('video.play', tap).finish('first.frame', 'ok', tap + 35);
+  await setImmediate();
+  assert.equal(event.durationMs, 35);
+  tracer.close();
+});

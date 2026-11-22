@@ -38,7 +38,7 @@ export declare function interactionTracer(options: Options): {
     span: <T>(name: string, work: (parent: string) => Promise<T>) => Promise<T>;
     navigation(to: string): void;
     fetch(input: string, init?: RequestInit, request?: typeof fetch): Promise<Response>;
-    finish(milestone: string, outcome?: InteractionEvent['outcome']): void;
+    finish(milestone: string, outcome?: InteractionEvent['outcome'], endedAt?: number): void;
   };
 };
 export type Interaction = ReturnType<ReturnType<typeof interactionTracer>['start']>;

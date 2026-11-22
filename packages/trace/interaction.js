@@ -124,7 +124,7 @@ export function interactionTracer(options) {
             return request(input, { ...init, headers });
           });
         },
-        finish(milestone, outcome = 'ok') {
+        finish(milestone, outcome = 'ok', endedAt = performance.now()) {
           if (ended || closed) return;
           ended = true;
           detachNavigation?.();
@@ -136,7 +136,7 @@ export function interactionTracer(options) {
             milestone,
             platform: 'web',
             startedAtUnixMs,
-            durationMs: ms(performance.now() - start),
+            durationMs: ms(Math.max(0, endedAt - start)),
             spans,
           };
           queueMicrotask(() => {

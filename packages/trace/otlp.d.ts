@@ -12,4 +12,4 @@ export declare function observeWebFlows(
 export declare function observeNavigation(
   tracer: ReturnType<typeof interactionTracer>,
   nameRoute: (path: string) => string | undefined,
-): { committed(path: string): void; close(): void };
+): { take(path: string): import('./interaction.js').Interaction | undefined; committed(path: string): void; close(): void };

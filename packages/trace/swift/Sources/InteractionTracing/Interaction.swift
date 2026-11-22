@@ -122,10 +122,19 @@ public enum InteractionScope {
             durationMs: uptimeMilliseconds() - at, statusCode: code, failed: failed))
       }
     }
-    let result = try await work("00-" + traceId + "-" + child + "-01")
+    let result: T
+    do {
+      result = try await work("00-" + traceId + "-" + child + "-01")
+    } catch {
+      failed = !Self.isCancellation(error)
+      throw error
+    }
     code = statusCode(result)
     failed = failedWhen(result)
     return result
+  }
+  private nonisolated static func isCancellation(_ error: Error) -> Bool {
+    error is CancellationError || (error as? URLError)?.code == .cancelled
   }
   public func finish(_ milestone: String, outcome: String = "ok") {
     guard !ended else { return }
@@ -140,7 +149,8 @@ public enum InteractionScope {
     _ request: URLRequest, session: URLSession, origin: URL,
     tracer: InteractionTracer?, operation: String?
   ) async throws -> (Data, URLResponse) {
-    guard let tracer, let operation, InteractionScope.current == nil,
+    let hasActiveParent = await InteractionScope.current?.ended == false
+    guard let tracer, let operation, !hasActiveParent,
       request.value(forHTTPHeaderField: "traceparent") == nil,
       let url = request.url, url.scheme == origin.scheme, url.host == origin.host,
       url.port == origin.port
@@ -154,7 +164,7 @@ public enum InteractionScope {
       await interaction.finish("response.received", outcome: status >= 400 ? "error" : "ok")
       return result
     } catch {
-      let cancelled = Task.isCancelled || (error as? URLError)?.code == .cancelled
+      let cancelled = isCancellation(error)
       await interaction.finish(
         cancelled ? "request.cancelled" : "request.failed",
         outcome: cancelled ? "cancelled" : "error")

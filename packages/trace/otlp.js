@@ -126,6 +126,14 @@ export function observeNavigation(tracer, nameRoute) {
   }
   document.addEventListener('click', click, true);
   return {
+    // The destination can take ownership through its first data load.
+    take(path) {
+      if (!current || current.path !== path) return;
+      clearTimeout(current.timer);
+      const open = current.open;
+      current = undefined;
+      return open;
+    },
     committed(path) {
       if (current?.path === path) finish('route.committed', 'ok');
     },

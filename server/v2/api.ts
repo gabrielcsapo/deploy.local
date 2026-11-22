@@ -97,35 +97,42 @@ export async function v2Api(
     sendJson(res, value, status, { guard: true });
   };
   try {
+    const authenticate: RequireAuth = (req, res) => {
+      const auth = requireAuth(req, res);
+      if (
+        auth &&
+        !req.headers['x-deploy-agent-token'] &&
+        !req.headers['x-deploy-worker-token'] &&
+        !observedResponses.has(res) &&
+        !req.url?.startsWith('/api/control/') &&
+        !req.url?.startsWith('/api/activity-events')
+      ) {
+        const finish = startHttpSpan(req.headers.traceparent);
+        if (finish) {
+          observedResponses.add(res);
+          const route = template ?? '/api/*';
+          res.once('finish', () => {
+            const span = finish(req.method ?? 'GET', route, res.statusCode);
+            setImmediate(() => {
+              try {
+                storeOtlp(
+                  getRequestsSqlite(),
+                  'control:' + auth.username,
+                  httpBatch('deploy.server', [span]),
+                );
+              } catch {}
+            });
+          });
+        }
+      }
+      return auth;
+    };
     for (const api of beforeSignIn)
-      if ((!feature || featureApis[feature] === api) && (await api(req, res, requireAuth))) return;
-    const auth = requireAuth(req, res);
+      if ((!feature || featureApis[feature] === api) && (await api(req, res, authenticate))) return;
+    const auth = authenticate(req, res);
     if (!auth) return;
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Agent and worker credentials cannot access client commands' }, 403);
-    if (
-      !observedResponses.has(res) &&
-      !req.url?.startsWith('/api/control/') &&
-      !req.url?.startsWith('/api/activity-events')
-    ) {
-      const finish = startHttpSpan(req.headers.traceparent);
-      if (finish) {
-        observedResponses.add(res);
-        const route = template ?? '/api/*';
-        res.once('finish', () => {
-          const span = finish(req.method ?? 'GET', route, res.statusCode);
-          setImmediate(() => {
-            try {
-              storeOtlp(
-                getRequestsSqlite(),
-                'control:' + auth.username,
-                httpBatch('deploy.server', [span]),
-              );
-            } catch {}
-          });
-        });
-      }
-    }
     for (const api of signedIn)
       if ((!feature || featureApis[feature] === api) && (await api(req, res, auth.username)))
         return;

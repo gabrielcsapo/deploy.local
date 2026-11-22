@@ -3,6 +3,25 @@ import XCTest
 @testable import InteractionTracing
 
 final class InteractionTests: XCTestCase {
+  @MainActor func testChildStatusDistinguishesCancellationFromNetworkFailure() async throws {
+    var recorded: InteractionEvent?
+    let tracer = InteractionTracer(scope: UUID().uuidString) { event in
+      recorded = event
+      return true
+    }
+    defer { tracer.close() }
+    let interaction = tracer.start("network.test")
+    for error in [CancellationError(), URLError(.cancelled), URLError(.timedOut)] as [Error] {
+      do {
+        try await interaction.measure("http.fetch") { _ in throw error }
+        XCTFail("The original error should propagate")
+      } catch {}
+    }
+    interaction.finish("complete")
+    for _ in 0..<100 where recorded == nil { await Task.yield() }
+    let event = try XCTUnwrap(recorded)
+    XCTAssertEqual(event.spans.map(\.failed), [false, false, true])
+  }
   @MainActor func testCompletionSurvivesReconnectAndDeduplicates() async throws {
     let scope = UUID().uuidString
     var events = [InteractionEvent]()
