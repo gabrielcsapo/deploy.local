@@ -1,3 +1,10 @@
+import { receiveOtlp } from '../../otlp.ts';
+import { readOtlp } from '../../features/observability/trace-spans.ts';
+import {
+  readInteraction,
+  storeInteraction,
+} from '../../features/observability/interaction-traces.ts';
+import { readTelemetryBody, TelemetryRateLimit } from '../../kernel/telemetry-http.ts';
 /**
  * A web app's requests: the Requests tab and one request opened.
  *
@@ -28,10 +35,14 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 export type RequestShow = 'all' | 'server' | 'client' | 'slow';
 const PAGE_SIZE = 50;
-// The edge answers 502 once an app stays silent this long (PROXY_RESPONSE_TIMEOUT_MS).
+// Legacy edge logs used 502 for a timeout even though the HTTP response was 503.
 const NO_ANSWER_MS = 15_000;
 const SLOW_MS = 1000;
 const PATH_ROWS = 200_000;
+
+function likelyNoAnswer(row: { status: number; duration: number }) {
+  return (row.status === 502 || row.status === 503) && row.duration >= NO_ANSWER_MS;
+}
 
 /** What the list filters on for a grouped path: everything before its first :id. */
 export function pathFilter(path: string) {
@@ -81,10 +92,11 @@ export function errorReason(
   row: { status: number; duration: number },
   capture: CaptureRecord | null,
 ): string | null {
-  if (capture?.failureReason === 'timeout' || (row.status === 502 && row.duration >= NO_ANSWER_MS))
-    return `no answer in ${Math.floor(row.duration / 1000)} s`;
+  if (capture?.failureReason === 'cutover') return 'the app was switching releases';
   if (capture?.failureReason === 'refused') return 'the app refused the connection';
   if (capture?.failureReason === 'error') return 'the connection to the app failed';
+  if (capture?.failureReason === 'timeout' || (!capture && likelyNoAnswer(row)))
+    return `no answer in ${Math.floor(row.duration / 1000)} s`;
   const body = capture?.response?.body?.trim();
   if (!body) return null;
   let text: unknown = null;
@@ -251,7 +263,7 @@ export async function requestSummary(
       groups.set(key, group);
     }
     group.durations.push(row.duration);
-    if (row.status === 502 && row.duration >= NO_ANSWER_MS) group.noAnswer++;
+    if (likelyNoAnswer(row)) group.noAnswer++;
     if (row.status >= 500) {
       const error = group.errors.get(row.status);
       // Rows arrive newest first: keep the newest one that saved what was sent.
@@ -364,18 +376,25 @@ export function requestList(
   return { rows, total, page, pageSize: PAGE_SIZE };
 }
 
-export async function requestDetail(owner: string, name: string, id: number, now = Date.now()) {
+export async function requestDetail(
+  owner: string,
+  name: string,
+  id: number | string,
+  now = Date.now(),
+) {
   ownedWebApp(owner, name);
   const db = getRequestsSqlite();
   const row = db
     .prepare(
       `SELECT id, timestamp AS at, method, path, query_params AS query, status, duration, ip,
          user_agent AS userAgent, referrer, username, request_size AS requestSize,
-         response_size AS responseSize, capture_id AS captureId
-       FROM request_logs WHERE deployment_name = ? AND id = ?`,
+         response_size AS responseSize, capture_id AS captureId, request_id AS requestId, trace
+       FROM request_logs WHERE deployment_name = ? AND ${typeof id === 'string' ? 'request_id' : 'id'} = ?`,
     )
     .get(name, id) as
     | (RequestRow & {
+        trace: string | null;
+        requestId: string | null;
         ip: string | null;
         userAgent: string | null;
         referrer: string | null;
@@ -393,7 +412,7 @@ export async function requestDetail(owner: string, name: string, id: number, now
     .prepare(
       `SELECT count(*) AS count,
          coalesce(sum(CASE WHEN status >= 500 THEN 1 ELSE 0 END), 0) AS serverErrors,
-         coalesce(sum(CASE WHEN status = 502 AND duration >= ? THEN 1 ELSE 0 END), 0) AS noAnswer
+         coalesce(sum(CASE WHEN status IN (502, 503) AND duration >= ? THEN 1 ELSE 0 END), 0) AS noAnswer
        FROM request_logs WHERE deployment_name = ? AND timestamp >= ? AND method = ? AND path = ?`,
     )
     .get(NO_ANSWER_MS, name, from, row!.method, row!.path) as {
@@ -419,16 +438,31 @@ export async function requestDetail(owner: string, name: string, id: number, now
             ) as { duration: number }
         ).duration ?? 0)
       : 0;
-  const { captureId: _captureId, userAgent, ...request } = row!;
+  const { captureId: _captureId, trace, userAgent, ...request } = row!;
+  const edgeTrace = trace ? JSON.parse(trace) : null;
+  const client =
+    edgeTrace &&
+    (db
+      .prepare(
+        'SELECT spans FROM telemetry_client_spans WHERE deployment_name=? AND request_id=? AND trace_id=?',
+      )
+      .get(name, request.requestId, edgeTrace.traceId) as { spans: string } | undefined);
   return {
     request: {
       ...request,
+      trace: edgeTrace,
+      clientSpans: client ? JSON.parse(client.spans) : null,
+      navigation: request.requestId
+        ? (db
+            .prepare(
+              'SELECT route,start_fetch_ms AS fetchStartMs,headers_ms AS headersMs,commit_ms AS commitMs FROM telemetry_navigation WHERE deployment_name=? AND request_id=?',
+            )
+            .get(name, request.requestId) ?? null)
+        : null,
       browser: describeBrowser(userAgent),
       release: release?.label ?? null,
       reason: row!.status >= 500 ? errorReason(row!, capture) : null,
-      failure:
-        capture?.failureReason ??
-        (row!.status === 502 && row!.duration >= NO_ANSWER_MS ? 'timeout' : null),
+      failure: capture?.failureReason ?? (!capture && likelyNoAnswer(row!) ? 'timeout' : null),
     },
     capture: capture
       ? {
@@ -456,7 +490,7 @@ async function requestsRoute(
     which === 'summary'
       ? await requestSummary(owner, name, range)
       : which
-        ? await requestDetail(owner, name, Number(which))
+        ? await requestDetail(owner, name, /^[0-9a-f]{32}$/.test(which) ? which : Number(which))
         : requestList(owner, name, {
             range,
             path: url.searchParams.get('path') ?? undefined,
@@ -469,7 +503,97 @@ async function requestsRoute(
 
 const methodNotAllowed = () => fail('Method not allowed', 405);
 
+// A root request's trace ID is its request ID. Only incoming child requests need the
+// secondary index. Limit the response even for a caller that keeps reusing an ID.
+function traceRequests(owner: string, name: string, id: string) {
+  ownedWebApp(owner, name);
+  const rows = getRequestsSqlite()
+    .prepare(`
+    SELECT request_id AS requestId, route, method, status, timestamp, trace FROM request_logs
+     WHERE deployment_name=? AND request_id=? AND json_extract(trace,'$.parentSpanId') IS NULL
+    UNION ALL
+    SELECT request_id AS requestId, route, method, status, timestamp, trace FROM request_logs
+     WHERE deployment_name=? AND json_extract(trace,'$.parentSpanId') IS NOT NULL AND json_extract(trace,'$.traceId')=?
+    ORDER BY timestamp LIMIT 101`)
+    .all(name, id, name, id) as { trace: string }[];
+  const interaction = readInteraction(getRequestsSqlite(), name, id);
+  const otlp = readOtlp(getRequestsSqlite(), name, id);
+  if (!rows.length && !interaction && !otlp.spans.length) fail('Trace not found', 404);
+  return {
+    traceId: id,
+    interaction,
+    spans: otlp.spans,
+    truncated: rows.length > 100 || otlp.truncated,
+    requests: rows.slice(0, 100).map((row) => ({ ...row, trace: JSON.parse(row.trace) })),
+  };
+}
+
+const interactionRate = new TelemetryRateLimit(120);
 export const requestsRoutes = [
+  route({
+    method: 'POST',
+    path: '/api/control/otel/v1/traces',
+    handler: async ({ req, res, context }) => {
+      if (!interactionRate.allow(context)) fail('Too many exports', 429);
+      await receiveOtlp(req, res, getRequestsSqlite(), 'control:' + context);
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/control/traces',
+    handler: ({ res, context }) => {
+      const rows = getRequestsSqlite()
+        .prepare(`SELECT trace_id AS traceId,max(received) AS received FROM
+     (SELECT trace_id,received FROM otlp_spans WHERE project=? ORDER BY received DESC LIMIT 1024)
+     GROUP BY trace_id ORDER BY received DESC LIMIT 100`)
+        .all('control:' + context);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ traces: rows }));
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/control/traces/:id([0-9a-f]{32})',
+    handler: ({ res, context, params }) => {
+      const result = readOtlp(getRequestsSqlite(), 'control:' + context, params.id);
+      if (!result.spans.length) fail('Trace not found', 404);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ traceId: params.id, ...result }));
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/control/interactions',
+    handler: async ({ req, res, context }) => {
+      if (!interactionRate.allow(context)) fail('Too many interactions', 429);
+      storeInteraction(
+        getRequestsSqlite(),
+        'control:' + context,
+        await readTelemetryBody(req, 16384),
+      );
+      res.writeHead(204);
+      res.end();
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/control/interactions/:id([0-9a-f]{32})',
+    handler: ({ res, params, context }) => {
+      const interaction = readInteraction(getRequestsSqlite(), 'control:' + context, params.id);
+      if (!interaction) fail('Trace not found', 404);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(interaction));
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/apps/:app/traces/:traceId([0-9a-f]{32})',
+    handler: ({ res, params, context }) => {
+      const result = traceRequests(context, decodeURIComponent(params.app), params.traceId);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(result));
+    },
+  }),
   route({
     method: 'GET',
     path: '/api/apps/:app/requests',
@@ -478,14 +602,14 @@ export const requestsRoutes = [
   }),
   route({
     method: 'GET',
-    path: '/api/apps/:app/requests/:which(summary|\\d+)',
+    path: '/api/apps/:app/requests/:which(summary|[0-9a-f]{32}|\\d+)',
     handler: ({ res, url, params, context }) =>
       requestsRoute(res, url, context, params.app, params.which),
   }),
   route({ method: '*', path: '/api/apps/:app/requests', handler: methodNotAllowed }),
   route({
     method: '*',
-    path: '/api/apps/:app/requests/:which(summary|\\d+)',
+    path: '/api/apps/:app/requests/:which(summary|[0-9a-f]{32}|\\d+)',
     handler: methodNotAllowed,
   }),
 ];

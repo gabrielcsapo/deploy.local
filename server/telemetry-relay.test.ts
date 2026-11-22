@@ -259,12 +259,53 @@ test('SER ingests relayed records by token only, scoped to computer and current 
   const token = issueRemoteTelemetryToken(db, 'forma', mac.nodeId, 'owner');
   const path = '/api/agent/telemetry/v1/server';
   const handler = (req: IncomingMessage, res: ServerResponse) =>
-    fleetRoutes({ req, res, path, method: 'POST' } as never);
+    fleetRoutes({ req, res, path: req.url, method: 'POST' } as never);
   const headers = {
     authorization: `Bearer ${token}`,
     'x-deploy-node-id': mac.nodeId,
     'x-deploy-node-secret': mac.secret,
   };
+  const exportPath = '/api/agent/telemetry/v1/traces';
+  const exportHeaders = { ...headers, 'content-type': 'application/json' };
+  const traceId = 'b1'.repeat(16);
+  const exportBody = {
+    resourceSpans: [
+      {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                traceId,
+                spanId: 'b2'.repeat(8),
+                name: 'worker.run',
+                startTimeUnixNano: '1000',
+                endTimeUnixNano: '2000',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  assert.equal(
+    await invoke(handler, exportBody, { path: exportPath, headers: exportHeaders }),
+    200,
+  );
+  assert.equal(
+    db.prepare('SELECT count(*) FROM otlp_spans WHERE trace_id=?').pluck().get(traceId),
+    1,
+  );
+  assert.equal(
+    await invoke(handler, exportBody, {
+      path: exportPath,
+      headers: {
+        ...exportHeaders,
+        'x-deploy-node-id': other.nodeId,
+        'x-deploy-node-secret': other.secret,
+      },
+    }),
+    401,
+  );
   assert.equal(await invoke(handler, batch(), { path, headers }), 204);
   assert.deepEqual(db.prepare('SELECT deployment_name,source,count FROM telemetry_routes').all(), [
     { deployment_name: 'forma', source: 'server', count: 1 },
@@ -340,5 +381,34 @@ test('authenticated job claim provisions a SER telemetry token for remote deploy
     await fleetRoutes({ req, res, path: req.url, method: req.method } as never);
     assert.equal(deploymentForToken(getRequestsSqlite(), value.telemetryToken ?? ''), 'job-app');
     store.completeAgentJob(job.id, enrolled.nodeId, { success: true, result: {} });
+  }
+});
+
+test('OTLP relay acknowledges coordinator persistence and preserves exporter response status', async () => {
+  const { createTelemetryRelay } = await import('./telemetry-relay.ts');
+  let status = 200;
+  const relay = createTelemetryRelay({
+    coordinatorUrl: 'https://coordinator.test',
+    nodeId: 'test-node',
+    secret: 'test-secret',
+    allowedPeer: () => true,
+    fetch: async (url, init) => {
+      assert.equal(url, 'https://coordinator.test/api/agent/telemetry/v1/traces');
+      assert.equal(init?.redirect, 'error');
+      assert.equal(new Headers(init?.headers).get('content-type'), 'application/json');
+      assert.equal(Buffer.from(init?.body as Uint8Array).toString(), '{}');
+      return Response.json({}, { status });
+    },
+  });
+  const options = {
+    path: '/__deploy/v1/traces',
+    headers: { authorization: 'Bearer ' + 'a'.repeat(43), 'content-type': 'application/json' },
+  };
+  try {
+    assert.equal(await invoke(relay.handler, {}, options), 200);
+    status = 503;
+    assert.equal(await invoke(relay.handler, {}, options), 503);
+  } finally {
+    await relay.close();
   }
 });

@@ -1,4 +1,5 @@
 'use client';
+import { RequestTrace } from './request-trace.client';
 import { appWarning } from '../computers/traffic';
 import { useSince } from '../computers/diagnostics.client';
 import { useProjectFormatting } from './formatting.ts';
@@ -469,6 +470,14 @@ export function AppRequest({
         <Banner title={failure.title} icon="attention">
           {failure.text} The app's own error, if it logged one, is in Logs.
         </Banner>
+      )}
+      {request.trace && (
+        <RequestTrace
+          key={request.trace.traceId}
+          id={request.trace.traceId}
+          app={app}
+          at={request.at}
+        />
       )}
       <section className="dl-section">
         <h2 className="dl-section-title">Who sent it</h2>

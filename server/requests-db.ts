@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS request_logs (
  deployment_name TEXT NOT NULL, method TEXT NOT NULL, path TEXT NOT NULL,
  status INTEGER NOT NULL, duration INTEGER NOT NULL, timestamp INTEGER NOT NULL,
  ip TEXT, user_agent TEXT, referrer TEXT, request_size INTEGER, response_size INTEGER,
- query_params TEXT, username TEXT, capture_id TEXT, route TEXT
+ query_params TEXT, username TEXT, capture_id TEXT, route TEXT, request_id TEXT, trace TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(deployment_name, timestamp);
 CREATE INDEX IF NOT EXISTS idx_request_logs_ts ON request_logs(timestamp);
@@ -44,13 +44,23 @@ export function openRequestsDb(file = requestsDbFile()) {
     db.pragma('synchronous = NORMAL');
     db.exec(REQUEST_SCHEMA);
     db.transaction(() => {
+      const columns = new Set(
+        (db.pragma('table_info(request_logs)') as { name: string }[]).map((row) => row.name),
+      );
+      for (const column of ['route', 'request_id', 'trace'])
+        if (!columns.has(column)) db.exec(`ALTER TABLE request_logs ADD COLUMN ${column} TEXT`);
+      db.exec(
+        'CREATE INDEX IF NOT EXISTS request_logs_request_id ON request_logs(request_id) WHERE request_id IS NOT NULL',
+      );
+      db.exec(`CREATE INDEX IF NOT EXISTS request_logs_trace ON request_logs(deployment_name,json_extract(trace,'$.traceId'),timestamp)
+        WHERE json_extract(trace,'$.parentSpanId') IS NOT NULL`);
+      db.exec(TELEMETRY_SCHEMA);
       if (
-        !(db.pragma('table_info(request_logs)') as { name: string }[]).some(
-          (row) => row.name === 'route',
+        !(db.pragma('table_info(interaction_roots)') as { name: string }[]).some(
+          (c) => c.name === 'start_unix_ms',
         )
       )
-        db.exec('ALTER TABLE request_logs ADD COLUMN route TEXT');
-      db.exec(TELEMETRY_SCHEMA);
+        db.exec('ALTER TABLE interaction_roots ADD COLUMN start_unix_ms REAL');
       if (
         !(db.pragma('table_info(telemetry_releases)') as { name: string }[]).some(
           (row) => row.name === 'finalized',
@@ -120,6 +130,11 @@ export function pruneRequests(db = getRequestsSqlite(), now = Date.now()) {
   return db.transaction(() => {
     const cutoff = now - ROLLUP_RETENTION_DAYS * 86_400_000;
     db.prepare('DELETE FROM telemetry_routes WHERE bucket_ms < ?').run(cutoff);
+    db.prepare('DELETE FROM otlp_spans WHERE received < ?').run(now - 7 * 86_400_000);
+    db.prepare('DELETE FROM interaction_volume WHERE minute < ?').run(now - 7 * 86_400_000);
+    db.prepare('DELETE FROM interaction_roots WHERE at < ?').run(now - 7 * 86_400_000);
+    db.prepare('DELETE FROM telemetry_client_spans WHERE timestamp < ?').run(now - 7 * 86_400_000);
+    db.prepare('DELETE FROM telemetry_navigation WHERE timestamp < ?').run(now - 7 * 86_400_000);
     db.prepare('DELETE FROM telemetry_pages WHERE bucket_ms < ?').run(cutoff);
     db.prepare('DELETE FROM telemetry_errors WHERE last_seen < ?').run(cutoff);
     db.prepare('DELETE FROM telemetry_releases WHERE released_at < ?').run(cutoff);

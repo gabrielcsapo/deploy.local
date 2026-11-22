@@ -1,3 +1,4 @@
+@_exported import InteractionTracing
 import Foundation
 import Security
 
@@ -112,6 +113,9 @@ public enum CredentialVault {
 }
 
 public actor WorkspaceClient {
+    private weak var tracer: InteractionTracer?
+    private static let families: Set<String> = ["account", "agents", "approvals", "apps", "artifacts", "attachments", "auth", "backups", "catalog", "composer", "computers", "config", "conversation-attachments", "deployments", "design", "devices", "diagnostics", "git", "identity", "inbox", "live", "login", "machines", "models", "nodes", "notifications", "packages", "projects", "pulls", "releases", "repositories", "repository-projects", "runs", "search", "services", "settings", "state", "task-snapshots", "tasks", "tokens", "user", "workers", "workspace"]
+    public func observeRequests(_ tracer: InteractionTracer) { self.tracer=tracer }
     public let connection: Connection
     private let session: URLSession
 
@@ -142,7 +146,7 @@ public actor WorkspaceClient {
             request.httpBody = body
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await Interaction.tracedData(request,session:session,origin:base,tracer:tracer,operation:TraceExport.operation(request,prefix:"/api/",families:Self.families))
         guard let response = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
         guard (200..<300).contains(response.statusCode) else {
             let payload = try? JSONDecoder().decode(APIError.self, from: data)

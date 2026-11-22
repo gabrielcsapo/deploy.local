@@ -254,3 +254,109 @@ test('paths fold their IDs so one route is one row', () => {
   assert.equal(pathFilter('/'), '/');
   assert.equal(errorReason({ status: 502, duration: 15_600 }, null), 'no answer in 15 s');
 });
+
+test('owner can open a request by external ID and find sibling requests under one trace', async () => {
+  const traceId = 'ab'.repeat(16),
+    requestId = 'cd'.repeat(16);
+  const parentSpanId = '01'.repeat(8);
+  const trace = JSON.stringify({ traceId, parentSpanId });
+  const write = sqlite.prepare(
+    'INSERT INTO request_logs(deployment_name,method,path,status,duration,timestamp,request_id,trace) VALUES(?,?,?,?,?,?,?,?)',
+  );
+  write.run('home-gym', 'GET', '/trace', 200, 7, now, traceId, JSON.stringify({ traceId }));
+  write.run('home-gym', 'GET', '/child', 200, 3, now + 1, requestId, trace);
+  write.run('private', 'GET', '/secret', 200, 1, now, '11'.repeat(16), trace);
+  const detail = await (
+    await fetch(`${origin}/home-gym/requests/${requestId}`, { headers })
+  ).json();
+  assert.equal(detail.request.trace.parentSpanId, parentSpanId);
+  const result = await (await fetch(`${origin}/home-gym/traces/${traceId}`, { headers })).json();
+  assert.deepEqual(
+    result.requests.map((r: { requestId: string }) => r.requestId),
+    [traceId, requestId],
+  );
+  assert.equal((await fetch(`${origin}/private/traces/${traceId}`, { headers })).status, 404);
+});
+
+test('OTLP-only trace lookup checks ownership and preserves absolute timing', async () => {
+  const { storeOtlp } = await import('../../otlp.ts');
+  const traceId = 'f1'.repeat(16),
+    spanId = 'c1'.repeat(8);
+  const payload = {
+    resourceSpans: [
+      {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                traceId,
+                spanId,
+                name: 'page.decode',
+                startTimeUnixNano: '1700000000000000000',
+                endTimeUnixNano: '1700000000001000000',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  storeOtlp(sqlite, 'home-gym', payload);
+  const found = await fetch(origin + '/home-gym/traces/' + traceId, { headers });
+  assert.equal(found.status, 200);
+  const result = await found.json();
+  assert.deepEqual(result.requests, []);
+  assert.equal(result.spans[0].spanId, spanId);
+  assert.equal(result.spans[0].endTimeUnixNano, '1700000000001000000');
+  assert.equal((await fetch(origin + '/private/traces/' + traceId, { headers })).status, 404);
+});
+
+test('control OTLP exports appear only in the authenticated owner’s list and detail', async () => {
+  const base = 'http://localhost/api/control';
+  const id = 'c1'.repeat(16);
+  const body = JSON.stringify({
+    resourceSpans: [
+      {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                traceId: id,
+                spanId: '22'.repeat(8),
+                name: 'screen.open',
+                startTimeUnixNano: '1000',
+                endTimeUnixNano: '2000',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  const upload = await fetch(base + '/otel/v1/traces', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body,
+  });
+  assert.equal(upload.status, 200);
+  assert.equal(
+    (await (await fetch(base + '/traces/' + id, { headers })).json()).spans[0].name,
+    'screen.open',
+  );
+  assert.ok(
+    (await (await fetch(base + '/traces', { headers })).json()).traces.some(
+      (r: { traceId: string }) => r.traceId === id,
+    ),
+  );
+  const other = 'trace-reader';
+  const otherHeaders = {
+    'x-deploy-username': other,
+    'x-deploy-token': registerUser(other, 'test-password').token!,
+  };
+  assert.equal((await fetch(base + '/traces/' + id, { headers: otherHeaders })).status, 404);
+  assert.deepEqual(
+    (await (await fetch(base + '/traces', { headers: otherHeaders })).json()).traces,
+    [],
+  );
+  assert.equal((await fetch(base + '/otel/v1/traces', { method: 'POST', body })).status, 401);
+});

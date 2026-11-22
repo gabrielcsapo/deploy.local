@@ -1,3 +1,4 @@
+import { startRequestTrace } from './request-trace.ts';
 import { parseRouteTiming } from '../telemetry.ts';
 import { handleBrowserTelemetry, isBrowserTelemetryPath } from '../telemetry-http.ts';
 /**
@@ -215,8 +216,29 @@ export function proxyToApp(
   search: string,
   method: string,
   retryCount = 0,
+  trace = startRequestTrace(req),
+  startTime = Date.now(),
 ) {
-  const startTime = Date.now();
+  res.setHeader('x-request-id', trace.requestId);
+  res.setHeader('traceparent', `00-${trace.traceId}-${trace.spanId}-${trace.flags}`);
+  const entryTrace = () => ({
+    requestId: trace.requestId,
+    trace: {
+      traceId: trace.traceId,
+      spanId: trace.spanId,
+      parentSpanId: trace.parentSpanId,
+      endMs: trace.elapsed(),
+      attempts:
+        trace.parentSpanId ||
+        trace.flags === '01' ||
+        trace.elapsed() >= 1000 ||
+        trace.attempts.length > 1 ||
+        trace.attempts.some((a) => a.error || (a.status ?? 0) >= 400)
+          ? trace.attempts
+          : [],
+      cache: trace.cache,
+    },
+  });
 
   const requestCacheControl = String(req.headers['cache-control'] || '').toLowerCase();
   const cacheEligibleRequest =
@@ -234,6 +256,7 @@ export function proxyToApp(
   const protocol = (req.socket as { encrypted?: boolean }).encrypted ? 'https' : 'http';
   const cacheKey = `${deployment.name}:${deployment.port}:${protocol}:${targetPath}${search}`;
   if (cacheEligibleRequest) {
+    trace.cache = 'miss';
     const cached = getCachedResponse(cacheKey);
     if (cached) {
       const headers = {
@@ -241,9 +264,11 @@ export function proxyToApp(
         age: String(Math.floor((Date.now() - cached.storedAt) / 1000)),
         'x-deploy-cache': 'HIT',
       };
+      trace.cache = 'hit';
       res.writeHead(cached.status, headers);
       res.end(method === 'HEAD' ? undefined : cached.body);
       const entry: RequestLogEntry = {
+        ...entryTrace(),
         method,
         path: targetPath,
         ...parseRouteTiming(
@@ -327,6 +352,10 @@ export function proxyToApp(
     ((req.socket as { encrypted?: boolean }).encrypted ? 'https' : 'http');
   outHeaders['x-forwarded-for'] = xff || remoteAddr;
 
+  const attempt = trace.attempt();
+  outHeaders.traceparent = `00-${trace.traceId}-${attempt.spanId}-${trace.flags}`;
+  if (!trace.parentSpanId) delete outHeaders.tracestate;
+  outHeaders['x-request-id'] = trace.requestId;
   const proxyReq = httpRequest(
     {
       agent: proxyAgent,
@@ -338,6 +367,11 @@ export function proxyToApp(
     },
     (proxyRes) => {
       const proxyHeaders = proxyRes.headers;
+      delete proxyHeaders.traceparent;
+      delete proxyHeaders.tracestate;
+      delete proxyHeaders['x-request-id'];
+      attempt.headersMs = trace.elapsed();
+      attempt.status = proxyRes.statusCode;
       const timing = parseRouteTiming(proxyHeaders['server-timing']);
       let streamedResponseSize = 0;
       const cacheChunks: Buffer[] = [];
@@ -486,8 +520,10 @@ export function proxyToApp(
           const requestSize =
             reqBodyTap?.total ??
             (req.headers['content-length'] ? +(req.headers['content-length'] as string) : 0);
+          attempt.endMs = trace.elapsed();
           const entry = {
             ...timing,
+            ...entryTrace(),
             method,
             path: targetPath,
             status,
@@ -538,6 +574,8 @@ export function proxyToApp(
 
   proxyReq.on('error', (err) => {
     releaseBackend();
+    attempt.endMs = trace.elapsed();
+    attempt.error = err.message === 'proxy_timeout' ? 'timeout' : 'transport';
     const isTimeout = (err as Error & { message?: string }).message === 'proxy_timeout';
     // Only retry idempotent methods — the body of a non-GET/HEAD request was
     // piped to the upstream and is no longer replayable. Exponential backoff
@@ -555,6 +593,8 @@ export function proxyToApp(
           search,
           method,
           retryCount + 1,
+          trace,
+          startTime,
         );
         retryReq?.end();
       }, delay);
@@ -596,6 +636,7 @@ export function proxyToApp(
         });
       }
       const entry = {
+        ...entryTrace(),
         method,
         path: targetPath,
         status: 502,

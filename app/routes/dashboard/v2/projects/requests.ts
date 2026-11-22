@@ -74,6 +74,7 @@ type SavedSide = {
 };
 export type RequestDetail = {
   request: RequestRow & {
+    trace?: { traceId: string } | null;
     ip: string | null;
     username: string | null;
     referrer: string | null;

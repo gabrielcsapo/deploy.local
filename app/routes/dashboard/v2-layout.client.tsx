@@ -1,4 +1,5 @@
 'use client';
+import { commitScreen, projectTracer } from './v2/projects/interaction';
 import { useDataSeed } from './v2/data/seeds';
 import { waitingHref } from './v2/inbox/waiting';
 import { useProjectFormatting } from './v2/projects/formatting.ts';
@@ -316,6 +317,10 @@ function V2Shell() {
   const seed = useDataSeed();
   const data = useSidebarData();
   const { pathname, search } = useLocation();
+  useEffect(() => {
+    projectTracer();
+    commitScreen(pathname);
+  }, [pathname, data.user.data?.username]);
   const [navigation, setNavigation] = useState({ collapsed: false, updateOpen: false });
   const { collapsed, updateOpen } = navigation;
   const showRail = collapsed && !updateOpen;

@@ -1,4 +1,5 @@
 /** SER-only authorization for the computer relay. Attribution comes exclusively from the token. */
+import { receiveOtlp, respondOtlp } from './otlp.ts';
 import { createHash } from 'node:crypto';
 import type { Database } from './kernel/db/sqlite.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -18,6 +19,7 @@ export function issueRemoteTelemetryToken(db: Database, name: string, node: stri
 const rate = new TelemetryRateLimit(240);
 export async function handleRemoteTelemetry(req: IncomingMessage, res: ServerResponse) {
   const end = (status: number) => {
+    if (req.url === '/api/agent/telemetry/v1/traces') return respondOtlp(req, res, status);
     res.writeHead(status, { 'Cache-Control': 'no-store' });
     res.end();
   };
@@ -51,6 +53,7 @@ export async function handleRemoteTelemetry(req: IncomingMessage, res: ServerRes
       req.resume();
       return end(401);
     }
+    if (req.url === '/api/agent/telemetry/v1/traces') return await receiveOtlp(req, res, db, name);
     ingestServer(db, name, await readTelemetryBody(req, 512 * 1024));
     end(204);
   } catch (error) {

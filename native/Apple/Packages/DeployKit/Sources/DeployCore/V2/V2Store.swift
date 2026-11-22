@@ -130,6 +130,7 @@ struct V2RefreshPacer {
     public var openedAppId: String?
     public var releases: [String: Release] = [:]
     public var rollbacks: [String: Rollback] = [:]
+    public let projectTracer: InteractionTracer
     public let client: V2Client
     public let connection: Connection
     @ObservationIgnored public var readCache: [String: Any] = [:]
@@ -145,6 +146,8 @@ struct V2RefreshPacer {
         self.connection = connection
         pacer = V2RefreshPacer(interval: refreshInterval)
         self.client = client ?? V2Client(connection: connection)
+        let reportingClient=self.client
+        projectTracer=InteractionTracer(batchingScope:V2Client.notificationScope(connection)) { events in try await reportingClient.reportInteractions(events) }
         let key = V2Client.notificationScope(connection)
         let directory = cacheDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("deploy.local/v2")
         cacheURL = directory.appendingPathComponent(key + ".json")
@@ -209,6 +212,8 @@ struct V2RefreshPacer {
         for key in keys { loads[key]?.leave(); activeReads[key] = nil }
     }
     public func start() async {
+        await client.observeRequests(projectTracer)
+        Task { await projectTracer.flush() }
         suspend()
         let current = generation
         await refresh(foreground: true)

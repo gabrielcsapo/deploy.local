@@ -174,6 +174,11 @@ public actor V2Client {
         else if let pinned = V2CoordinatorTrust.session(for: connection) { client = WorkspaceClient(connection: connection, session: pinned) }
         else { client = WorkspaceClient(connection: connection) }
     }
+    public func observeRequests(_ tracer:InteractionTracer) async { await client.observeRequests(tracer) }
+    public func reportInteractions(_ events:[InteractionEvent]) async throws -> Bool {
+        _ = try await client.data("/api/control/otel/v1/traces",method:"POST",body:TraceExport.body(events,service:"deploy.apple"))
+        return true
+    }
     public static func segment(_ value: String) -> String {
         value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
     }

@@ -25,6 +25,7 @@ public struct DeployV2Root: View {
             }
         }.preferredColorScheme(appearance.colorScheme)
         .task(id: workspace.connection) {
+            self.store?.projectTracer.close()
             self.store?.suspend()
             guard let connection = workspace.connection else { self.store = nil; return }
             workspace.suspend()
@@ -145,7 +146,9 @@ struct V2Tabs: View {
             .task(id: tab) {
                 // start() owns the first foreground read. Subsequent visits read only this place.
                 if !openedTab { openedTab = true; return }
-                await store.refreshResources(visibleKeys)
+                let interaction = store.projectTracer.start("screen." + tab.rawValue.lowercased() + ".open")
+                await InteractionScope.$current.withValue(interaction) { await store.refreshResources(visibleKeys) }
+                interaction.finish(Task.isCancelled ? "navigation.left" : "refresh.finished", outcome: Task.isCancelled ? "cancelled" : "ok")
             }
             .onChange(of: tab) { old, _ in
                 let keys: [String]

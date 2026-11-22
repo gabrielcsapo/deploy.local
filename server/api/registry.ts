@@ -34,7 +34,9 @@ export const apiLeafRoutes = apiRouteManifest.map(({ method, path, handler }) =>
     method,
     path,
     handler: ({ context }) =>
-      handler.startsWith('v2:') ? v2Routes(context, handler.slice(3)) : handlers[handler](context),
+      handler.startsWith('v2:')
+        ? v2Routes(context, handler.slice(3), path)
+        : handlers[handler](context),
   }),
 );
 // Concrete methods precede transport fallbacks. A declined leaf never ends dispatch.

@@ -9,10 +9,11 @@ let package = Package(
         .library(name: "DeployUI", targets: ["DeployUI"])
     ],
     dependencies: [
+        .package(name:"InteractionTracing",path:"../../../../packages/trace/swift"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui.git", exact: "2.4.1")
     ],
     targets: [
-        .target(name: "DeployCore"),
+        .target(name: "DeployCore",dependencies:["InteractionTracing"]),
         .target(name: "DeployUI", dependencies: ["DeployCore", .product(name: "MarkdownUI", package: "swift-markdown-ui")]),
         .testTarget(name: "DeployCoreTests", dependencies: ["DeployCore"]),
         .testTarget(name: "DeployUITests", dependencies: ["DeployUI", "DeployCore"])

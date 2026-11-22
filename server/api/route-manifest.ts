@@ -83,6 +83,7 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
     path: '/api/agent/telemetry/v1/server',
     handler: 'fleet',
   },
+  { method: 'POST', path: '/api/agent/telemetry/v1/traces', handler: 'fleet' },
   {
     method: 'GET',
     path: '/api/catalog',
@@ -658,6 +659,16 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
     path: '/api/apps/:app/performance',
     handler: 'v2:v2/performance',
   },
+  { method: 'POST', path: '/api/control/otel/v1/traces', handler: 'v2:v2/requests' },
+  { method: 'GET', path: '/api/control/traces', handler: 'v2:v2/requests' },
+  { method: 'GET', path: '/api/control/traces/:id([0-9a-f]{32})', handler: 'v2:v2/requests' },
+  { method: 'POST', path: '/api/control/interactions', handler: 'v2:v2/requests' },
+  { method: 'GET', path: '/api/control/interactions/:id([0-9a-f]{32})', handler: 'v2:v2/requests' },
+  {
+    method: 'GET',
+    path: '/api/apps/:app/traces/:traceId([0-9a-f]{32})',
+    handler: 'v2:v2/requests',
+  },
   {
     method: 'GET',
     path: '/api/apps/:app/requests',
@@ -665,7 +676,7 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
-    path: '/api/apps/:app/requests/:which(summary|\\d+)',
+    path: '/api/apps/:app/requests/:which(summary|[0-9a-f]{32}|\\d+)',
     handler: 'v2:v2/requests',
   },
   {

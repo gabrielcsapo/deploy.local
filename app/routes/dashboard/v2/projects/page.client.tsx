@@ -1,4 +1,6 @@
 'use client';
+import type { Interaction } from '../../../../../packages/trace/interaction';
+import { markProjectOpen, startProjectOpen } from './interaction';
 import { useProjectFormatting } from './formatting.ts';
 import { ListTemplate, DetailTemplate } from '@/components/ui/v2/Templates';
 import { useEffect, useRef, useState } from 'react';
@@ -314,6 +316,7 @@ function ProjectList() {
                   <a
                     key={project.id}
                     className="dl-stat v2-project-card"
+                    onClick={() => markProjectOpen(project.id)}
                     href={projectPath(project.id)}
                   >
                     <span className="v2-project-card-head">
@@ -367,6 +370,7 @@ function ProjectList() {
                     title={project.name}
                     description={project.lastCommit}
                     end={fact ? <span className="dl-meta">{fact}</span> : undefined}
+                    onClick={() => markProjectOpen(project.id)}
                     href={projectPath(project.id)}
                   />
                 );
@@ -392,6 +396,7 @@ function ProjectList() {
                   key={project.id}
                   lead={folderGlyph}
                   title={project.name}
+                  onClick={() => markProjectOpen(project.id)}
                   href={projectPath(project.id)}
                 />
               ))}
@@ -430,14 +435,27 @@ function ProjectPage({
 }) {
   const { formatRequestClock, formatTime, now } = useProjectFormatting();
   const { navigate } = useRouter();
-  const overview = useData<Overview>(`/api/projects/${projectSegment(projectKey)}/overview`);
+  const open = useRef<Interaction | undefined>(undefined);
+  useEffect(() => {
+    const interaction = startProjectOpen(projectKey);
+    open.current = interaction;
+    return () => {
+      interaction?.finish('navigation.left', 'cancelled');
+      open.current = undefined;
+    };
+  }, [projectKey]);
+  const overview = useData<Overview>(`/api/projects/${projectSegment(projectKey)}/overview`, {
+    open,
+  });
   const pulls = useData<{ items: TaskPull[] }>(
     `/api/projects/${projectSegment(projectKey)}/pulls?status=open`,
+    { open },
   );
   // Every tab row shows the Work count, so the work is read with the page, not the tab.
-  const work = useData<ProjectWork>(`/api/projects/${projectSegment(projectKey)}/work`);
+  const work = useData<ProjectWork>(`/api/projects/${projectSegment(projectKey)}/work`, { open });
   const history = useData<{ releases: Release[] }>(
     `/api/projects/${projectSegment(projectKey)}/releases`,
+    { open },
   );
   // An open pull request's page has Merge as its one primary action, so New task steps back.
   const pullDetail = useData<{ record: TaskPull }>(
@@ -458,6 +476,16 @@ function ProjectPage({
   const live = useResource<LiveResponse>('/api/live');
   const data = overview.data;
   const project = data?.project;
+  useEffect(() => {
+    const interaction = open.current;
+    if (overview.error) {
+      interaction?.finish('project.failed', 'error');
+      return;
+    }
+    if (!project) return;
+    const frame = requestAnimationFrame(() => interaction?.finish('details.visible'));
+    return () => cancelAnimationFrame(frame);
+  }, [projectKey, project, overview.error]);
   const base = projectPath(project?.id || projectKey);
   const releases = history.data?.releases || [];
   const waiting = inbox.items.filter(

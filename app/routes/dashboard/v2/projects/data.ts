@@ -1,13 +1,21 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import type { Interaction } from '../../../../../packages/trace/interaction';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { authenticatedFetch, remember, remembered, onAuthReset, eventFeed } from '../data/hooks';
 import { useDataSeed, freshSeed, resourceKey } from '../data/seeds';
 import type { Project } from '../../../../../shared/v2/contracts';
 export { authenticatedFetch };
-export async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await authenticatedFetch(path, {
+export async function request<T = any>(
+  path: string,
+  init: RequestInit = {},
+  interaction?: Interaction,
+): Promise<T> {
+  const options = {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init.headers },
-  });
+  };
+  const response = await (interaction
+    ? interaction.fetch(path, options, authenticatedFetch)
+    : authenticatedFetch(path, options));
   const body = await response.json();
   if (!response.ok) throw new Error(body.error || 'Request failed');
   return body;
@@ -24,7 +32,13 @@ export function changesData(event: { type?: string; event?: { kind?: string; liv
  * `immutable` is for a path that names fixed revisions: its answer cannot change, so one read
  * is reused and events do not fetch it again. Health events otherwise redrew every preview.
  */
-export function useData<T>(path: string | undefined, { immutable = false } = {}) {
+export function useData<T>(
+  path: string | undefined,
+  {
+    immutable = false,
+    open,
+  }: { immutable?: boolean; open?: { current: Interaction | undefined } } = {},
+) {
   const seed = useDataSeed();
   const lastVersion = useRef(0);
   const [answer, setAnswer] = useState<{
@@ -58,7 +72,7 @@ export function useData<T>(path: string | undefined, { immutable = false } = {})
     if (!path || (!forced && freshSeed(seed, path))) return;
     if (!forced && immutable && remembered<T>(path, seed) !== undefined) return;
     const controller = new AbortController();
-    request<T>(path, { signal: controller.signal })
+    request<T>(path, { signal: controller.signal }, open?.current)
       .then((value) => {
         if (controller.signal.aborted) return;
         remember(path, value);
@@ -68,7 +82,7 @@ export function useData<T>(path: string | undefined, { immutable = false } = {})
         if (!controller.signal.aborted) setError(error.message);
       });
     return () => controller.abort();
-  }, [path, version, seed, seededError, immutable]);
+  }, [path, version, seed, seededError, immutable, open]);
   useEffect(
     () =>
       onAuthReset(() => {
@@ -95,7 +109,8 @@ export function useData<T>(path: string | undefined, { immutable = false } = {})
       error() {},
     });
   }, [seed, path, immutable]);
-  return { data, error, refresh: () => refresh((n) => n + 1) };
+  const reload = useCallback(() => refresh((n) => n + 1), []);
+  return { data, error, refresh: reload };
 }
 export type Work = {
   id: string;

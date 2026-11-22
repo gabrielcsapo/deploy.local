@@ -1,0 +1,24 @@
+{
+  "name": "@deploy-local/trace",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./interaction": {
+      "types": "./interaction.d.ts",
+      "default": "./interaction.js"
+    },
+    "./http": {
+      "types": "./http.d.ts",
+      "default": "./http.js"
+    },
+    "./otlp": {
+      "types": "./otlp.d.ts",
+      "default": "./otlp.js"
+    }
+  }
+}

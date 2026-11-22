@@ -5,6 +5,8 @@ options:
     macOS: '14.0'
     iOS: '17.0'
 packages:
+  InteractionTracing:
+    path: ../../packages/trace/swift
   DeployKit:
     path: Packages/DeployKit
 settings:
@@ -32,6 +34,7 @@ targets:
     platform: iOS
     sources: [Apps/DeployIOS, Apps/Shared/Assets.xcassets]
     dependencies:
+      - package: InteractionTracing
       - package: DeployKit
         product: DeployUI
       - package: DeployKit

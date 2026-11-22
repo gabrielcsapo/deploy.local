@@ -101,6 +101,11 @@ const route = routes<ApiRouteContext>();
 const table = [
   route({
     method: 'POST',
+    path: '/api/agent/telemetry/v1/traces',
+    handler: ({ context: { req, res } }) => handleRemoteTelemetry(req, res),
+  }),
+  route({
+    method: 'POST',
     path: '/api/agent/telemetry/v1/server',
     handler: async ({ context: ctx }) => {
       const { req, res } = ctx;

@@ -14,6 +14,8 @@ struct V2ProjectSection: View {
     private var releases: [Release] { releasesRead.value ?? [] }
     @State private var designRead = V2Read<V2DesignSummary?>()
     private var design: V2DesignSummary? { designRead.value ?? nil }
+    var selection: Interaction? = nil
+    @State private var opening:Interaction?
     @State private var openDesign = false
     @Environment(\.horizontalSizeClass) private var width
     @State private var error: String?
@@ -46,10 +48,18 @@ struct V2ProjectSection: View {
             }
             if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
         }.task(id: project.id) {
-            await load()
+            let trace = selection ?? store.projectTracer.start("project.open")
+            opening = trace
+            if pullsRead.value != nil { trace.finish("details.visible") }
+            await InteractionScope.$current.withValue(trace) {await load()}
+            guard !Task.isCancelled else {trace.finish("navigation.left",outcome:"cancelled");return}
+            if pullsRead.value == nil {trace.finish("project.failed",outcome:"error")}
             if ["ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone"].contains(V2Evidence.board) { evidence = true }
         }.onChange(of: store.snapshot.cursor) { _, _ in Task { await load(foreground: false) } }
-            .onDisappear { pullsRead.leave(); issuesRead.leave(); releasesRead.leave(); designRead.leave(); status([]) }
+            .onChange(of: pullsRead.value != nil,initial:true) { _,ready in
+                if ready {opening?.finish("details.visible")}
+            }
+            .onDisappear { opening?.finish("navigation.left",outcome:"cancelled");pullsRead.leave(); issuesRead.leave(); releasesRead.leave(); designRead.leave(); status([]) }
             .refreshable { await load() }
             .onChange(of: [pullsRead.state, issuesRead.state, releasesRead.state, designRead.state, store.loadState("workspace"), store.loadState("live")], initial: true) { _, states in status(states) }
             .navigationDestination(isPresented: $evidence) { V2ReleasesView(store: store, project: project) }

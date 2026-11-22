@@ -1,3 +1,4 @@
+import { storeInteraction } from './interaction-traces.ts';
 export { issueTelemetryToken, deploymentForToken } from './kernel/auth/telemetry.ts';
 import type { Database } from './kernel/db/sqlite.ts';
 
@@ -149,9 +150,37 @@ function split(value: string, delimiter: string) {
   parts.push(value.slice(start).trim());
   return parts;
 }
+interface AppSpan {
+  name: string;
+  spanId: string;
+  parentSpanId: string;
+  startMs: number;
+  durationMs: number;
+  failed?: boolean;
+}
+function validSpan(value: unknown): value is AppSpan {
+  if (!value || typeof value !== 'object') return false;
+  const s = value as Record<string, unknown>;
+  return (
+    Object.keys(s).every((k) =>
+      ['name', 'spanId', 'parentSpanId', 'startMs', 'durationMs', 'failed'].includes(k),
+    ) &&
+    typeof s.name === 'string' &&
+    /^[a-z][a-z0-9_.-]{0,47}$/.test(s.name) &&
+    [s.spanId, s.parentSpanId].every(
+      (id) => typeof id === 'string' && /^[0-9a-f]{16}$/.test(id) && !/^0+$/.test(id),
+    ) &&
+    s.spanId !== s.parentSpanId &&
+    [s.startMs, s.durationMs].every(
+      (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= DAY,
+    ) &&
+    (s.failed === undefined || typeof s.failed === 'boolean')
+  );
+}
 export function parseRouteTiming(header: string | string[] | undefined): {
   route: string | null;
   phases: Record<string, number>;
+  spans?: AppSpan[];
 } {
   const result: ReturnType<typeof parseRouteTiming> = { route: null, phases: {} };
   if (!header) return result;
@@ -167,7 +196,19 @@ export function parseRouteTiming(header: string | string[] | undefined): {
         const route = desc.slice(1, -1).replace(/\\(["\\])/g, '$1');
         if (validRoute(route)) result.route = route;
       }
-    } else if (['match', 'render', 'action'].includes(name)) {
+    } else if (name === 'span' && (result.spans?.length ?? 0) < 16) {
+      const param = (key: string) =>
+        parameters.find((p) => p.startsWith(key + '='))?.slice(key.length + 1);
+      const span = {
+        name: param('desc')?.replace(/^"([^"]+)"$/, '$1'),
+        spanId: param('id'),
+        parentSpanId: param('parent'),
+        startMs: Number(param('start')),
+        durationMs: Number(param('dur')),
+        ...(parameters.includes('failed') ? { failed: true } : {}),
+      };
+      if (validSpan(span)) (result.spans ??= []).push(span);
+    } else if (['match', 'render', 'action', 'db', 'queue'].includes(name)) {
       const value = parameters.find((p) => p.startsWith('dur='))?.slice(4);
       if (value && /^\d+(?:\.\d+)?$/.test(value) && Number(value) <= DAY)
         result.phases[name] = Number(value);
@@ -345,7 +386,11 @@ export function validateServerBatch(body: unknown, now = Date.now()): ServerReco
   }
   return b.records as ServerRecord[];
 }
-type BrowserEvent = { type: 'load' | 'nav' | 'error'; route: string; [key: string]: unknown };
+type BrowserEvent = {
+  type: 'load' | 'nav' | 'error' | 'spans';
+  route: string;
+  [key: string]: unknown;
+};
 export function validateBrowserBatch(body: unknown): {
   build: string | null;
   events: BrowserEvent[];
@@ -363,10 +408,42 @@ export function validateBrowserBatch(body: unknown): {
       for (const key of ['ttfb', 'fcp', 'lcp', 'inp']) if (e[key] !== undefined) metric(e[key]);
       if (e.cls !== undefined) metric(e.cls, 1000);
     } else if (e.type === 'nav') {
-      keys(e, ['type', 'route', 'from', 'ms', 'prefetch']);
+      keys(e, [
+        'type',
+        'route',
+        'from',
+        'ms',
+        'prefetch',
+        'requestId',
+        'fetchStartMs',
+        'headersMs',
+      ]);
+      if (e.requestId !== undefined || e.fetchStartMs !== undefined || e.headersMs !== undefined) {
+        if (
+          e.prefetch !== 'miss' ||
+          typeof e.requestId !== 'string' ||
+          !/^[0-9a-f]{32}$/.test(e.requestId)
+        )
+          bad();
+        metric(e.fetchStartMs);
+        metric(e.headersMs);
+        if (Number(e.fetchStartMs) > Number(e.headersMs) || Number(e.headersMs) > Number(e.ms))
+          bad();
+      }
       route(e.from);
       metric(e.ms);
       if (!['hit', 'inflight', 'miss'].includes(e.prefetch as string)) bad();
+    } else if (e.type === 'spans') {
+      keys(e, ['type', 'route', 'requestId', 'traceId', 'spans']);
+      if (
+        ![e.requestId, e.traceId].every(
+          (id) => typeof id === 'string' && /^[0-9a-f]{32}$/.test(id),
+        ) ||
+        !Array.isArray(e.spans) ||
+        e.spans.length > 16 ||
+        !e.spans.every(validSpan)
+      )
+        bad();
     } else if (e.type === 'error') {
       keys(e, ['type', 'route', 'name', 'message', 'stack', 'fingerprint']);
       validateError(e);
@@ -387,6 +464,10 @@ function errorUpsert(
   ).run(name, r.fingerprint, t, t, r.route, where, build, r.name, r.message, r.stack);
 }
 export function ingestServer(db: Database, name: string, body: unknown, now = Date.now()) {
+  if ((body as { v?: number } | null)?.v === 2) {
+    storeInteraction(db, name, (body as { interaction: unknown }).interaction, now);
+    return;
+  }
   const records = validateServerBatch(body, now);
   db.transaction(() => {
     const batches = new Map();
@@ -417,11 +498,37 @@ interface PageRow {
   inflight: number;
   miss: number;
 }
+// A beacon can beat the buffered request writer. Only issued IDs may attach
+// individual client timings, including during that short gap.
+const recentRequests = new Map<string, { name: string; traceId: string; at: number }>();
+export function rememberTraceRequest(name: string, requestId: string, traceId: string) {
+  recentRequests.delete(requestId);
+  if (recentRequests.size >= 4096) recentRequests.delete(recentRequests.keys().next().value!);
+  recentRequests.set(requestId, { name, traceId, at: performance.now() });
+}
+function issuedRequest(db: Database, name: string, id: string, traceId?: string) {
+  const recent = recentRequests.get(id);
+  if (recent && performance.now() - recent.at < 30_000)
+    return recent.name === name && (!traceId || recent.traceId === traceId);
+  const row = db
+    .prepare(
+      "SELECT json_extract(trace,'$.traceId') AS traceId FROM request_logs WHERE deployment_name=? AND request_id=?",
+    )
+    .get(name, id) as { traceId: string } | undefined;
+  return !!row && (!traceId || row.traceId === traceId);
+}
 export function ingestBrowser(db: Database, name: string, body: unknown, now = Date.now()) {
   const b = validateBrowserBatch(body);
   const bucket = Math.floor(now / HOUR) * HOUR;
   db.transaction(() => {
     for (const e of b.events) {
+      if (e.type === 'spans') {
+        if (!issuedRequest(db, name, e.requestId as string, e.traceId as string)) continue;
+        db.prepare(
+          'INSERT OR IGNORE INTO telemetry_client_spans(deployment_name,request_id,trace_id,timestamp,spans) VALUES(?,?,?,?,?)',
+        ).run(name, e.requestId, e.traceId, now, JSON.stringify(e.spans));
+        continue;
+      }
       if (e.type === 'error') {
         errorUpsert(db, name, e as unknown as ErrorRecord, 'browser', b.build, now);
         continue;
@@ -440,6 +547,10 @@ export function ingestBrowser(db: Database, name: string, body: unknown, now = D
       if (e.type === 'nav') {
         addValue((metrics.nav ??= []), e.ms as number);
         counts[e.prefetch as keyof typeof counts]++;
+        if (e.requestId && issuedRequest(db, name, e.requestId as string))
+          db.prepare(
+            'INSERT OR IGNORE INTO telemetry_navigation(deployment_name,request_id,timestamp,route,start_fetch_ms,headers_ms,commit_ms) VALUES(?,?,?,?,?,?,?)',
+          ).run(name, e.requestId, now, e.route, e.fetchStartMs, e.headersMs, e.ms);
       } else
         for (const key of ['ttfb', 'fcp', 'lcp', 'inp', 'cls'])
           if (e[key] !== undefined)

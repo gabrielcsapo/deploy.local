@@ -3,7 +3,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { collectorNetwork, dockerNetworks, type DockerNetwork } from './telemetry-runtime.ts';
+import { batchBytes, otlpPath, respondOtlp } from './otlp.ts';
+import { readTelemetryBytes } from './kernel/telemetry-http.ts';
 import { readTelemetryBody, TelemetryRateLimit } from './telemetry-http.ts';
+import { validateInteraction } from './interaction-traces.ts';
 import { validateServerBatch } from './telemetry.ts';
 
 export function relayNetwork(
@@ -45,11 +48,13 @@ export function createTelemetryRelay(options: {
     failedBatches: 0,
   };
   const rate = new TelemetryRateLimit();
+  let activeExports = 0;
   let closed = false;
   let flushing: Promise<void> | undefined;
   let pending: AbortController | undefined;
   const handler = async (req: IncomingMessage, res: ServerResponse) => {
     const end = (status: number) => {
+      if (req.url === otlpPath) return respondOtlp(req, res, status);
       res.writeHead(status, { 'Cache-Control': 'no-store' });
       res.end();
     };
@@ -57,7 +62,7 @@ export function createTelemetryRelay(options: {
       if (
         closed ||
         req.method !== 'POST' ||
-        req.url !== '/__deploy/v1/server' ||
+        (req.url !== '/__deploy/v1/server' && req.url !== otlpPath) ||
         !(await options.allowedPeer(req.socket.remoteAddress ?? ''))
       ) {
         req.resume();
@@ -74,8 +79,46 @@ export function createTelemetryRelay(options: {
         req.resume();
         return end(401);
       }
+      if (req.url === otlpPath) {
+        // An OTLP success acknowledges the coordinator's acceptance, including authorization.
+        if (activeExports >= Math.min(maxBatches, 8)) {
+          req.resume();
+          return end(429);
+        }
+        activeExports++;
+        try {
+          const body = await readTelemetryBytes(req, batchBytes);
+          const reply = await transport(options.coordinatorUrl + '/api/agent/telemetry/v1/traces', {
+            method: 'POST',
+            redirect: 'error',
+            signal: AbortSignal.timeout(options.timeoutMs ?? 3000),
+            headers: {
+              'Content-Type': String(req.headers['content-type'] ?? ''),
+              'Content-Encoding': String(req.headers['content-encoding'] ?? 'identity'),
+              'x-deploy-node-id': options.nodeId,
+              'x-deploy-node-secret': options.secret,
+              authorization: 'Bearer ' + token,
+            },
+            body: new Uint8Array(body),
+          });
+          const responseBody = Buffer.from(await reply.arrayBuffer());
+          res.writeHead(reply.status, {
+            'Content-Type': reply.headers.get('content-type') ?? 'application/json',
+            ...(reply.headers.has('Retry-After')
+              ? { 'Retry-After': reply.headers.get('Retry-After')! }
+              : {}),
+            'Cache-Control': 'no-store',
+          });
+          res.end(responseBody);
+          return;
+        } finally {
+          activeExports--;
+        }
+      }
       const body = await readTelemetryBody(req, 512 * 1024);
-      const records = validateServerBatch(body).length;
+      let records = 1;
+      if (body?.v === 2) validateInteraction(body.interaction);
+      else records = validateServerBatch(body).length;
       const serialized = JSON.stringify(body);
       const bytes = Buffer.byteLength(serialized);
       // Include the in-flight batch in both budgets. Overflow is intentionally lossy.

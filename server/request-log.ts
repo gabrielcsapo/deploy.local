@@ -20,6 +20,8 @@ import { openRequestsDb, requestsDbFile } from './requests-db.ts';
 import { packageWorkerFile } from './kernel/files/worker-file.ts';
 
 export interface RequestEntry {
+  requestId?: string;
+  trace?: Record<string, unknown>;
   route?: string | null;
   phases?: Record<string, number>;
   method: string;
@@ -158,8 +160,8 @@ function ensureFallbackTx(dbFile: string) {
   _fallbackDb = sqlite;
 
   const insert = sqlite.prepare(
-    `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username, capture_id, route)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username, capture_id, route, request_id, trace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const rollupUpsert = sqlite.prepare(ROLLUP_UPSERT_SQL);
   _fallbackTx = sqlite.transaction((items: Array<{ name: string; entry: RequestEntry }>) => {
@@ -180,6 +182,8 @@ function ensureFallbackTx(dbFile: string) {
         entry.username || null,
         entry.captureId || null,
         entry.route ?? null,
+        entry.requestId ?? null,
+        entry.trace ? JSON.stringify(entry.trace) : null,
       );
     }
     writeEdgeTelemetry(sqlite, items);

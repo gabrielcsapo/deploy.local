@@ -137,7 +137,11 @@ test('newest-first copy resumes from disk without gaps, duplicate rows or duplic
   finish(f);
   assert.deepEqual(
     f.target.prepare('SELECT * FROM request_logs ORDER BY id').all(),
-    f.source.prepare('SELECT *, NULL AS route FROM request_logs ORDER BY id').all(),
+    f.source
+      .prepare(
+        'SELECT *, NULL AS route, NULL AS request_id, NULL AS trace FROM request_logs ORDER BY id',
+      )
+      .all(),
   );
   f.source.exec(ROLLUP_BACKFILL_SQL);
   assert.deepEqual(
@@ -394,7 +398,7 @@ test('request schema preserves legacy columns and indexes with an additive nulla
         name: String(row.name),
       }));
     assert.deepEqual(
-      columns(f.target).filter((row) => row.name !== 'route'),
+      columns(f.target).filter((row) => !['route', 'request_id', 'trace'].includes(row.name)),
       columns(f.source),
     );
     if (table === 'request_logs')
@@ -406,6 +410,12 @@ test('request schema preserves legacy columns and indexes with an additive nulla
       (db.prepare(`PRAGMA index_list(${table})`).all() as { name: string }[])
         .map((row) => row.name)
         .sort();
-    assert.deepEqual(indexes(f.target), indexes(f.source));
+    assert.deepEqual(
+      indexes(f.target),
+      [
+        ...indexes(f.source),
+        ...(table === 'request_logs' ? ['request_logs_request_id', 'request_logs_trace'] : []),
+      ].sort(),
+    );
   }
 });

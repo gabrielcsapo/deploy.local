@@ -321,15 +321,15 @@ function manifestPaths(pattern: string): string[] {
       const expression = param[2];
       values = !expression
         ? ['missing']
-        : expression === '[a-f0-9]{64}'
-          ? ['a'.repeat(64)]
-          : expression === '.+\\.git'
-            ? ['missing.git']
-            : expression.split('|').map((value) => {
-                if (value === '\\d+' || value === '[0-9]+') return '1';
-                if (/^\[.*\]\+$/.test(value)) return 'abc123';
-                return value;
-              });
+        : expression === '.+\\.git'
+          ? ['missing.git']
+          : expression.split('|').map((value) => {
+              const hex = /^\[(?:a-f0-9|0-9a-f)\]\{(\d+)\}$/.exec(value);
+              if (hex) return 'a'.repeat(Number(hex[1]));
+              if (value === '\\d+' || value === '[0-9]+') return '1';
+              if (/^\[.*\]\+$/.test(value)) return 'abc123';
+              return value;
+            });
     }
     paths = paths.flatMap((path) => values.map((value) => path + '/' + value));
   }

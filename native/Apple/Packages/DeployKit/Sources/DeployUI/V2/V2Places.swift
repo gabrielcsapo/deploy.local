@@ -139,8 +139,18 @@ struct V2ProjectsView: View {
     @Binding var requestedApp: String?
     @State private var path: [V2ProjectRoute] = []
     @State private var detailLoading: [V2LoadState] = []
+    @State private var selection: (id: String, trace: Interaction)?
+    private var navigationPath: Binding<[V2ProjectRoute]> {
+        Binding(get: { path }, set: { next in
+            if next.count > path.count, case let .project(id) = next.last {
+                selection?.trace.finish("navigation.left", outcome: "cancelled")
+                selection = (id, store.projectTracer.start("project.open"))
+            }
+            path = next
+        })
+    }
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: navigationPath) {
             V2Page(title: "Projects", loading: [store.loadState("projects")]) {
                 V2LoadRegion(state: store.loadState("projects"), copy: .projects, lastHeard: store.snapshot.resourceDates["projects"], icons: false, skeleton: AnyView(V2GroupedSkeleton(projects: true)),
                              retry: { await store.refreshResources(["projects", "live"]) }) {
@@ -164,7 +174,7 @@ struct V2ProjectsView: View {
                     case .project(let id):
                         if let project = store.snapshot.projects.first(where: { $0.id == id }) {
                             V2Page(title: project.name, loading: detailLoading) {
-                                V2ProjectSection(store: store, project: project, status: { detailLoading = $0 })
+                                V2ProjectSection(store: store, project: project, status: { detailLoading = $0 }, selection: selection?.id == id ? selection?.trace : nil)
                             }.navigationTitle(project.name).navigationBarTitleDisplayMode(.inline)
                         }
                     case .app(let id): V2WorkerView(store: store, appId: id)

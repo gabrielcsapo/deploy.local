@@ -1,59 +1,16 @@
+import { readTelemetryBody, TelemetryRateLimit } from './kernel/telemetry-http.ts';
+export { readTelemetryBody, TelemetryRateLimit } from './kernel/telemetry-http.ts';
+import { otlpPath, receiveOtlp, respondOtlp } from './otlp.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Database } from './kernel/db/sqlite.ts';
 import { getRequestsSqlite } from './requests-db.ts';
 import { deploymentForToken, ingestBrowser, ingestServer } from './telemetry.ts';
 
-/** Bounded peer-IP fixed windows. Forwarded headers are never trusted for ingestion. */
-export class TelemetryRateLimit {
-  private peers = new Map<string, { at: number; count: number }>();
-  private limit: number;
-  private capacity: number;
-  constructor(limit = 120, capacity = 10_000) {
-    this.limit = limit;
-    this.capacity = capacity;
-  }
-  allow(ip: string, now = Date.now()) {
-    let peer = this.peers.get(ip);
-    if (peer && now - peer.at >= 60_000) {
-      this.peers.delete(ip);
-      peer = undefined;
-    }
-    if (!peer) {
-      if (this.peers.size >= this.capacity) {
-        for (const [key, value] of this.peers) if (now - value.at >= 60_000) this.peers.delete(key);
-        if (this.peers.size >= this.capacity) return false;
-      }
-      this.peers.set(ip, (peer = { at: now, count: 0 }));
-    }
-    return ++peer.count <= this.limit;
-  }
-}
 const browserRate = new TelemetryRateLimit();
+const interactionRate = new TelemetryRateLimit(120);
 function end(res: ServerResponse, status: number) {
   res.writeHead(status, { 'Cache-Control': 'no-store' });
   res.end();
-}
-export async function readTelemetryBody(req: IncomingMessage, cap: number) {
-  const length = req.headers['content-length'];
-  if (length && (!/^\d+$/.test(length) || Number(length) > cap)) {
-    req.resume();
-    throw Object.assign(new Error('Telemetry body too large'), { status: 413 });
-  }
-  let bytes = 0;
-  const chunks: Buffer[] = [];
-  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-    bytes += chunk.length;
-    if (bytes > cap) {
-      req.resume();
-      throw Object.assign(new Error('Telemetry body too large'), { status: 413 });
-    }
-    chunks.push(Buffer.from(chunk));
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks, bytes).toString('utf8'));
-  } catch {
-    throw Object.assign(new Error('Invalid telemetry JSON'), { status: 400 });
-  }
 }
 export async function handleBrowserTelemetry(
   req: IncomingMessage,
@@ -80,14 +37,16 @@ export function serverTelemetryHandler(
   db: () => Database = getRequestsSqlite,
 ) {
   return async (req: IncomingMessage, res: ServerResponse) => {
+    const reject = (status: number) =>
+      req.url === otlpPath ? respondOtlp(req, res, status) : end(res, status);
     try {
       if (!(await allowedPeer(req.socket.remoteAddress ?? ''))) {
         req.resume();
-        return end(res, 404);
+        return reject(404);
       }
-      if (req.method !== 'POST' || req.url !== '/__deploy/v1/server') {
+      if (req.method !== 'POST' || (req.url !== '/__deploy/v1/server' && req.url !== otlpPath)) {
         req.resume();
-        return end(res, 404);
+        return reject(404);
       }
       const authorization = req.headers.authorization;
       const name = authorization?.startsWith('Bearer ')
@@ -95,13 +54,21 @@ export function serverTelemetryHandler(
         : null;
       if (!name) {
         req.resume();
-        return end(res, 401);
+        return reject(401);
+      }
+      if (req.url === otlpPath) {
+        if (!interactionRate.allow(name)) {
+          req.resume();
+          return reject(429);
+        }
+        return await receiveOtlp(req, res, db(), name);
       }
       const body = await readTelemetryBody(req, 512 * 1024);
+      if (body?.v === 2 && !interactionRate.allow(name)) return reject(429);
       ingestServer(db(), name, body);
       end(res, 204);
     } catch (error) {
-      end(res, (error as { status?: number }).status ?? 503);
+      reject((error as { status?: number }).status ?? 503);
     }
   };
 }
@@ -112,7 +79,7 @@ export function withServerTelemetry(
   next: (req: IncomingMessage, res: ServerResponse) => void,
 ) {
   return (req: IncomingMessage, res: ServerResponse) => {
-    if (req.url?.split('?')[0] === '/__deploy/v1/server') {
+    if (['/__deploy/v1/server', otlpPath].includes(req.url?.split('?')[0] ?? '')) {
       void telemetry(req, res);
       return;
     }

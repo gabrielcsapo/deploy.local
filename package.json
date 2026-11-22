@@ -61,6 +61,7 @@
     "drizzle-orm": "^0.45.4",
     "hono": "catalog:",
     "playwright": "catalog:",
+    "protobufjs": "7.6.6",
     "qrcode": "^1.5.4",
     "react": "catalog:",
     "react-dom": "catalog:",

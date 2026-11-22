@@ -1,3 +1,6 @@
+import { startHttpSpan, httpBatch } from '../../packages/trace/http.js';
+import { storeOtlp } from '../otlp.ts';
+import { getRequestsSqlite } from '../requests-db.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 import { projectsApi } from './projects-api.ts';
 import { performanceApi } from './performance.ts';
@@ -82,11 +85,13 @@ const featureApis: Record<string, FeatureApi<RequireAuth> | FeatureApi<string>> 
   'v2/performance': performanceApi,
 };
 
+const observedResponses = new WeakSet<ServerResponse>();
 export async function v2Api(
   req: IncomingMessage,
   res: ServerResponse,
   requireAuth: RequireAuth,
   feature?: string,
+  template?: string,
 ) {
   const send = (value: unknown, status = 200) => {
     sendJson(res, value, status, { guard: true });
@@ -98,6 +103,29 @@ export async function v2Api(
     if (!auth) return;
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Agent and worker credentials cannot access client commands' }, 403);
+    if (
+      !observedResponses.has(res) &&
+      !req.url?.startsWith('/api/control/') &&
+      !req.url?.startsWith('/api/activity-events')
+    ) {
+      const finish = startHttpSpan(req.headers.traceparent);
+      if (finish) {
+        observedResponses.add(res);
+        const route = template ?? '/api/*';
+        res.once('finish', () => {
+          const span = finish(req.method ?? 'GET', route, res.statusCode);
+          setImmediate(() => {
+            try {
+              storeOtlp(
+                getRequestsSqlite(),
+                'control:' + auth.username,
+                httpBatch('deploy.server', [span]),
+              );
+            } catch {}
+          });
+        });
+      }
+    }
     for (const api of signedIn)
       if ((!feature || featureApis[feature] === api) && (await api(req, res, auth.username)))
         return;

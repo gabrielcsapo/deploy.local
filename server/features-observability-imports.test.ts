@@ -18,6 +18,8 @@ function imports(source: string) {
 // Exact exceptions retained by the pure move. An edge disappearing also requires review.
 const workspaceOrigins = new Set<string>(['event-clip.ts', 'health-event-retention.ts']);
 const exceptions: Record<string, string> = {
+  'interaction-traces.ts -> packages/trace/interaction.js':
+    'Type-only dependency on the public client interaction contract used by the ingestion validator.',
   'health.ts -> shared/v2/contracts.ts':
     'Existing public health and Live types; preserve client contracts.',
   'live.ts -> server/ci-releases.ts':

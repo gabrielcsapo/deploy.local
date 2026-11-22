@@ -21,6 +21,9 @@ const tests = [
   ...collectTests('shared'),
   ...collectTests('bin'),
   ...collectTests('scripts'),
+  ...readdirSync('packages/trace')
+    .filter((name) => name.endsWith('.test.mjs'))
+    .map((name) => join('packages/trace', name)),
   ...collectTests('packages/node-app/src'),
   ...collectTests('packages/mdns'),
   // Plain Node: these fake Electron and the Mac commands, so no Electron binary or Xcode is needed.
