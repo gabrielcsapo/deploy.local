@@ -96,12 +96,7 @@
                           "id": 3
                         }
                       },
-                      "reserved": [
-                        [
-                          1000,
-                          1000
-                        ]
-                      ]
+                      "reserved": [[1000, 1000]]
                     },
                     "ScopeSpans": {
                       "fields": {
@@ -264,12 +259,7 @@
                           "id": 3
                         }
                       },
-                      "reserved": [
-                        [
-                          1,
-                          1
-                        ]
-                      ],
+                      "reserved": [[1, 1]],
                       "nested": {
                         "StatusCode": {
                           "values": {

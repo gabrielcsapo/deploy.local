@@ -49,7 +49,6 @@ In an authenticated deploy.local session, open `/api/apps/<app>/requests/<x-requ
 
 Every proxied request records its ID, cache outcome, time to upstream headers when available, and edge elapsed time in the existing buffered request log. Slow requests (one second or longer), errors, cancellations, retries, requests with a trace parent, and instrumented server spans retain the individual attempts. About one in 256 other requests retains that detail. The longest operations can overlap. A router commit is a client milestone; individual content can finish loading later.
 
-
 ### Trace an interaction through visible content
 
 Use `@deploy-local/trace/interaction` in a browser or add the `InteractionTracing` Swift package. Configure one tracer per signed-in owner and service origin. The application supplies an authenticated, same-origin reporter and a stable owner scope. In the browser, pass sessionStorage to retain pending events across page loads in that tab. Apple clients use UserDefaults. Flush after reconnect or session restoration and call close on sign-out.
