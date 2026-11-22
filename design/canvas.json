@@ -2132,6 +2132,14 @@
       "title": "A web app’s requests: volume, errors, slow paths and every request",
       "expand": "fill"
     },
+    "AppRequestSpanPhone.html": {
+      "x": 31490,
+      "y": 15384,
+      "w": 390,
+      "h": 844,
+      "title": "Request span details on mobile web",
+      "expand": "fill"
+    },
     "AppRequest.html": {
       "x": 21480,
       "y": 15384,
@@ -4133,6 +4141,7 @@
     "AppRequests.html",
     "AppRequestsHover.html",
     "AppRequest.html",
+    "AppRequestSpanPhone.html",
     "AppPerformance.html",
     "AppPerformanceTotals.html",
     "AppPerformanceError.html",
