@@ -58,7 +58,7 @@ import {
 import { NewProjectDialog } from './new-project.client';
 import { ProjectPushCode, ProjectStart } from './project-start.client';
 
-import { remembered, useCoordinatorName, useInbox, useResource } from '../data/hooks';
+import { remembered, useCoordinatorName, useInbox, useWorkspace, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
 import type { TaskPull } from '../tasks/types';
 import type { ProjectWork } from '../../../../../server/features/repositories/project-work.ts';
@@ -472,7 +472,7 @@ function ProjectPage({
   const [add, setAdd] = useState(false);
   const available = useData<{ apps: Project['apps'] }>('/api/projects/unlinked-apps');
   const inbox = useInbox();
-  const workspace = useResource<WorkspaceState>('/api/state');
+  const workspace = useWorkspace();
   const live = useResource<LiveResponse>('/api/live');
   const data = overview.data;
   const project = data?.project;
@@ -498,7 +498,7 @@ function ProjectPage({
       (task) =>
         taskState(
           { ...task, status: task.status || '', createdAt: task.createdAt || '' },
-          workspace.data?.runs || [],
+          workspace?.runs || [],
         ) === 'running',
     ).length || 0;
   const readyPull = pulls.data?.items.find((pull) =>
@@ -877,7 +877,7 @@ function ProjectPage({
                         )}
                         <Group>
                           {data.tasks.map((task) => (
-                            <WorkRow key={task.id} task={task} runs={workspace.data?.runs || []} />
+                            <WorkRow key={task.id} task={task} runs={workspace?.runs || []} />
                           ))}
                           {!data.tasks.length && (
                             <Item

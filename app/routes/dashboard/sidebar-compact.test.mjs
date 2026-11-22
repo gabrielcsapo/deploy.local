@@ -75,6 +75,7 @@ async function shell() {
         useResource: () => ({}),
         useInbox: () => ({ items: [] }),
         InboxProvider: 'InboxProvider',
+        WorkspaceContext: { Provider: 'WorkspaceProvider' },
         AgentNamesProvider: 'AgentNamesProvider',
         CoordinatorNameProvider: 'CoordinatorNameProvider',
       },

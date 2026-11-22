@@ -5031,43 +5031,46 @@ export async function readDesignReviews(owner: string, url: URL) {
       ),
     );
   proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const approved = list('v2-inbox-native', owner)
+  const landings = new Map(list('design-review-landing', owner).map((entry) => [entry.id, entry]));
+  const builds = new Map(list('design-review-built', owner).map((entry) => [entry.id, entry]));
+  const candidates = list('v2-inbox-native', owner)
     .filter(
       (row) =>
         row.context?.source === 'design' &&
         row.item.answer?.actionId === 'approve' &&
         (!projectId || row.context.projectId === projectId) &&
-        !list('design-review-landing', owner).some(
-          (landing) => landing.id === row.id && landing.state !== 'landed',
-        ),
+        (!landings.has(row.id) || landings.get(row.id).state === 'landed'),
     )
-    .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))
-    .flatMap((row) => {
-      const built = list('design-review-built', owner).find(
-        (entry) => entry.id === row.id && entry.state !== 'waiting',
-      );
-      const landing = reviewLanding(owner, row.id);
-      const task = list('task', owner).find((entry) => entry.id === landing?.build?.taskId);
-      const project = get('project', owner, row.context.projectId);
-      const building =
-        task && !['done', 'completed', 'cancelled', 'archived'].includes(task.status);
-      if (!built && !building) return [];
-      return [
-        {
-          id: row.id,
-          title: row.item.title,
-          project: project.name ?? project.id,
-          detail: built
-            ? ['matches', 'kept'].includes(built.state)
-              ? 'Built · matches the design'
-              : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
-            : landing?.build?.name
-              ? `${project.name ?? project.id} · ${landing.build.name} is building it`
-              : `${project.name ?? project.id} · being built`,
-        },
-      ];
-    })
-    .slice(0, 5);
+    .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at));
+  let tasks: Map<string, any> | undefined;
+  const approved = [];
+  for (const row of candidates) {
+    const build = builds.get(row.id);
+    const built = build && build.state !== 'waiting';
+    const taskId = landings.get(row.id)?.build?.taskId;
+    let builder;
+    if (!built) {
+      if (!taskId) continue;
+      tasks ??= new Map(list('task', owner).map((entry) => [entry.id, entry]));
+      const task = tasks.get(taskId);
+      if (!task || ['done', 'completed', 'cancelled', 'archived'].includes(task.status)) continue;
+      builder = proposalProposer(owner, taskId, { taskTitle: true }).name;
+    }
+    const project = get('project', owner, row.context.projectId);
+    approved.push({
+      id: row.id,
+      title: row.item.title,
+      project: project.name ?? project.id,
+      detail: built
+        ? ['matches', 'kept'].includes(build.state)
+          ? 'Built · matches the design'
+          : `Built · ${build.differences} difference${build.differences === 1 ? '' : 's'} to look at`
+        : builder
+          ? `${project.name ?? project.id} · ${builder} is building it`
+          : `${project.name ?? project.id} · being built`,
+    });
+    if (approved.length === 5) break;
+  }
   return { proposals, approved };
 }
 

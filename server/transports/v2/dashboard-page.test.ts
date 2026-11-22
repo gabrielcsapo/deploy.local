@@ -74,6 +74,15 @@ after(() => {
 });
 
 test('dashboard seeds use only cookie identity and are deduplicated only within one Request', async () => {
+  workspace.save('v2-inbox-native', 'alice', {
+    id: 'private-answer',
+    item: {
+      id: 'private-answer',
+      title: 'Alice private answer',
+      state: 'answered',
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+  });
   const req = request('/dashboard/agents');
   req.headers.set('x-deploy-username', 'bob');
   req.headers.set('x-deploy-token', bob.token!);
@@ -92,6 +101,14 @@ test('dashboard seeds use only cookie identity and are deduplicated only within 
   assert.equal((page.seed.data['/api/auth/account'] as any).welcomed, false);
   const other = await loadDashboardPage(request('/dashboard/agents', 'bob', bob.token));
   assert.doesNotMatch(JSON.stringify(other!.seed), /Alice private agent/);
+  assert.match(
+    JSON.stringify((await page.shellSeed()).data['/api/inbox?state=answered']),
+    /Alice private answer/,
+  );
+  assert.doesNotMatch(
+    JSON.stringify((await other!.shellSeed()).data['/api/inbox?state=answered']),
+    /Alice private answer/,
+  );
 });
 
 test('missing, malformed, expired, revoked and header-only credentials retain client loading', async () => {
@@ -164,7 +181,8 @@ test('every seeded v2 value is the API wire response, including permissions and 
       assert.ok(page.seed.data['/api/live/standalone.app']);
       assert.ok(page.seed.data['/api/projects/app%3Astandalone.app/overview']);
     }
-    for (const [key, value] of Object.entries(page.seed.data)) {
+    const shell = await page.shellSeed();
+    for (const [key, value] of Object.entries(shell.data)) {
       if (!key.startsWith('/api/')) continue;
       const response = await api(`https://deploy.test${key}`, {
         headers: { cookie: buildAuthCookie('alice', alice.token!) },
@@ -172,10 +190,10 @@ test('every seeded v2 value is the API wire response, including permissions and 
       assert.equal(response.status, 200, `${path}: ${key}`);
       assert.deepEqual(JSON.parse(JSON.stringify(value)), await response.json(), `${path}: ${key}`);
     }
-    assert.ok(
-      '/api/state' in page.seed.data || '/api/state' in page.seed.errors,
-      'the sidebar task list is read with the page',
-    );
+    assert.ok('/api/state' in shell.data || '/api/state' in shell.errors);
+    assert.ok('/api/inbox?state=answered' in shell.data);
+    assert.ok(!('/api/state' in page.seed.data));
+    assert.ok(!('/api/inbox?state=answered' in page.seed.data));
     assert.ok(!('/api/self-update' in page.seed.data));
     assert.ok(!('/api/updates' in page.seed.data));
   }

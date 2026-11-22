@@ -19,6 +19,7 @@ import {
   AgentNamesProvider,
   CoordinatorNameProvider,
   InboxProvider,
+  WorkspaceContext,
   useInbox,
   useResource,
 } from './v2/data/hooks';
@@ -450,7 +451,14 @@ function V2Shell() {
           <AgentNamesProvider agents={data.agents.data?.agents}>
             {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
             <Suspense fallback={seed ? null : <PageLoading />}>
-              <Outlet />
+              <WorkspaceContext.Provider
+                value={{
+                  owner: seed?.owner ?? data.user.data?.username,
+                  data: data.workspace.data,
+                }}
+              >
+                <Outlet />
+              </WorkspaceContext.Provider>
             </Suspense>
           </AgentNamesProvider>
         </CoordinatorNameProvider>

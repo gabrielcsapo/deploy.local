@@ -62,6 +62,7 @@ export function projectPageOwner(request?: Request) {
 type Repository = { deployment?: { pipeline?: boolean }; defaultBranch?: string; empty?: boolean };
 type Page = {
   seed: PageSeed;
+  shellSeed: () => Promise<PageSeed>;
   project?: Project;
   overview?: Awaited<ReturnType<typeof readProjectOverview>>;
   url: URL;
@@ -109,17 +110,27 @@ async function load(request: Request): Promise<Page | undefined> {
   await put('/api/live', () => getLive(owner));
   const items = syncInbox(owner);
   seed.cursor = cursor(owner);
-  for (const state of ['waiting', 'answered'])
-    seed.data[`/api/inbox?state=${state}`] = {
-      items: items.filter((item) => item.state === state),
+  seed.data['/api/inbox?state=waiting'] = {
+    items: items.filter((item) => item.state === 'waiting'),
+    cursor: seed.cursor,
+  };
+  // The mounted layout owns these live resources across child navigations.
+  const shellSeed = async (): Promise<PageSeed> => {
+    const shell = { ...seed, data: { ...seed.data }, errors: { ...seed.errors } };
+    shell.data['/api/inbox?state=answered'] = {
+      items: items.filter((item) => item.state === 'answered'),
       cursor: seed.cursor,
     };
+    try {
+      shell.data['/api/state'] = await readWorkspaceState(owner);
+    } catch (error) {
+      shell.errors['/api/state'] = error instanceof Error ? error.message : 'Request failed';
+    }
+    return shell;
+  };
   if (!projectsPage) {
-    await Promise.all([
-      put('/api/state', () => readWorkspaceState(owner)),
-      loadDashboardResources(seed, url),
-    ]);
-    return { seed, url };
+    await loadDashboardResources(seed, url);
+    return { seed, shellSeed, url };
   }
   const projects = await projectsForOwner(owner, true).catch(() => undefined);
   if (!projects) return undefined;
@@ -128,10 +139,9 @@ async function load(request: Request): Promise<Page | undefined> {
   const project =
     projects.find((entry) => entry.id === key) ??
     (key ? await resolveProject(owner, key, true).catch(() => undefined) : undefined);
-  await put('/api/state', () => readWorkspaceState(owner));
   // The list arrives with the page as it first shows: live projects and the first repositories.
   if (!key) await put(projectListPath(), () => readProjectList(owner));
-  if (!key || !project) return { seed, url };
+  if (!key || !project) return { seed, shellSeed, url };
   const base = `/api/projects/${encodeURIComponent(key)}`;
   await Promise.all([
     put(`${base}/overview`, () => readProjectOverview(owner, project)),
@@ -167,7 +177,13 @@ async function load(request: Request): Promise<Page | undefined> {
       `/api/apps/${encodeURIComponent(selected.name)}/requests/${encodeURIComponent(requestId)}`,
       () => requestDetail(owner, selected.name, Number(requestId)),
     );
-  return { seed, project, overview: seed.data[`${base}/overview`] as Page['overview'], url };
+  return {
+    seed,
+    shellSeed,
+    project,
+    overview: seed.data[`${base}/overview`] as Page['overview'],
+    url,
+  };
 }
 
 /** Tab reads are separate from the header and stream under ProjectPanel's boundary. */

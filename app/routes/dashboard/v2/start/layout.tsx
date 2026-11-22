@@ -6,7 +6,7 @@ import { SessionExpired } from './SessionExpired';
 export default async function Layout() {
   const page = await pageLoader().loadDashboardPage(getRequest());
   return (
-    <DataSeeds part="shell" seed={page?.seed}>
+    <DataSeeds part="shell" seed={await page?.shellSeed()}>
       <V2Layout />
       <SessionExpired />
     </DataSeeds>

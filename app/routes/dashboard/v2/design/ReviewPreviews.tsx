@@ -92,7 +92,8 @@ export function useReviewPreviews(api: string, item: string, boards: DesignRevie
   };
 }
 
-const previewScale = () => Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+// Proposals prepare 1× and 2× images. Fractional browser zoom can use the next sharper copy.
+const previewScale = () => (window.devicePixelRatio > 1 ? 2 : 1);
 
 async function loadImage(src: string | null, signal: AbortSignal, urls: string[]) {
   if (!src) return null;

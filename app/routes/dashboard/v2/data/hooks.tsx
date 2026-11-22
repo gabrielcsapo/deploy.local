@@ -11,7 +11,7 @@ import { useDataSeed, freshSeed, resourceKey, type DataSeed } from './seeds';
 import { getAuth } from '../../detail/shared';
 import { createEventFeed } from './event-feed';
 import { createInboxStore } from './inbox-store';
-import { readResource } from './sidebar';
+import { readResource, type WorkspaceState } from './sidebar';
 import { agentName } from '../inbox/presentation';
 
 const AgentIdentities = createContext<
@@ -86,6 +86,17 @@ export function onAuthReset(listener: () => void) {
   return () => {
     authResetListeners.delete(listener);
   };
+}
+
+export const WorkspaceContext = createContext<{
+  owner?: string;
+  data: WorkspaceState | null;
+} | null>(null);
+export function useWorkspace() {
+  const workspace = useContext(WorkspaceContext);
+  const seed = useDataSeed();
+  const owner = seed?.owner ?? getAuth()?.username;
+  return workspace?.owner === owner ? (workspace?.data ?? null) : null;
 }
 
 const InboxContext = createContext<ReturnType<typeof createInboxStore> | null>(null);

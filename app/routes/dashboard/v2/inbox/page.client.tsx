@@ -14,8 +14,7 @@ import {
 } from '@/components/ui';
 import type { DesignReviewSummary, InboxItem } from '../../../../../shared/v2/contracts';
 import { SavedAgentAvatar } from '../agents/identity';
-import { useAgentName, useInbox, useResource } from '../data/hooks';
-import type { WorkspaceState } from '../data/sidebar';
+import { useAgentName, useInbox, useWorkspace } from '../data/hooks';
 import { useData } from '../projects/data';
 import { useProjectFormatting } from '../projects/formatting';
 import { inboxItemHref } from '../design/review-model';
@@ -48,7 +47,7 @@ export default function Inbox() {
   const inbox = useInbox();
   const agentName = useAgentName();
   const { now } = useProjectFormatting();
-  const workspace = useResource<WorkspaceState>('/api/state');
+  const workspace = useWorkspace();
   // A design's project, proposer and screens come with its review summary.
   const version = inbox.items
     .filter((item) => item.state === 'waiting' && item.id.startsWith('design:'))
@@ -63,7 +62,7 @@ export default function Inbox() {
   );
   const projectName = (item: InboxItem) =>
     item.projectName ??
-    workspace.data?.projects?.find((project) => project.id === item.projectId)?.name ??
+    workspace?.projects?.find((project) => project.id === item.projectId)?.name ??
     null;
   const who = (item: InboxItem) => item.fromName || agentName(item.from);
   const context = (item: InboxItem) =>
