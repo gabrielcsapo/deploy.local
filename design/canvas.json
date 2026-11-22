@@ -3771,6 +3771,20 @@
       "h": 900,
       "title": "Opening a review in the editor: boards appear blurred in place and sharpen",
       "expand": "fill"
+    },
+    "DocsPerformance.html": {
+      "x": 6160,
+      "y": 38284,
+      "w": 1440,
+      "h": 1900,
+      "title": "Docs: Performance — what an app sends for routes, page experience and errors"
+    },
+    "DocsPerformancePhone.html": {
+      "x": 7680,
+      "y": 38284,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone Safari — Docs: Performance, route timing first"
     }
   },
   "order": [
@@ -4271,7 +4285,9 @@
     "StorageHistory.html",
     "StorageLargeFilesSearch.html",
     "StorageStates.html",
-    "StorageLargeFilesNoMatch.html"
+    "StorageLargeFilesNoMatch.html",
+    "DocsPerformance.html",
+    "DocsPerformancePhone.html"
   ],
   "notes": {
     "intro": {
