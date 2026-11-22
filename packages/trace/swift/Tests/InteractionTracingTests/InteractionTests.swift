@@ -3,6 +3,23 @@ import XCTest
 @testable import InteractionTracing
 
 final class InteractionTests: XCTestCase {
+  @MainActor func testBurstDrainsAcrossMultipleBatches() async throws {
+    var batches: [[InteractionEvent]] = []
+    let tracer = InteractionTracer(batchingScope: UUID().uuidString) { events in
+      batches.append(events)
+      return true
+    }
+    defer { tracer.close() }
+    let opened = (0..<40).map { _ in tracer.start("http.get.inbox") }
+    for open in opened { open.finish("response.received") }
+    for _ in 0..<100 where batches.flatMap({ $0 }).count < opened.count {
+      await Task.yield()
+      await tracer.flush()
+    }
+    XCTAssertEqual(Set(batches.flatMap { $0.map(\.traceId) }), Set(opened.map(\.traceId)))
+    XCTAssertEqual(batches.flatMap { $0 }.count, opened.count)
+    XCTAssertTrue(batches.allSatisfy { $0.count <= 16 })
+  }
   @MainActor func testChildStatusDistinguishesCancellationFromNetworkFailure() async throws {
     var recorded: InteractionEvent?
     let tracer = InteractionTracer(scope: UUID().uuidString) { event in

@@ -491,19 +491,6 @@ export function proxyToApp(
       proxyRes.once('end', releaseBackend);
       proxyRes.once('close', releaseBackend);
 
-      if (shouldCompress) {
-        proxyHeaders['content-encoding'] = 'gzip';
-        delete proxyHeaders['content-length'];
-        res.writeHead(status, proxyHeaders);
-        // Level 1: on LAN links bandwidth is cheap and CPU is the constrained
-        // resource — fastest setting costs a few % size for ~3-4x less CPU
-        // than the zlib default (6).
-        proxyRes.pipe(createGzip({ level: 1 })).pipe(res);
-      } else {
-        res.writeHead(status, proxyHeaders);
-        proxyRes.pipe(res);
-      }
-
       // Log after the response finishes so chunked and dynamically compressed
       // payloads have a real byte count. Previously those rows were recorded
       // immediately with a null size, making transfer totals read near zero.
@@ -545,19 +532,32 @@ export function proxyToApp(
           emitLiveRequest(deps, deployment.name, entry);
         });
       };
-      let responseFinished = false;
-      res.once('finish', () => {
-        responseFinished = true;
+      // The caller can leave while the app is still processing the request.
+      // In that case its close event has already fired, but the app's reply
+      // still belongs to this upstream attempt.
+      const onClientClose = () => {
+        if (!res.writableFinished && !proxyRes.destroyed) proxyRes.destroy();
         logCompletedRequest();
-      });
-      res.once('close', () => {
-        // A video player commonly abandons one range when it seeks or has
-        // buffered enough. Stop reading from the node immediately; the data
-        // listener used for accounting would otherwise keep draining the
-        // entire upstream response after the browser was gone.
-        if (!responseFinished && !proxyRes.destroyed) proxyRes.destroy();
-        logCompletedRequest();
-      });
+      };
+      if (res.destroyed || res.closed) {
+        onClientClose();
+        return;
+      }
+      res.once('finish', logCompletedRequest);
+      res.once('close', onClientClose);
+
+      if (shouldCompress) {
+        proxyHeaders['content-encoding'] = 'gzip';
+        delete proxyHeaders['content-length'];
+        res.writeHead(status, proxyHeaders);
+        // Level 1: on LAN links bandwidth is cheap and CPU is the constrained
+        // resource — fastest setting costs a few % size for ~3-4x less CPU
+        // than the zlib default (6).
+        proxyRes.pipe(createGzip({ level: 1 })).pipe(res);
+      } else {
+        res.writeHead(status, proxyHeaders);
+        proxyRes.pipe(res);
+      }
     },
   );
 

@@ -24,10 +24,13 @@ type Options = {
   storage?: Storage;
 } & (
   | { send: (event: InteractionEvent) => Promise<boolean>; sendBatch?: never }
-  | { sendBatch: (events: InteractionEvent[]) => Promise<boolean>; send?: never }
+  | {
+      sendBatch: (events: InteractionEvent[], keepalive: boolean) => Promise<boolean>;
+      send?: never;
+    }
 );
 export declare function interactionTracer(options: Options): {
-  flush: () => Promise<void>;
+  flush: (keepalive?: boolean) => Promise<void>;
   close(clear?: boolean): void;
   start(
     name: string,

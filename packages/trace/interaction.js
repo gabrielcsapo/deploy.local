@@ -2,6 +2,8 @@ const id = (n) =>
   Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) =>
     b.toString(16).padStart(2, '0'),
   ).join('');
+const batchSize = 16;
+const maxPending = 128;
 const ms = (n) => Math.round(n * 100) / 100;
 export function interactionTracer(options) {
   const key = 'trace.pending.' + options.scope;
@@ -10,7 +12,7 @@ export function interactionTracer(options) {
     sending = false;
   try {
     const saved = JSON.parse(options.storage?.getItem(key) || '[]');
-    if (Array.isArray(saved)) pending = saved.slice(-16);
+    if (Array.isArray(saved)) pending = saved.slice(-maxPending);
   } catch {}
   function persist() {
     try {
@@ -19,15 +21,20 @@ export function interactionTracer(options) {
     } catch {}
   }
   let timer;
-  async function flush() {
+  async function flush(keepalive = false) {
     clearTimeout(timer);
     timer = undefined;
     if (closed || sending) return;
     sending = true;
     try {
       while (!closed && pending.length) {
-        const batch = pending.slice(0, options.sendBatch ? 16 : 1);
-        if (!(await (options.sendBatch ? options.sendBatch(batch) : options.send(batch[0])))) break;
+        const batch = pending.slice(0, options.sendBatch ? batchSize : 1);
+        if (
+          !(await (options.sendBatch
+            ? options.sendBatch(batch, keepalive)
+            : options.send(batch[0])))
+        )
+          break;
         pending = pending.filter((event) => !batch.includes(event));
         if (!closed) persist();
       }
@@ -53,6 +60,7 @@ export function interactionTracer(options) {
         start = startedAt;
       const startedAtUnixMs = performance.timeOrigin + start;
       const spans = [];
+      const active = new Set();
       let detachNavigation;
       let ended = false,
         count = 0;
@@ -69,6 +77,7 @@ export function interactionTracer(options) {
           startMs: ms(at - start),
           durationMs: 0,
         };
+        active.add(entry);
         try {
           const result = await work('00-' + traceId + '-' + child + '-01');
           if (result instanceof Response) {
@@ -80,6 +89,7 @@ export function interactionTracer(options) {
           entry.failed = true;
           throw error;
         } finally {
+          active.delete(entry);
           entry.durationMs = ms(performance.now() - at);
           if (!ended) spans.push(entry);
         }
@@ -137,14 +147,21 @@ export function interactionTracer(options) {
             platform: 'web',
             startedAtUnixMs,
             durationMs: ms(Math.max(0, endedAt - start)),
-            spans,
+            // A request may outlive the document that propagated its parent ID.
+            spans: [
+              ...spans,
+              ...Array.from(active, (s) => ({
+                ...s,
+                durationMs: ms(Math.max(0, endedAt - start - s.startMs)),
+              })),
+            ],
           };
           queueMicrotask(() => {
             if (closed) return;
             pending.push(event);
-            if (pending.length > 16) pending.shift();
+            if (pending.length > maxPending) pending.shift();
             persist();
-            if (options.sendBatch) timer ??= setTimeout(flush, 500);
+            if (options.sendBatch && pending.length < batchSize) timer ??= setTimeout(flush, 500);
             else void flush();
           });
         },

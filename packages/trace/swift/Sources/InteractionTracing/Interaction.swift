@@ -19,6 +19,8 @@ public struct InteractionEvent: Codable, Sendable {
 @MainActor public final class InteractionTracer {
   private let key: String
   private let send: @MainActor ([InteractionEvent]) async throws -> Bool
+  private let batchSize = 16
+  private let maxPending = 128
   private let batched: Bool
   private var timer: Task<Void, Never>?
   private var pending: [InteractionEvent]
@@ -64,11 +66,17 @@ public struct InteractionEvent: Codable, Sendable {
   fileprivate func enqueue(_ event: InteractionEvent) {
     guard !closed else { return }
     pending.append(event)
-    if pending.count > 16 { pending.removeFirst() }
+    // Keep a burst (or a new batch arriving during export) until it can drain.
+    if pending.count > maxPending { pending.removeFirst() }
     persist()
+    if batched && pending.count == batchSize {
+      timer?.cancel()
+      timer = nil
+    }
     if timer == nil {
+      let delay = batched && pending.count < batchSize
       timer = Task { [weak self] in
-        if self?.batched == true { try? await Task.sleep(for: .milliseconds(500)) }
+        if delay { try? await Task.sleep(for: .milliseconds(500)) }
         guard !Task.isCancelled else { return }
         self?.timer = nil
         await self?.flush()
@@ -80,7 +88,7 @@ public struct InteractionEvent: Codable, Sendable {
     sending = true
     defer { sending = false }
     while !closed, !pending.isEmpty {
-      let batch = Array(pending.prefix(batched ? 16 : 1))
+      let batch = Array(pending.prefix(batched ? batchSize : 1))
       guard (try? await send(batch)) == true else { return }
       let ids = Set(batch.map(\.traceId))
       pending.removeAll { ids.contains($0.traceId) }

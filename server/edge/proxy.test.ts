@@ -57,7 +57,16 @@ describe('edge proxy request accounting', () => {
   let useEndpointSelector = false;
   let endpointReleases = 0;
 
+  let onDelayedRequest: ((parent: string) => void) | undefined;
+  let onDownstreamClose: (() => void) | undefined;
+  let reply: (() => void) | undefined;
+
   const upstream = createServer((req, res) => {
+    if (req.url === '/delayed') {
+      reply = () => res.end('accepted');
+      onDelayedRequest?.(String(req.headers.traceparent));
+      return;
+    }
     if (req.url === '/cancelled-range') {
       const declaredBytes = 1024 * 1024;
       res.writeHead(206, {
@@ -76,6 +85,7 @@ describe('edge proxy request accounting', () => {
   });
 
   const proxy = createServer((req, res) => {
+    if (req.url === '/delayed') res.once('close', () => onDownstreamClose?.());
     const route = {
       name: 'test-app',
       port: upstreamPort,
@@ -153,6 +163,37 @@ describe('edge proxy request accounting', () => {
     assert.equal(endpointReleases, 1);
     useEndpointSelector = false;
   });
+
+  it(
+    'records the upstream attempt when the client leaves before headers',
+    { timeout: 3000 },
+    async () => {
+      const upstreamParent = new Promise<string>((resolve) => {
+        onDelayedRequest = resolve;
+      });
+      const disconnected = new Promise<void>((resolve) => {
+        onDownstreamClose = resolve;
+      });
+      const logged = new Promise<RequestLogEntry>((resolve) => {
+        resolveLogged = resolve;
+      });
+      const parent = '00-' + '1'.repeat(32) + '-' + '2'.repeat(16) + '-01';
+      const client = get(`http://127.0.0.1:${proxyPort}/delayed`, {
+        headers: { traceparent: parent },
+      });
+      client.on('error', () => {});
+      const forwarded = await upstreamParent;
+      client.destroy();
+      await disconnected;
+      reply!();
+      const entry = await logged;
+      const trace = entry.trace as { parentSpanId: string; attempts: { spanId: string }[] };
+      assert.equal(entry.status, 200);
+      assert.equal(entry.responseSize, 0);
+      assert.equal(trace.parentSpanId, parent.split('-')[2]);
+      assert.equal(trace.attempts[0].spanId, forwarded.split('-')[2]);
+    },
+  );
 
   it('cancels an abandoned range and records only observed bytes', async () => {
     const logged = new Promise<RequestLogEntry>((resolve) => {

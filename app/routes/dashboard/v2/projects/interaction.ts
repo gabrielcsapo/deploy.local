@@ -37,10 +37,11 @@ export function projectTracer() {
     scope: 'control.' + owner,
     origin: location.origin,
     storage,
-    sendBatch: async (events) => {
+    sendBatch: async (events, keepalive) => {
       if (getAuth()?.username !== owner) return false;
       const response = await authenticatedFetch('/api/control/otel/v1/traces', {
         method: 'POST',
+        keepalive,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(exportInteractions(events, 'deploy.web')),
       });

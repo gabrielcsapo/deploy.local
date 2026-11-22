@@ -51,6 +51,22 @@ export function routeFamily(path, prefix, known) {
 // Cover raw API calls as well as framework clients. Existing parents and non-API requests pass through.
 export function observeWebFlows(tracer, nameRequest) {
   const original = window.fetch;
+  const requests = new Set();
+  let leaving = false;
+  function flushOnExit() {
+    // finish enqueues its event in a microtask before this flush.
+    queueMicrotask(() => void tracer.flush(true));
+  }
+  function hide() {
+    leaving = true;
+    for (const open of requests) open.finish('page.left', 'cancelled');
+    flushOnExit();
+  }
+  function show() {
+    leaving = false;
+  }
+  window.addEventListener('pagehide', hide);
+  window.addEventListener('pageshow', show);
   const wrapped = async (input, init) => {
     let url;
     try {
@@ -72,11 +88,18 @@ export function observeWebFlows(tracer, nameRequest) {
       );
     if (!name) return original.call(window, input, init);
     const open = tracer.start(name);
+    requests.add(open);
     try {
-      const response = await open.span('http.fetch', (parent) => {
+      const sending = open.span('http.fetch', (parent) => {
         headers.set('traceparent', parent);
         return original.call(window, input, { ...init, headers });
       });
+      // Visibility listeners can issue a final write after pagehide has fired.
+      if (leaving) {
+        open.finish('page.left', 'cancelled');
+        flushOnExit();
+      }
+      const response = await sending;
       open.finish('response.headers', response.status >= 400 ? 'error' : 'ok');
       return response;
     } catch (error) {
@@ -86,10 +109,14 @@ export function observeWebFlows(tracer, nameRequest) {
         cancelled ? 'cancelled' : 'error',
       );
       throw error;
+    } finally {
+      requests.delete(open);
     }
   };
   window.fetch = wrapped;
   return () => {
+    window.removeEventListener('pagehide', hide);
+    window.removeEventListener('pageshow', show);
     if (window.fetch === wrapped) window.fetch = original;
   };
 }
