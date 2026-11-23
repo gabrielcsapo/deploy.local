@@ -94,6 +94,12 @@ The coordinator accepts its own authenticated clients at `POST /api/control/otel
 
 Operators can select up to 16 additional attribute keys per project with `DEPLOY_OTEL_ATTRIBUTES`, a JSON object mapping the deployment name (or `control:<owner>`) to an array of keys. For example, `{"example":["db.operation.name","app.rows_returned","pool.name"]}` retains those scalar attributes on spans and events. The receiver bounds string values to 160 characters and retains up to 32 events per span. Only select fields safe for project owners to read.
 
+### Links that work before hydration
+
+For a server-rendered page with interaction tracing enabled, put the static `navigationHandoffScript` from `@deploy-local/trace/otlp` in a classic inline script in the document head. Set its `data-trace-scope` to the signed-in tracer's scope and `data-trace-paths` to a space-separated allowlist of exact, public destination paths. Supply both as HTML attributes.
+
+When the client configures tracing, call `takeNavigationStart(enabled ? scope : undefined)` and pass its result as the third argument to `observeNavigation(tracer, nameRoute, documentStart)`. This retires the early listener. A trusted same-tab click that loaded a new document can then use the normal destination milestone and fetch spans. The timestamp is relative to the destination's time origin and can be negative. A handoff requires a same-origin referrer, a matching owner and route, and a click within the last 30 seconds. Direct visits, reloads and history restores use the ordinary page-load path.
+
 ### Audit one flow in another app
 
 1. Pick one action and the outcome a person can observe. Name the root, its ending milestone and the services a successful run should reach. Include a cached run if that path can complete locally.
@@ -106,4 +112,18 @@ From the deploy.local checkout, this command checks one or more trace-detail JSO
 ```sh
 node scripts/perf/audit-trace.ts --service example.apple \
   --root screen.library.present --event screen.display_tick --expected-trials 6 trial-*.json
+```
+
+For web navigation audits, exercise the earliest actionable link as well as a hydrated page. In a browser test, call `auditNavigation` from `scripts/perf/audit-navigation.mjs` with a fresh signed-in Playwright page per trial. Set `settleMs: 0` for the first visible link and repeat with a delay on a fresh page. The helper distinguishes a full document load from a client-side transition and lists matching OTLP/JSON root trace IDs emitted after the trusted click. An empty list means no matching root with the requested milestone was observed during `exportWaitMs` (default five seconds). Use the owner trace endpoint and `audit-trace.ts` to check receipt and parent links.
+
+```js
+const result = await auditNavigation(page, {
+  from: baseUrl,
+  to: '/library',
+  link: (page) => page.getByRole('link', { name: 'Library', exact: true }).first(),
+  endpoint: '/otel/v1/traces',
+  service: 'example.web',
+  root: 'screen.library.open',
+  event: 'catalog.ready',
+});
 ```

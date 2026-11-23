@@ -121,13 +121,79 @@ export function observeWebFlows(tracer, nameRequest) {
   };
 }
 
-export function observeNavigation(tracer, nameRoute) {
+// Embed this static script in the signed-in document head. Configuration is read from HTML
+// attributes so owner data never becomes JavaScript source.
+export const navigationHandoffScript = `(() => {
+  if (window !== window.top) return;
+  const { traceScope: scope, tracePaths } = document.currentScript.dataset;
+  const paths = (tracePaths || '').split(' ');
+  const key = 'trace.navigation';
+  let saved;
+  try {
+    const raw = sessionStorage.getItem(key);
+    sessionStorage.removeItem(key);
+    saved = JSON.parse(raw);
+  } catch {}
+  let pending;
+  function discard() {
+    if (!pending) return;
+    try { if (sessionStorage.getItem(key) === pending.value) sessionStorage.removeItem(key); } catch {}
+    pending = undefined;
+  }
+  function click(event) {
+    discard();
+    const link = event.target instanceof Element && event.target.closest('a[href]');
+    if (!link || !event.isTrusted || event.defaultPrevented || event.button !== 0 ||
+        event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
+        link.hasAttribute('download') || (link.target && link.target !== '_self') ||
+        !paths.includes(link.pathname) || link.href !== location.origin + link.pathname ||
+        link.pathname === location.pathname) return;
+    const value = JSON.stringify({ scope, path: link.pathname, at: performance.timeOrigin + event.timeStamp });
+    try { sessionStorage.setItem(key, value); } catch { return; }
+    pending = { event, value };
+    setTimeout(() => { if (event.defaultPrevented && pending?.event === event) discard(); }, 0);
+  }
+  document.addEventListener('click', click, true);
+  window.addEventListener('pagehide', () => {
+    if (pending?.event.defaultPrevented) discard();
+    pending = undefined;
+    saved = undefined;
+  });
+  window[Symbol.for('interaction-tracing.navigation.start')] = (activeScope) => {
+    document.removeEventListener('click', click, true);
+    delete window[Symbol.for('interaction-tracing.navigation.start')];
+    if (activeScope !== scope) { discard(); return; }
+    if (!saved || saved.scope !== scope || !paths.includes(saved.path) ||
+        location.href !== location.origin + saved.path ||
+        performance.getEntriesByType('navigation')[0]?.type !== 'navigate' ||
+        !document.referrer || new URL(document.referrer).origin !== location.origin) return;
+    const start = saved.at - performance.timeOrigin;
+    if (Number.isFinite(saved.at) && start <= 1 && performance.now() - start < 30000) return start;
+  };
+})();`;
+
+export function takeNavigationStart(scope) {
+  if (typeof window !== 'undefined')
+    return window[Symbol.for('interaction-tracing.navigation.start')]?.(scope);
+}
+
+export function observeNavigation(tracer, nameRoute, documentStart) {
   let current;
   function finish(milestone, outcome) {
     if (!current) return;
     clearTimeout(current.timer);
     current.open.finish(milestone, outcome);
     current = undefined;
+  }
+  function begin(path, name, startedAt) {
+    finish('navigation.replaced', 'cancelled');
+    const open = tracer.start(name, startedAt);
+    current = {
+      path,
+      open,
+      timer: setTimeout(() => finish('navigation.timeout', 'cancelled'), 30000),
+    };
+    return open;
   }
   function click(event) {
     if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -142,14 +208,11 @@ export function observeNavigation(tracer, nameRoute) {
       return;
     const name = nameRoute(link.pathname);
     if (!name) return;
-    finish('navigation.replaced', 'cancelled');
-    const open = tracer.start(name);
-    open.navigation(link.href);
-    current = {
-      path: link.pathname,
-      open,
-      timer: setTimeout(() => finish('navigation.timeout', 'cancelled'), 30000),
-    };
+    begin(link.pathname, name).navigation(link.href);
+  }
+  if (documentStart !== undefined) {
+    const name = nameRoute(location.pathname);
+    if (name) begin(location.pathname, name, documentStart);
   }
   document.addEventListener('click', click, true);
   return {
