@@ -288,6 +288,12 @@ export type CheckResult = {
   pictures: { name: string; png: string }[];
 };
 
+/** How many boards the check has drawn so far, of those it will draw. */
+export type CheckProgress = { drawn: number; total: number };
+
+/** Boards drawn at once; each waits for the drawing queue, which keeps Chromium's slots. */
+export const checkConcurrency = 6;
+
 /**
  * Checks a commit's design/ against main. `commit` is the terminal's working copy; `base` is
  * main as deploy.local has it.
@@ -297,6 +303,7 @@ export async function checkDesign(
   git: CheckGit,
   drawing: CheckDrawing,
   clock = Date.now,
+  progress?: (state: CheckProgress) => void,
 ): Promise<CheckResult> {
   const started = clock();
   const { commit, base } = input;
@@ -450,39 +457,63 @@ export async function checkDesign(
   ))
     problems.push({ ...problem, short: problem.label.slice(problem.file.length + 1) });
 
-  // Each of the branch's own boards beside main's, at its widths in light and dark.
-  const drawn: string[] = [];
+  // Each of the branch's own boards beside main's, at its widths in light and dark. Several boards
+  // are drawn at once (the drawing queue decides how many reach Chromium); results keep the
+  // boards' order, and the first failure stops the boards not yet started.
   const overflow: Record<string, { after: Overflow; before: Overflow | null }> = {};
-  const pictures: CheckResult['pictures'] = [];
-  try {
-    for (const file of own) {
-      const placed = canvas?.boards?.[file];
-      if ((await after(file)) === null) continue;
-      const height = Number(placed?.h ?? 900);
-      const onMain = (await show(base, `${folder}/boards/${file}`)) !== null;
-      const name = file.replace(/\.html$/, '');
-      for (const width of checkWidths(placed?.w)) {
-        for (const scheme of ['light', 'dark'] as const) {
-          const measure = width === 700 && scheme === 'light';
-          const shot = (at: string) =>
-            drawing.shoot({ commit: at, file, width, height, scheme, measure });
-          const afterShot = await shot(commit);
-          if (!afterShot) continue;
-          const beforeShot = onMain ? await shot(base) : null;
-          if (afterShot.measured)
-            overflow[file] = { after: afterShot.measured, before: beforeShot?.measured ?? null };
-          const png = await drawing.pair({
-            before: beforeShot?.png ?? null,
-            after: afterShot.png,
-            width,
-            height,
-            scheme,
-          });
-          pictures.push({ name: `${name}-${width}-${scheme}.png`, png: png.toString('base64') });
-        }
+  const drawBoard = async (file: string) => {
+    const placed = canvas?.boards?.[file];
+    if ((await after(file)) === null) return null;
+    const height = Number(placed?.h ?? 900);
+    const onMain = (await show(base, `${folder}/boards/${file}`)) !== null;
+    const name = file.replace(/\.html$/, '');
+    const shots: CheckResult['pictures'] = [];
+    for (const width of checkWidths(placed?.w)) {
+      for (const scheme of ['light', 'dark'] as const) {
+        const measure = width === 700 && scheme === 'light';
+        const shot = (at: string) =>
+          drawing.shoot({ commit: at, file, width, height, scheme, measure });
+        const [afterShot, beforeShot] = await Promise.all([
+          shot(commit),
+          onMain ? shot(base) : null,
+        ]);
+        if (!afterShot) continue;
+        if (afterShot.measured)
+          overflow[file] = { after: afterShot.measured, before: beforeShot?.measured ?? null };
+        const png = await drawing.pair({
+          before: beforeShot?.png ?? null,
+          after: afterShot.png,
+          width,
+          height,
+          scheme,
+        });
+        shots.push({ name: `${name}-${width}-${scheme}.png`, png: png.toString('base64') });
       }
-      drawn.push(file);
     }
+    return shots;
+  };
+  const results: (CheckResult['pictures'] | null | undefined)[] = new Array(own.length);
+  let finished = 0;
+  progress?.({ drawn: 0, total: own.length });
+  try {
+    let next = 0;
+    let failed = false;
+    const worker = async () => {
+      while (!failed && next < own.length) {
+        const at = next++;
+        try {
+          results[at] = await drawBoard(own[at]);
+        } catch (error) {
+          failed = true;
+          throw error;
+        }
+        progress?.({ drawn: ++finished, total: own.length });
+      }
+    };
+    const workers = Array.from({ length: Math.min(checkConcurrency, own.length) }, worker);
+    const settled = await Promise.allSettled(workers);
+    const rejected = settled.find((entry) => entry.status === 'rejected');
+    if (rejected) throw (rejected as PromiseRejectedResult).reason;
   } catch (error: any) {
     problems.push({
       file: null,
@@ -491,6 +522,14 @@ export async function checkDesign(
       short: 'not drawn',
     });
   }
+  // A board counts as drawn when it finished, in the order the boards were listed.
+  const drawn: string[] = [];
+  const pictures: CheckResult['pictures'] = [];
+  own.forEach((file, at) => {
+    if (!results[at]) return;
+    drawn.push(file);
+    pictures.push(...results[at]!);
+  });
   for (const board of boardRows)
     problems.push(...overflowProblems(board.file, board.title, overflow[board.file]));
   const widths = [...new Set(drawn.flatMap((file) => checkWidths(canvas?.boards?.[file]?.w)))].sort(

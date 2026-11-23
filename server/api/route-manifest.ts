@@ -1082,6 +1082,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/check/:id([A-Za-z0-9-]+)',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
     path: '/api/projects/:project/artifacts/:artifact/design/comments',
     handler: 'v2:v2/design',
   },
@@ -1258,6 +1263,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   {
     method: 'POST',
     path: '/api/projects/:project/design/check',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/design/check/:id([A-Za-z0-9-]+)',
     handler: 'v2:v2/design',
   },
   {

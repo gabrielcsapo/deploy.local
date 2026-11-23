@@ -12,6 +12,7 @@ import {
   changedBoardFiles,
   changedComponents,
   checkDesign,
+  checkConcurrency,
   checkWidths,
   instanceOnly,
   lostLayers,
@@ -372,6 +373,96 @@ test('a working copy is checked against main: named, drawn, and its problems fou
       /^none \| Trade\.html@/,
     );
     assert.equal(shots.length, 12, 'Projects twice (main and here) at 4 sizes, Trade once');
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('many boards are drawn at once, reported as they finish, and listed in order', async () => {
+  const repo = repository();
+  try {
+    repo.write('design/canvas.json', JSON.stringify({ boards: {} }));
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'design/many']);
+    const files = Array.from({ length: 20 }, (_, at) => `Board${String(at).padStart(2, '0')}.html`);
+    for (const file of files) repo.write(`design/boards/${file}`, `<main>${file}</main>`);
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        boards: Object.fromEntries(files.map((file) => [file, { x: 0, y: 0, w: 390, h: 800 }])),
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Twenty boards']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    let running = 0;
+    let most = 0;
+    const { drawer } = drawing();
+    const slow: CheckDrawing = {
+      ...drawer,
+      // Earlier boards take longer, so they finish after later ones.
+      shoot: async (input) => {
+        running++;
+        most = Math.max(most, running);
+        await new Promise((resolve) => setTimeout(resolve, 40 - files.indexOf(input.file) * 2));
+        running--;
+        return drawer.shoot(input);
+      },
+    };
+    const seen: { drawn: number; total: number }[] = [];
+    const result = await checkDesign(
+      { commit, base: main },
+      git(repo.root),
+      slow,
+      Date.now,
+      (state) => seen.push(state),
+    );
+    assert.equal(result.drawn, 20);
+    assert.ok(most > 1 && most <= checkConcurrency * 2, `drew ${most} at once`);
+    assert.deepEqual(
+      result.pictures.map((picture) => picture.name),
+      files.flatMap((file) => [
+        `${file.replace('.html', '')}-390-light.png`,
+        `${file.replace('.html', '')}-390-dark.png`,
+      ]),
+    );
+    assert.deepEqual(seen[0], { drawn: 0, total: 20 });
+    assert.deepEqual(seen.at(-1), { drawn: 20, total: 20 });
+    assert.equal(seen.length, 21);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('a board that cannot be drawn stops the rest and is a problem', async () => {
+  const repo = repository();
+  try {
+    repo.write('design/canvas.json', JSON.stringify({ boards: {} }));
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'design/broken']);
+    const files = Array.from({ length: 12 }, (_, at) => `Board${String(at).padStart(2, '0')}.html`);
+    for (const file of files) repo.write(`design/boards/${file}`, `<main>${file}</main>`);
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Boards']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const { drawer, shots } = drawing();
+    const result = await checkDesign({ commit, base: main }, git(repo.root), {
+      ...drawer,
+      shoot: async (input) => {
+        if (input.file === 'Board00.html') throw new Error('Chromium went away\nstack');
+        return drawer.shoot(input);
+      },
+    });
+    assert.ok(result.drawn < files.length);
+    assert.ok(shots.length < files.length * 4, 'boards after the failure were not started');
+    assert.deepEqual(
+      result.problems.filter((problem) => problem.file === null).map((p) => p.detail),
+      ['Chromium went away'],
+    );
   } finally {
     repo.cleanup();
   }

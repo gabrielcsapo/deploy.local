@@ -400,6 +400,46 @@ test('deploy design check: deploy.local draws a pushed working copy beside main,
   assert.equal(await git(['for-each-ref', 'refs/design-check']), '');
 });
 
+test('a followed design check is a job read until it is done, then forgotten', async () => {
+  const read = async (id: string) => {
+    for (;;) {
+      const response = await call(`/check/${id}`);
+      assert.equal(response.status, 200, await response.clone().text());
+      const job = await response.json();
+      if (job.state !== 'running') return job;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  };
+  // A working copy nobody pushed fails as the job, with the words and status it always had.
+  const missing = await call('/check', {
+    method: 'POST',
+    body: JSON.stringify({ ref: 'refs/design-check/never-pushed', follow: true }),
+  });
+  assert.equal(missing.status, 202);
+  const failed = await read((await missing.json()).check.id);
+  assert.equal(failed.state, 'failed');
+  assert.deepEqual(failed.error, { message: 'Push the working copy first', status: 404 });
+
+  // Nothing to draw, so no Chromium: the result comes back whole, and the ref is removed.
+  const { head, commit } = besideMain({ 'design/notes.md': 'Nothing visible\n' });
+  const ref = 'refs/design-check/notes-1';
+  await git(['update-ref', ref, commit]);
+  const started = await call('/check', {
+    method: 'POST',
+    body: JSON.stringify({ ref, follow: true }),
+  });
+  assert.equal(started.status, 202);
+  const { id } = (await started.json()).check;
+  const done = await read(id);
+  assert.equal(done.state, 'done');
+  assert.deepEqual(done.result.base, { ref: 'main', commit: head });
+  assert.equal(done.result.drawn, 0);
+  assert.deepEqual(done.result.pictures, []);
+  assert.equal(await git(['for-each-ref', 'refs/design-check']), '');
+  // Handed over once.
+  assert.equal((await call(`/check/${id}`)).status, 404);
+});
+
 test('a task’s design reads from the branch it commits to, or its base before it commits', async () => {
   save('task', 'alice', { id: 'ab12cd34-0000', projectId: 'site', baseRevision: main });
   assert.equal((await (await call('?task=ab12cd34-0000')).json()).commit, main);

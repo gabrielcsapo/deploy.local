@@ -385,6 +385,68 @@ test('check prints each step, what changed per board and the problems, and exits
   }
 });
 
+test('check follows the drawing as a job, shows how far it is, and prints the same result', async () => {
+  const repo = repository();
+  try {
+    const states = [
+      { state: 'running', drawn: 0, total: null },
+      { state: 'running', drawn: 1, total: 3 },
+      { state: 'running', drawn: 2, total: 3 },
+      { state: 'done', drawn: 3, total: 3, result: checked(cutOff) },
+    ];
+    const asked = [];
+    const following =
+      (api) =>
+      async (path, options = {}) => {
+        if (path.endsWith('/check')) {
+          asked.push(JSON.parse(options.body));
+          return { check: { id: 'job-1' } };
+        }
+        if (path.endsWith('/check/job-1')) return states.shift();
+        return api(path, options);
+      };
+    const sync = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+    );
+    await runDesign('check', [], { project: 'site' }, sync.deps);
+    const run = terminal(repo.clone, following(coordinator().api));
+    const result = await runDesign('check', [], { project: 'site' }, run.deps);
+    assert.equal(result.exitCode, 1);
+    assert.equal(asked[0].follow, true);
+    assert.equal(states.length, 0, 'read until done');
+    assert.equal(run.text(), sync.text(), 'the same report as a check answered at once');
+
+    // In a terminal, one line says how far it is and is cleared before the report.
+    states.push(
+      { state: 'running', drawn: 1, total: 2 },
+      { state: 'done', drawn: 2, total: 2, result: checked() },
+    );
+    const live = terminal(repo.clone, following(coordinator().api), { spinner: true });
+    await runDesign('check', [], { project: 'site' }, live.deps);
+    const clear = '\r\x1b[2K';
+    assert.ok(live.text().startsWith(clear), live.text());
+    const [progress, rest] = live.text().slice(clear.length).split(clear);
+    assert.match(progress, /^. Drawing 1 of 2 boards +beside main$/);
+    assert.match(rest, /^✓ Named/);
+
+    // A check that fails on deploy.local fails here, with its words.
+    states.push({
+      state: 'failed',
+      drawn: 0,
+      total: null,
+      error: { message: 'Push the working copy first', status: 404 },
+    });
+    const failing = terminal(repo.clone, following(coordinator().api));
+    await assert.rejects(runDesign('check', [], { project: 'site' }, failing.deps), {
+      message: 'Push the working copy first',
+      status: 404,
+    });
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test('check lists a shared part as one row, and --drop-instances leaves its boards to the landing', async () => {
   const repo = repository();
   const part = (dropped, carried) => ({

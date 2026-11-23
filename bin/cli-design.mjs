@@ -285,11 +285,31 @@ export async function runDesign(sub, args, options, deps) {
     if (tryGit(['push', '--quiet', 'origin', `${commit}:${ref}`], top) === null)
       throw cliError("Could not send this folder's design to origin.", 'git push origin', 1);
     let result;
+    // In a terminal, how far the drawing is, on one line that the result replaces.
+    const live = deps.spinner && !options.json;
+    let showing = false;
+    let spun = 0;
+    const progress = ({ drawn, total }) => {
+      if (!live) return;
+      const label =
+        total === null ? 'Reading the changes' : `Drawing ${drawn} of ${plural(total, 'board')}`;
+      deps.write(
+        `\r\x1b[2K${stepLine(paint, SPINNER[spun++ % SPINNER.length], label, 'beside main')}`,
+      );
+      showing = true;
+    };
     try {
-      result = await contracts.checkDesign(api(deps), designApi(id), { ref, drop });
+      result = await contracts.checkDesign(
+        api(deps),
+        designApi(id),
+        { ref, drop },
+        { sleep: deps.sleep, progress },
+      );
     } catch (error) {
       tryGit(['push', '--quiet', 'origin', '--delete', ref], top);
       throw error;
+    } finally {
+      if (showing) deps.write('\r\x1b[2K');
     }
     // New elements' layer IDs go into the boards here, unless a board changed since it was sent.
     for (const [file, html] of Object.entries(result.layers ?? {})) {

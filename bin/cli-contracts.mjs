@@ -101,9 +101,27 @@ export function proposeDesign(api, design, body) {
 }
 
 /** deploy.local draws and checks a working copy pushed to a private ref, then removes the ref.
- * @param {API} api @param {string} design @param {{ref: string, drop: boolean}} body */
-export function checkDesign(api, design, body) {
-  return api(`${design}/check`, { method: 'POST', body: JSON.stringify(body) });
+ * The check runs as a job this follows, so no one request lasts as long as the drawing; a
+ * coordinator that answers with the result itself is fine too.
+ * @param {API} api @param {string} design @param {{ref: string, drop: boolean}} body
+ * @param {{sleep?: (ms: number) => Promise<void>, progress?: (state: {drawn: number, total: number | null}) => void}} [follow] */
+export async function checkDesign(api, design, body, follow = {}) {
+  const sleep = follow.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const started = await api(`${design}/check`, {
+    method: 'POST',
+    body: JSON.stringify({ ...body, follow: true }),
+  });
+  if (!started?.check?.id) return started;
+  for (;;) {
+    await sleep(1000);
+    const job = await api(`${design}/check/${encodeURIComponent(started.check.id)}`);
+    if (job.state === 'done') return job.result;
+    if (job.state === 'failed')
+      throw Object.assign(new Error(job.error?.message || 'The check failed'), {
+        status: job.error?.status,
+      });
+    follow.progress?.({ drawn: job.drawn ?? 0, total: job.total ?? null });
+  }
 }
 
 /** @param {API} api @param {string} design @param {string} branch @returns {Promise<DesignFeedback>} */

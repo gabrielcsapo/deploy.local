@@ -10,7 +10,13 @@ import {
 import { mergeBoard, type BoardChoice } from '../../design/board-merge.ts';
 import { hasTools } from '../../workspace/tool-probes.ts';
 import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
-import { checkDesign, measureOverflow, type CheckDrawing } from './board-check.ts';
+import {
+  checkDesign,
+  measureOverflow,
+  type CheckDrawing,
+  type CheckProgress,
+  type CheckResult,
+} from './board-check.ts';
 import { applyCanvasEdit, blankBoard } from '../../design/canvas-edit.ts';
 import { reviewEvidence } from '../../design/review-evidence.ts';
 import {
@@ -21,7 +27,7 @@ import {
 import { gitString, tryGitText } from '../../kernel/git.ts';
 import { mkdtemp, readFile as readDiskFile, rm, utimes, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { deployDataPath } from '../../kernel/files/data-directory.ts';
 import { homeOf, readReleaseConfig } from '../../v2/self-update-host.ts';
@@ -3408,6 +3414,72 @@ export function checkDrawing(repo: string): CheckDrawing {
   };
 }
 
+/**
+ * Checks a terminal follows: started by one request and read by the next until done. A finished
+ * check is kept until it is read, or for ten minutes; nothing outlives the process.
+ */
+type CheckJob = {
+  key: string;
+  state: 'running' | 'done' | 'failed';
+  drawn: number;
+  total: number | null;
+  result?: CheckResult;
+  error?: { message: string; status: number };
+  timer?: ReturnType<typeof setTimeout>;
+};
+const checkJobs = new Map<string, CheckJob>();
+const checkJobKeep = 10 * 60_000;
+export function startCheckJob(
+  owner: string,
+  projectId: string,
+  folder: string,
+  run: (progress: (state: CheckProgress) => void) => Promise<CheckResult>,
+) {
+  const id = randomUUID();
+  const job: CheckJob = {
+    key: `${owner}:${projectId}:${folder}`,
+    state: 'running',
+    drawn: 0,
+    total: null,
+  };
+  checkJobs.set(id, job);
+  const forget = () => {
+    job.timer = setTimeout(() => checkJobs.delete(id), checkJobKeep);
+    job.timer.unref?.();
+  };
+  run((state) => {
+    job.drawn = state.drawn;
+    job.total = state.total;
+  }).then(
+    (result) => {
+      Object.assign(job, { state: 'done', result, drawn: result.drawn });
+      forget();
+    },
+    (error: any) => {
+      Object.assign(job, {
+        state: 'failed',
+        error: {
+          message: String(error?.message || error).split('\n')[0],
+          status: Number(error?.status) || 500,
+        },
+      });
+      forget();
+    },
+  );
+  return { id };
+}
+/** A followed check as it stands; a finished one is handed over once and then forgotten. */
+export function readCheckJob(owner: string, projectId: string, folder: string, id: string) {
+  const job = checkJobs.get(id);
+  if (!job || job.key !== `${owner}:${projectId}:${folder}`) return null;
+  const { state, drawn, total, result, error } = job;
+  if (state !== 'running') {
+    clearTimeout(job.timer);
+    checkJobs.delete(id);
+  }
+  return { id, state, drawn, total, ...(result ? { result } : {}), ...(error ? { error } : {}) };
+}
+
 /** A terminal's working copy of design/, pushed for one check and removed after it. */
 export const checkRefPattern = /^refs\/design-check\/[A-Za-z0-9._-]{1,80}$/;
 
@@ -4087,6 +4159,7 @@ async function projectDesignApi(
   // Commit-bound paths also keep relative board and design-system links on that commit.
   const file = sub.match(/^\/files\/([0-9a-f]+)\/((?:boards|ds)\/[A-Za-z0-9_./-]+)$/);
   const comment = sub.match(/^\/comments\/([A-Za-z0-9-]+)$/);
+  const checkJobId = sub.match(/^\/check\/([A-Za-z0-9-]+)$/);
 
   return dispatch(
     [
@@ -4708,38 +4781,55 @@ async function projectDesignApi(
           const ref = String(body?.ref ?? '');
           if (!checkRefPattern.test(ref))
             fail('Name the pushed working copy, like refs/design-check/…');
-          try {
-            const commit = await gitRead(repo, [
-              'rev-parse',
-              '--verify',
-              '--quiet',
-              `${ref}^{commit}`,
-            ]);
-            if (!commit) fail('Push the working copy first', 404);
-            const main = await mainBranch(repo);
-            const base = await gitRead(repo, [
-              'rev-parse',
-              '--verify',
-              '--quiet',
-              `${main}^{commit}`,
-            ]);
-            if (!base) fail(`This project has no ${main} yet`, 409);
-            const result = await checkDesign(
-              {
-                commit: commit!,
-                base: base!,
-                baseRef: main,
-                drop: Boolean(body?.drop),
-                folder: dir,
-              },
-              { read: (args) => reviewGit(repo, args) },
-              checkDrawing(repo),
-            );
-            return sendJson(res, result);
-          } finally {
-            // The working copy was only for this check.
-            await gitString(repo, ['update-ref', '-d', ref]).catch(() => {});
-          }
+          const run = async (progress?: (state: CheckProgress) => void) => {
+            try {
+              const commit = await gitRead(repo, [
+                'rev-parse',
+                '--verify',
+                '--quiet',
+                `${ref}^{commit}`,
+              ]);
+              if (!commit) fail('Push the working copy first', 404);
+              const main = await mainBranch(repo);
+              const base = await gitRead(repo, [
+                'rev-parse',
+                '--verify',
+                '--quiet',
+                `${main}^{commit}`,
+              ]);
+              if (!base) fail(`This project has no ${main} yet`, 409);
+              return await checkDesign(
+                {
+                  commit: commit!,
+                  base: base!,
+                  baseRef: main,
+                  drop: Boolean(body?.drop),
+                  folder: dir,
+                },
+                { read: (args) => reviewGit(repo, args) },
+                checkDrawing(repo),
+                Date.now,
+                progress,
+              );
+            } finally {
+              // The working copy was only for this check.
+              await gitString(repo, ['update-ref', '-d', ref]).catch(() => {});
+            }
+          };
+          // A terminal that follows the check gets it as a job to read until it is done, so no
+          // request lasts as long as drawing every changed board can.
+          if (body?.follow)
+            return sendJson(res, { check: startCheckJob(owner, project.id, dir, run) }, 202);
+          return sendJson(res, await run());
+        },
+      }),
+      makeRoute({
+        method: 'GET',
+        path: '/check/:id([A-Za-z0-9-]+)',
+        handler: async () => {
+          const job = readCheckJob(owner, project.id, dir, checkJobId![1]);
+          if (!job) fail('No check by that ID; run deploy design check again', 404);
+          return sendJson(res, job);
         },
       }),
       makeRoute({
