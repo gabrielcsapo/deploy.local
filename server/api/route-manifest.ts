@@ -664,6 +664,7 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   { method: 'GET', path: '/api/control/traces/:id([0-9a-f]{32})', handler: 'v2:v2/requests' },
   { method: 'POST', path: '/api/control/interactions', handler: 'v2:v2/requests' },
   { method: 'GET', path: '/api/control/interactions/:id([0-9a-f]{32})', handler: 'v2:v2/requests' },
+  { method: 'GET', path: '/api/apps/:app/traces', handler: 'v2:v2/requests' },
   {
     method: 'GET',
     path: '/api/apps/:app/traces/:traceId([0-9a-f]{32})',

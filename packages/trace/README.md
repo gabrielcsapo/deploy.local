@@ -93,3 +93,17 @@ Web clients can use `exportInteractions(events, serviceName)` from the `otlp` en
 The coordinator accepts its own authenticated clients at `POST /api/control/otel/v1/traces`. Each owner can list recent traces at `GET /api/control/traces` and read one at `GET /api/control/traces/<trace-id>`. Hosted apps send through their private collector URL using the deployment credential. Open a hosted request in Requests to inspect its waterfall.
 
 Operators can select up to 16 additional attribute keys per project with `DEPLOY_OTEL_ATTRIBUTES`, a JSON object mapping the deployment name (or `control:<owner>`) to an array of keys. For example, `{"example":["db.operation.name","app.rows_returned","pool.name"]}` retains those scalar attributes on spans and events. The receiver bounds string values to 160 characters and retains up to 32 events per span. Only select fields safe for project owners to read.
+
+### Audit one flow in another app
+
+1. Pick one action and the outcome a person can observe. Name the root, its ending milestone and the services a successful run should reach. Include a cached run if that path can complete locally.
+2. Instrument at those boundaries. On Apple, attach `traceDisplayTick(_:start:)` to an appearing view and pass its operation name or `nil` while hidden. The closure starts an interaction with the app's existing signed-in tracer. The root ends at `screen.display_tick`, the first display-link callback after SwiftUI observes that view. A screen that leaves first ends at `navigation.left`. Use a recording or another independent signal to measure readable text, decoded media or a completed animation. A request or display callback alone cannot establish those outcomes.
+3. Exercise the ordinary UI. Use an owner-authenticated GET to `/api/apps/<app>/traces` for a hosted app or `/api/control/traces` for the coordinator. Each lists up to 100 trace IDs among the latest 1,024 spans, including client-only traces. Append `/<traceId>` to retrieve each detail. Keep the raw exports local. Check the root, its milestone and parent links, including edge attempts. For an operation that crosses the network, pass one `--require-service` for each expected service.
+4. Repeat control and candidate in alternating, matched pairs with the same account, content, cache state, device and build configuration. Pass the number of attempted actions to `--expected-trials` so a missing export fails the audit. Keep failures and cancellations in the coverage count and compare successful durations separately. Report user-visible timings alongside span timings.
+
+From the deploy.local checkout, this command checks one or more trace-detail JSON files and reports the median successful root duration. A failed check returns a nonzero status.
+
+```sh
+node scripts/perf/audit-trace.ts --service example.apple \
+  --root screen.library.present --event screen.display_tick --expected-trials 6 trial-*.json
+```

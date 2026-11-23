@@ -143,6 +143,7 @@ struct V2Tabs: View {
                 UserDefaults.standard.removeObject(forKey: "deploy.v2.notificationRoute")
             }
             .task { openEvidence() }
+            .traceDisplayTick(modalOpen ? nil : "screen." + tab.rawValue.lowercased() + ".present") { store.projectTracer.start($0) }
             .task(id: tab) {
                 // start() owns the first foreground read. Subsequent visits read only this place.
                 if !openedTab { openedTab = true; return }

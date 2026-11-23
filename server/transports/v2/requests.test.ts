@@ -304,6 +304,17 @@ test('OTLP-only trace lookup checks ownership and preserves absolute timing', as
     ],
   };
   storeOtlp(sqlite, 'home-gym', payload);
+  const otherId = 'f2'.repeat(16);
+  const otherPayload = structuredClone(payload);
+  otherPayload.resourceSpans[0].scopeSpans[0].spans[0].traceId = otherId;
+  storeOtlp(sqlite, 'private', otherPayload);
+  const recent = await fetch(origin + '/home-gym/traces', { headers });
+  assert.equal(recent.status, 200);
+  assert.equal(recent.headers.get('cache-control'), 'no-store');
+  const ids = (await recent.json()).traces.map((entry: { traceId: string }) => entry.traceId);
+  assert.ok(ids.includes(traceId));
+  assert.ok(!ids.includes(otherId));
+  assert.equal((await fetch(origin + '/private/traces', { headers })).status, 404);
   const found = await fetch(origin + '/home-gym/traces/' + traceId, { headers });
   assert.equal(found.status, 200);
   const result = await found.json();

@@ -501,6 +501,16 @@ async function requestsRoute(
   res.end(JSON.stringify(value));
 }
 
+function sendRecentTraces(res: ServerResponse, project: string) {
+  const rows = getRequestsSqlite()
+    .prepare(`SELECT trace_id AS traceId,max(received) AS received FROM
+     (SELECT trace_id,received FROM otlp_spans WHERE project=? ORDER BY received DESC LIMIT 1024)
+     GROUP BY trace_id ORDER BY received DESC LIMIT 100`)
+    .all(project);
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify({ traces: rows }));
+}
+
 const methodNotAllowed = () => fail('Method not allowed', 405);
 
 // A root request's trace ID is its request ID. Only incoming child requests need the
@@ -542,13 +552,7 @@ export const requestsRoutes = [
     method: 'GET',
     path: '/api/control/traces',
     handler: ({ res, context }) => {
-      const rows = getRequestsSqlite()
-        .prepare(`SELECT trace_id AS traceId,max(received) AS received FROM
-     (SELECT trace_id,received FROM otlp_spans WHERE project=? ORDER BY received DESC LIMIT 1024)
-     GROUP BY trace_id ORDER BY received DESC LIMIT 100`)
-        .all('control:' + context);
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ traces: rows }));
+      sendRecentTraces(res, 'control:' + context);
     },
   }),
   route({
@@ -583,6 +587,15 @@ export const requestsRoutes = [
       if (!interaction) fail('Trace not found', 404);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(interaction));
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/apps/:app/traces',
+    handler: ({ res, params, context }) => {
+      const name = decodeURIComponent(params.app);
+      ownedWebApp(context, name);
+      sendRecentTraces(res, name);
     },
   }),
   route({
