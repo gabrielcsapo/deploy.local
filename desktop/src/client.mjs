@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import http from 'node:http';
+import { lookup as systemLookup } from 'node:dns';
 import { createWriteStream } from 'node:fs';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -7,6 +8,30 @@ import { isIP } from 'node:net';
 import https from 'node:https';
 import tls from 'node:tls';
 import { X509Certificate } from 'node:crypto';
+
+// Electron's Chromium session can resolve a coordinator that Node's resolver misses on the LAN.
+// Return addresses only. TLS still verifies the certificate against the requested hostname.
+export function coordinatorLookup(resolveHost, lookup = systemLookup) {
+  return (host, options, callback) =>
+    lookup(host, options, (error, address, family) => {
+      if (!error || !['ENOTFOUND', 'EAI_AGAIN'].includes(error.code))
+        return callback(error, address, family);
+      const requested = options.family;
+      resolveHost(host, {
+        queryType: requested === 4 ? 'A' : requested === 6 ? 'AAAA' : undefined,
+      }).then(
+        ({ endpoints }) => {
+          const addresses = endpoints
+            .map(({ address }) => ({ address, family: isIP(address) }))
+            .filter((row) => row.family && (!requested || row.family === requested));
+          if (!addresses.length) return callback(error);
+          if (options.all) return callback(null, addresses);
+          callback(null, addresses[0].address, addresses[0].family);
+        },
+        () => callback(error),
+      );
+    });
+}
 
 export function coordinatorOrigin(value = 'https://deploy.local') {
   const url = new URL(value.includes('://') ? value : `https://${value}`);
@@ -52,12 +77,12 @@ export function certificateError(problem) {
   const [code, message] = problems[problem];
   return Object.assign(new Error(message), { code });
 }
-function readCa(origin) {
+function readCa(origin, lookup) {
   return new Promise((resolve, reject) => {
     // Only the public CA bytes come over this unverified request; you confirm its fingerprint.
     const request = https.get(
       new URL('/ca.crt', origin),
-      { rejectUnauthorized: false, agent: false },
+      { rejectUnauthorized: false, agent: false, lookup },
       (response) => {
         let data = '';
         response.setEncoding('utf8');
@@ -77,12 +102,13 @@ function readCa(origin) {
 }
 // Inspection never sends credentials. It finds the CA that signs the coordinator's certificate;
 // trust still requires you to confirm that CA's fingerprint.
-export async function inspectCertificate(origin) {
+export async function inspectCertificate(origin, lookup) {
   const url = new URL(coordinatorOrigin(origin));
   if (url.protocol !== 'https:') return null;
   const { leaf, issuer, address } = await new Promise((resolve, reject) => {
     const socket = tls.connect({
       host: url.hostname,
+      lookup,
       port: Number(url.port || 443),
       servername: isIP(url.hostname) ? undefined : url.hostname,
       rejectUnauthorized: false,
@@ -111,7 +137,7 @@ export async function inspectCertificate(origin) {
       return null;
     }
   };
-  const authority = (issuer && signs(issuer)) || signs(await readCa(url.origin));
+  const authority = (issuer && signs(issuer)) || signs(await readCa(url.origin, lookup));
   if (!authority)
     throw new Error('The coordinator did not send the CA that signs its certificate.');
   return {
@@ -158,8 +184,9 @@ class TrustedAgent extends https.Agent {
 }
 export const desktopRequestContext = new AsyncLocalStorage();
 export class CoordinatorClient {
-  constructor(origin, { ca, pin, credentials } = {}) {
+  constructor(origin, { ca, pin, credentials } = {}, lookup) {
     this.origin = coordinatorOrigin(origin);
+    this.lookup = lookup;
     this.ca = ca;
     this.pin = ca ? undefined : pin;
     this.credentials = credentials;
@@ -183,6 +210,7 @@ export class CoordinatorClient {
         url,
         {
           method,
+          lookup: this.lookup,
           agent:
             url.protocol === 'https:' && (this.ca || this.pin)
               ? new TrustedAgent({ ca: this.ca, pin: this.pin })
@@ -234,6 +262,7 @@ export class CoordinatorClient {
         url,
         {
           signal,
+          lookup: this.lookup,
           agent:
             url.protocol === 'https:' && (this.ca || this.pin)
               ? new TrustedAgent({ ca: this.ca, pin: this.pin })

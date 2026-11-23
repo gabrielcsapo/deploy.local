@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
-import { coordinatorOrigin, CoordinatorClient } from '../src/client.mjs';
+import { coordinatorOrigin, coordinatorLookup, CoordinatorClient } from '../src/client.mjs';
 import { InboxModel, trayModel, roles, externalUrl } from '../src/model.mjs';
 import { Vault } from '../src/vault.mjs';
 import { WorkerManager, localNodeId } from '../src/worker.mjs';
@@ -480,4 +480,30 @@ test('new desktop inbox takes latest before its snapshot and resumes that cursor
   paths.length = 0;
   await client.inboxSnapshot(0);
   assert.deepEqual(paths, ['/api/inbox?state=waiting']);
+});
+
+test('falls back to Chromium for an unresolved host and preserves Node address-family contracts', async () => {
+  const failure = Object.assign(new Error('missing'), { code: 'ENOTFOUND' });
+  const resolve = coordinatorLookup(
+    async (host) => {
+      assert.equal(host, 'test.local');
+      return { endpoints: [{ address: '::1' }, { address: '127.0.0.1' }] };
+    },
+    (_host, _options, callback) => callback(failure),
+  );
+  await new Promise((done, reject) =>
+    resolve('test.local', { all: true, family: 4 }, (error, rows) => {
+      if (error) return reject(error);
+      assert.deepEqual(rows, [{ address: '127.0.0.1', family: 4 }]);
+      done();
+    }),
+  );
+  await new Promise((done, reject) =>
+    resolve('test.local', { family: 6 }, (error, address, family) => {
+      if (error) return reject(error);
+      assert.equal(address, '::1');
+      assert.equal(family, 6);
+      done();
+    }),
+  );
 });

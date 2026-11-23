@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { safeStorage } from 'electron';
 import {
   CoordinatorClient,
+  coordinatorLookup,
   desktopRequestContext,
   certificateProblem,
   coordinatorOrigin,
@@ -232,6 +233,9 @@ function trustedSender(event, local = false) {
   )
     throw new Error('Untrusted page.');
 }
+const lookupCoordinator = coordinatorLookup((host, options) =>
+  session.fromPartition('persist:coordinator').resolveHost(host, options),
+);
 function configureSession() {
   const ses = session.fromPartition('persist:coordinator');
   ses.setCertificateVerifyProc((request, callback) => {
@@ -490,7 +494,7 @@ async function refresh() {
 // answers, the CA that signs it is trusted in its place, so the next renewal needs nothing from you.
 async function adoptCa(current) {
   try {
-    const seen = await inspectCertificate(current.origin);
+    const seen = await inspectCertificate(current.origin, lookupCoordinator);
     if (current !== client || !seen || seen.certificate !== current.pin) return;
     current.ca = seen.ca;
     current.pin = undefined;
@@ -506,7 +510,7 @@ async function certificateChanged(current) {
   if (checkingCertificate || state.certificate?.previous) return;
   checkingCertificate = true;
   try {
-    const seen = await inspectCertificate(current.origin);
+    const seen = await inspectCertificate(current.origin, lookupCoordinator);
     if (current !== client || !seen || seen.fingerprint === current.trusted) return;
     state.certificate = { ...seen, previous: current.trusted };
     backgroundPage('certificate-changed');
@@ -520,7 +524,7 @@ async function trustChanged() {
   const shown = state.certificate;
   if (state.page !== 'certificate-changed' || !shown?.previous || !client)
     throw new Error('Compare the new fingerprint first.');
-  const seen = await inspectCertificate(client.origin);
+  const seen = await inspectCertificate(client.origin, lookupCoordinator);
   if (seen?.fingerprint !== shown.fingerprint) {
     state.certificate = seen && { ...seen, previous: shown.previous };
     throw new Error('The certificate changed again while you were comparing. Compare this one.');
@@ -704,13 +708,13 @@ ipcMain.handle('shell:action', async (event, body) => {
       if (fixture && body.address !== fixture.origin)
         throw new Error('Capture uses only its fixture coordinator.');
       state.origin = coordinatorOrigin(body.address);
-      state.certificate = await inspectCertificate(state.origin);
+      state.certificate = await inspectCertificate(state.origin, lookupCoordinator);
       show(state.certificate ? 'trust' : 'signin');
-      if (!state.certificate) client = new CoordinatorClient(state.origin);
+      if (!state.certificate) client = new CoordinatorClient(state.origin, {}, lookupCoordinator);
     } else if (body.action === 'trust') {
       if (state.page !== 'trust' || body.confirmed !== 'on' || !state.certificate)
         throw new Error('Compare and confirm the fingerprint first.');
-      client = new CoordinatorClient(state.origin, { ca: state.certificate.ca });
+      client = new CoordinatorClient(state.origin, { ca: state.certificate.ca }, lookupCoordinator);
       show('signin');
     } else if (body.action === 'signin') {
       if (!client || !vault.available())
@@ -1118,7 +1122,7 @@ async function start() {
     ]).finally(() => app.quit());
   });
   if (saved.origin && saved.credentials) {
-    client = new CoordinatorClient(saved.origin, saved);
+    client = new CoordinatorClient(saved.origin, saved, lookupCoordinator);
     startUpdater();
     state.origin = client.origin;
     state.roles = saved.roles;
