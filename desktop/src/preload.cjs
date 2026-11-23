@@ -1,20 +1,37 @@
 const { contextBridge, ipcRenderer } = require('electron');
+const { electronProfile } = require('../../packages/trace/electron.js');
+const measure = electronProfile({
+  service: 'deploy.electron.renderer',
+  process: 'renderer',
+  send: (body) =>
+    fetch('/api/control/otel/v1/traces', {
+      method: 'POST',
+      credentials: 'same-origin',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+});
+const invoke = (channel, ...args) =>
+  measure(channel.replace(':', '.'), null, (parent) =>
+    ipcRenderer.invoke(channel, parent, ...args),
+  );
 const api = {
-  notify: (itemId) => ipcRenderer.invoke('desktop:notify', itemId),
-  setBadge: (count) => ipcRenderer.invoke('desktop:badge', count),
+  notify: (itemId) => invoke('desktop:notify', itemId),
+  setBadge: (count) => invoke('desktop:badge', count),
   worker: {
-    status: () => ipcRenderer.invoke('desktop:worker-status'),
-    setRoles: (roles) => ipcRenderer.invoke('desktop:worker-roles', roles),
+    status: () => invoke('desktop:worker-status'),
+    setRoles: (roles) => invoke('desktop:worker-roles', roles),
   },
-  control: { request: (itemId) => ipcRenderer.invoke('desktop:control', itemId) },
-  openExternal: (url) => ipcRenderer.invoke('desktop:external', url),
+  control: { request: (itemId) => invoke('desktop:control', itemId) },
+  openExternal: (url) => invoke('desktop:external', url),
 };
 if (process.platform === 'darwin')
   api.update = {
-    status: () => ipcRenderer.invoke('desktop:update-status'),
-    start: () => ipcRenderer.invoke('desktop:update-start'),
-    cancel: () => ipcRenderer.invoke('desktop:update-cancel'),
-    restart: () => ipcRenderer.invoke('desktop:update-restart'),
+    status: () => invoke('desktop:update-status'),
+    start: () => invoke('desktop:update-start'),
+    cancel: () => invoke('desktop:update-cancel'),
+    restart: () => invoke('desktop:update-restart'),
     onChange: (callback) => {
       const listener = (_event, status) => callback(status);
       ipcRenderer.on('desktop:update', listener);

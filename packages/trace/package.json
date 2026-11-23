@@ -19,6 +19,7 @@
     "./otlp": {
       "types": "./otlp.d.ts",
       "default": "./otlp.js"
-    }
+    },
+    "./electron": "./electron.js"
   }
 }

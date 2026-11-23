@@ -53,7 +53,7 @@ for (const archive of packages) {
   assert.match(main, /contextIsolation: true/);
   assert.match(main, /sandbox: true/);
   console.log(
-    `${archive}: ${await verifyPreloads(extract('src/preload.cjs'), extract('build/shell-preload.cjs'))}`,
+    `${archive}: ${await verifyPreloads(extract('build/preload.cjs'), extract('build/shell-preload.cjs'))}`,
   );
   assert.equal(
     extract('assets/design-tokens.css'),

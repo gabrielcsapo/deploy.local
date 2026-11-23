@@ -174,3 +174,51 @@ test('release progress is durable, scoped to a claimed job, and never requeues a
   completeAgentJob(job.id, 'coordinator', { success: true });
   assert.throws(() => recordReleaseJobProgress(job.id, 'coordinator', []), /claimed/);
 });
+
+for (const [name, phase, failures, message, attempts] of [
+  [
+    'recovers a transient control reset',
+    'watch',
+    1,
+    '502: control plane closed the connection before responding',
+    2,
+  ],
+  [
+    'fails a persistent control reset',
+    'watch',
+    4,
+    '502: control plane closed the connection before responding',
+    3,
+  ],
+  ['fails an application health error', 'watch', 1, 'service stopped during Watch', 1],
+  [
+    'keeps activation single-shot',
+    'activate',
+    1,
+    '502: control plane closed the connection before responding',
+    1,
+  ],
+] as const) {
+  test(name, async () => {
+    let seen = 0;
+    const transport = createReleaseNodeTransport({
+      now: Date.now,
+      sleep: async (ms) => {
+        if (ms !== 250) return;
+        const job = claimAgentJob('coordinator');
+        assert.ok(job);
+        completeAgentJob(
+          job.id,
+          'coordinator',
+          ++seen <= failures
+            ? { success: false, error: message }
+            : { success: true, result: { phase: 'activated', verified: true } },
+        );
+      },
+    });
+    const job = transport('coordinator', 'watch-test', { ...payload(phase), releaseId: name });
+    if (attempts > failures) assert.equal((await job).verified, true);
+    else await assert.rejects(job, (e) => e instanceof Error && e.message === message);
+    assert.equal(seen, attempts);
+  });
+}

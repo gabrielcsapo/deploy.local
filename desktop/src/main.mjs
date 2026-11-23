@@ -1,3 +1,4 @@
+import { electronProfile } from '../build/electron-trace.mjs';
 import {
   app,
   BrowserWindow,
@@ -20,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { safeStorage } from 'electron';
 import {
   CoordinatorClient,
+  desktopRequestContext,
   certificateProblem,
   coordinatorOrigin,
   inspectCertificate,
@@ -277,7 +279,7 @@ async function dashboard(path) {
         : {}),
       webPreferences: {
         session: configureSession(),
-        preload: join(root, 'src/preload.cjs'),
+        preload: join(root, 'build/preload.cjs'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
@@ -873,10 +875,28 @@ const handlers = {
   },
   'desktop:external': confirmExternal,
 };
+const desktopProfiles = new WeakMap();
 for (const [channel, handler] of Object.entries(handlers))
-  ipcMain.handle(channel, (event, ...args) => {
+  ipcMain.handle(channel, (event, parent, ...args) => {
     trustedSender(event);
-    return handler(...args);
+    const owner = client;
+    if (!owner?.credentials) return handler(...args);
+    let profile = desktopProfiles.get(owner.credentials);
+    if (!profile) {
+      const credentials = owner.credentials;
+      profile = electronProfile({
+        service: 'deploy.electron.main',
+        process: 'main',
+        send: (body) =>
+          client === owner &&
+          owner.credentials === credentials &&
+          owner.request('/api/control/otel/v1/traces', { method: 'POST', body }),
+      });
+      desktopProfiles.set(credentials, profile);
+    }
+    return profile('ipc.handle', parent, (context) =>
+      desktopRequestContext.run({ client: owner, parent: context }, () => handler(...args)),
+    );
   });
 async function checkControl() {
   if (checkingControl || !client || !saved.enrollment || !worker.selection.useScreen) return;

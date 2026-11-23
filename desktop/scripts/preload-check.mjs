@@ -1,3 +1,18 @@
+import { createRequire } from 'node:module';
+
+export async function bundleRemotePreload() {
+  const { build } = createRequire(import.meta.resolve('vite'))('esbuild');
+  return (
+    await build({
+      entryPoints: [new URL('../src/preload.cjs', import.meta.url).pathname],
+      bundle: true,
+      platform: 'node',
+      format: 'cjs',
+      external: ['electron'],
+      write: false,
+    })
+  ).outputFiles[0].text;
+}
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 
@@ -25,6 +40,10 @@ export async function verifyPreloads(remote, local) {
     remote,
     {
       process: { platform: 'darwin' },
+      crypto,
+      performance,
+      setTimeout,
+      clearTimeout,
       require: (name) => {
         assert.equal(name, 'electron');
         return { contextBridge, ipcRenderer };
@@ -63,18 +82,22 @@ export async function verifyPreloads(remote, local) {
   await surface.update.start();
   await surface.update.cancel();
   await surface.update.restart();
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
-    ['desktop:notify', 'decision'],
-    ['desktop:badge', 3],
-    ['desktop:worker-status'],
-    ['desktop:worker-roles', { takeTasks: true }],
-    ['desktop:control', 'decision'],
-    ['desktop:external', 'https://example.com'],
-    ['desktop:update-status'],
-    ['desktop:update-start'],
-    ['desktop:update-cancel'],
-    ['desktop:update-restart'],
-  ]);
+  for (const [, parent] of calls) assert.match(parent, /^00-[a-f0-9]{32}-[a-f0-9]{16}-01$/);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(calls.map(([channel, , ...args]) => [channel, ...args]))),
+    [
+      ['desktop:notify', 'decision'],
+      ['desktop:badge', 3],
+      ['desktop:worker-status'],
+      ['desktop:worker-roles', { takeTasks: true }],
+      ['desktop:control', 'decision'],
+      ['desktop:external', 'https://example.com'],
+      ['desktop:update-status'],
+      ['desktop:update-start'],
+      ['desktop:update-cancel'],
+      ['desktop:update-restart'],
+    ],
+  );
   const globals = {};
   const window = {
     addEventListener: (event, callback) => {

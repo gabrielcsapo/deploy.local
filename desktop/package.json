@@ -34,6 +34,8 @@
       "src/**",
       "assets/**",
       "build/shell-preload.cjs",
+      "build/preload.cjs",
+      "build/electron-trace.mjs",
       "build/build-info.json",
       "package.json",
       "build/app-worker.mjs"

@@ -43,7 +43,12 @@ export function projectTracer() {
         method: 'POST',
         keepalive,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(exportInteractions(events, 'deploy.web')),
+        body: JSON.stringify(
+          exportInteractions(
+            events,
+            'deployDesktop' in window ? 'deploy.electron.renderer' : 'deploy.web',
+          ),
+        ),
       });
       return response.ok || response.status === 400;
     },

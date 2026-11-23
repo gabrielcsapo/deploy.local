@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
-import { verifyPreloads } from '../scripts/preload-check.mjs';
+import { verifyPreloads, bundleRemotePreload } from '../scripts/preload-check.mjs';
 import { fixtureRuntime } from '../scripts/fixture-runtime.mjs';
 import { startFixture, preview } from '../../docs/evidence/v2/13-desktop-2/fixture-server.mjs';
 import { CoordinatorClient } from '../src/client.mjs';
 
 test('packaged preload audit rejects extra capabilities, nested methods and shell globals', async () => {
-  const remote = await readFile(new URL('../src/preload.cjs', import.meta.url), 'utf8');
+  const remote = await bundleRemotePreload();
   // Exercise the packaged form without requiring a prior desktop build on fresh checkouts.
   const { build } = createRequire(import.meta.resolve('vite'))('esbuild');
   const bundled = await build({
@@ -24,7 +24,7 @@ test('packaged preload audit rejects extra capabilities, nested methods and shel
   const local = bundled.outputFiles[0].text;
   await verifyPreloads(remote, local);
   await assert.rejects(
-    verifyPreloads(remote.replace('const api = {', 'const api = { exec: () => {},'), local),
+    verifyPreloads(remote.replace(/(var|const) api = \{/, '$& exec: () => {},'), local),
   );
   await assert.rejects(
     verifyPreloads(remote.replace('worker: {', 'worker: { enroll: () => {},'), local),

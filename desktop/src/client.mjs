@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import http from 'node:http';
 import { createWriteStream } from 'node:fs';
 import { Transform } from 'node:stream';
@@ -155,6 +156,7 @@ class TrustedAgent extends https.Agent {
     // The agent releases this socket to HTTP only after the certificate check.
   }
 }
+export const desktopRequestContext = new AsyncLocalStorage();
 export class CoordinatorClient {
   constructor(origin, { ca, pin, credentials } = {}) {
     this.origin = coordinatorOrigin(origin);
@@ -169,6 +171,9 @@ export class CoordinatorClient {
   request(path, { method = 'GET', body, timeout = 15000, headers = {}, raw = false } = {}) {
     const url = new URL(path, this.origin);
     if (url.origin !== this.origin) throw new Error('Cross-origin request refused.');
+    const active = desktopRequestContext.getStore();
+    if (active?.client === this && path !== '/api/control/otel/v1/traces')
+      headers = { traceparent: active.parent, ...headers };
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const auth = this.credentials
       ? { 'X-Deploy-Username': this.credentials.username, 'X-Deploy-Token': this.credentials.token }

@@ -1,3 +1,4 @@
+import { bundleRemotePreload } from '../scripts/preload-check.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -64,8 +65,12 @@ test('preload exposes exactly the contracted surface and forwards only arguments
   let surface,
     calls = [],
     listens = [];
-  vm.runInNewContext(readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf8'), {
+  vm.runInNewContext(await bundleRemotePreload(), {
     process: { platform: 'darwin' },
+    crypto,
+    performance,
+    setTimeout,
+    clearTimeout,
     require: (name) => {
       assert.equal(name, 'electron');
       return {
@@ -409,8 +414,8 @@ test('offline uses the coordinator computer name and preserves the running task 
   );
 });
 
-test('Mac update subscription strips the IPC event and unsubscribes; other platforms have no updater', () => {
-  const source = readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf8');
+test('Mac update subscription strips the IPC event and unsubscribes; other platforms have no updater', async () => {
+  const source = await bundleRemotePreload();
   for (const platform of ['darwin', 'linux', 'win32']) {
     let api;
     const listeners = new Map();

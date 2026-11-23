@@ -127,3 +127,16 @@ const result = await auditNavigation(page, {
   event: 'catalog.ready',
 });
 ```
+
+### Profiling an Electron app
+
+Use `electronProfile` from `@deploy-local/trace/electron` in a sandboxed preload bundle and in main. Give each process a stable service name such as `library.electron.renderer` or `library.electron.main`. Supply a `send` callback that posts its argument as OTLP/HTTP JSON to your authenticated collector. In deploy.local Desktop, the collector is the signed-in coordinator’s `/api/control/otel/v1/traces`. An app behind the deploy.local edge can use its own telemetry ingress. Scope exporters to the signed-in account.
+
+```js
+const measure = electronProfile({ service, process: 'renderer', send });
+const status = () =>
+  measure('worker.status', null, (parent) => ipcRenderer.invoke('worker:status', parent));
+```
+
+In the corresponding main handler, validate the sender as usual, then run
+`measure('ipc.handle', parent, context => readStatus(context))` using the main-process profile. Forward that context as the W3C traceparent for trusted downstream requests. Name spans from registered operations. IPC arguments, URLs and results are excluded. Export is batched outside the measured operation. Successful spans end at `ipc.reply` and errors at `ipc.failed`. The existing trace audit can require both process services and the renderer reply milestone.

@@ -52,6 +52,7 @@ export function createReleaseNodeTransport(
     if (payload.phase === 'abort')
       requeueFailedAgentJob(job.id, payload as unknown as Record<string, unknown>);
     let lastParts: string | undefined;
+    let watchRetries = 0;
     for (;;) {
       const current = getAgentJob(job.id)!;
       const progress = current.progress ? JSON.parse(current.progress) : undefined;
@@ -68,6 +69,17 @@ export function createReleaseNodeTransport(
         return result;
       }
       if (current.status === 'failed') {
+        // Older workers report the edge's control connection reset as a failed job.
+        // Watch is a read-only health sample. Recheck it, including the final sample.
+        if (
+          payload.phase === 'watch' &&
+          watchRetries < 2 &&
+          current.error === '502: control plane closed the connection before responding'
+        ) {
+          await clock.sleep(1000 * ++watchRetries);
+          requeueFailedAgentJob(job.id, payload as unknown as Record<string, unknown>);
+          continue;
+        }
         const result = JSON.parse(current.result || '{}');
         if (result.parts) onParts?.(result.parts);
         throw new Error(current.error || 'Computer release job failed');

@@ -52,12 +52,21 @@ await build({
 });
 await build({
   absWorkingDir: directory,
-  entryPoints: ['src/shell-preload.mjs'],
+  entryPoints: ['src/shell-preload.mjs', 'src/preload.cjs'],
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  outfile: 'build/shell-preload.cjs',
+  outdir: 'build',
+  outExtension: { '.js': '.cjs' },
   external: ['electron'],
+});
+await build({
+  absWorkingDir: directory,
+  entryPoints: ['../packages/trace/electron.js'],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  outfile: 'build/electron-trace.mjs',
 });
 await copyFile(
   'node_modules/@fontsource/hanken-grotesk/files/hanken-grotesk-latin-400-normal.woff2',
