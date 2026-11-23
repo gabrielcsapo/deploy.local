@@ -42,6 +42,8 @@ Xcode DerivedData helper is also detected. It is copied into Resources/helpers, 
 the worker only when Use the screen is selected. A release build needs a stable signing identity
 and real OS permission acceptance. Windows and Linux screen control are explicitly unavailable.
 
+When no signer is configured, the Mac download build reuses the certificate of a signed copy in Applications and verifies the update against that app’s designated requirement. This preserves the identity Keychain uses across updates.
+
 Signing uses electron-builder's environment variables (`CSC_LINK`, `CSC_KEY_PASSWORD`, optionally
 `CSC_NAME`). For notarization, use `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, or
 `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. No identity or secret is in the config.

@@ -507,3 +507,30 @@ test('falls back to Chromium for an unresolved host and preserves Node address-f
     }),
   );
 });
+
+test('an empty vault and unchanged refreshes leave Keychain alone', () => {
+  const root = mkdtempSync(join(tmpdir(), 'desktop-vault-access-'));
+  try {
+    let available = 0,
+      encrypt = 0,
+      decrypt = 0;
+    const storage = {
+      isEncryptionAvailable: () => (++available, true),
+      encryptString: (text) => (++encrypt, Buffer.from(text)),
+      decryptString: (bytes) => (++decrypt, bytes.toString()),
+    };
+    const path = join(root, 'session.enc'),
+      first = new Vault(path, storage);
+    assert.equal(first.read(), null);
+    assert.equal(available, 0);
+    first.write({ token: 'fixture' });
+    const reopened = new Vault(path, storage);
+    assert.deepEqual(reopened.read(), { token: 'fixture' });
+    reopened.write({ token: 'fixture' });
+    assert.deepEqual([available, encrypt, decrypt], [2, 1, 1]);
+    reopened.write({ token: 'replacement' });
+    assert.equal(encrypt, 2);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

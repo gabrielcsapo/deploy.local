@@ -11,12 +11,14 @@
  * desktop/ in the server's data directory to publish it without a release.
  *
  * Signing: set CSC_LINK/CSC_KEY_PASSWORD or CSC_NAME to sign with a real
- * identity; otherwise the app is signed ad hoc. It is not notarized, so macOS
+ * identity. With no override, match the signed local installation when available. It is not notarized, so macOS
  * asks people to choose Open Anyway the first time.
  */
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, X509Certificate } from 'node:crypto';
+import { homedir, tmpdir } from 'node:os';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -94,12 +96,40 @@ if (process.env.DEPLOY_DESKTOP_HELPER) {
 }
 
 console.log('\n[3/4] Package the app');
-const signing = process.env.CSC_LINK || process.env.CSC_NAME;
+const installed = [join(homedir(), 'Applications', APP_NAME), join('/Applications', APP_NAME)].find(
+  existsSync,
+);
+let installedIdentity, requirement;
+if (installed && !process.env.CSC_LINK && !process.env.CSC_NAME) {
+  const temp = mkdtempSync(join(tmpdir(), 'desktop-signer-'));
+  try {
+    const cert = join(temp, 'cert');
+    execFileSync('codesign', ['--display', '--extract-certificates=' + cert, installed], {
+      stdio: 'pipe',
+    });
+    if (existsSync(cert + '0')) {
+      installedIdentity = new X509Certificate(readFileSync(cert + '0')).fingerprint.replaceAll(
+        ':',
+        '',
+      );
+      const details = execFileSync('codesign', ['-d', '-r-', installed], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      requirement = /^designated => (.+)$/m.exec(details)?.[1];
+      if (!requirement) throw new Error('Cannot read the installed desktop signing requirement.');
+    }
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+}
+const signing = process.env.CSC_LINK || process.env.CSC_NAME || installedIdentity;
 run('pnpm', ['package:mac'], {
   cwd: DESKTOP,
   env: {
     ...process.env,
     DEPLOY_DESKTOP_BUILD_INFO: JSON.stringify(build),
+    ...(installedIdentity ? { CSC_NAME: installedIdentity } : {}),
     ...(signing ? {} : { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }),
   },
 });
@@ -112,6 +142,7 @@ if (!existsSync(app)) {
 // signature, which Apple silicon refuses to run. Sign it ad hoc instead.
 if (!signing) run('codesign', ['--force', '--deep', '--sign', '-', app]);
 run('codesign', ['--verify', '--deep', '--strict', app]);
+if (requirement) run('codesign', ['--verify', '-R', '=' + requirement, app]);
 
 console.log('\n[4/4] Zip and write the manifest');
 mkdirSync(OUTPUT, { recursive: true });
