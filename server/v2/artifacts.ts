@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { SpanContext } from '../../packages/trace/index.js';
+import { requestPhase, requestSpans } from './request-trace.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 import { fail } from '../kernel/errors.ts';
 import { gitRead } from '../workspace/repository-git.ts';
@@ -81,43 +83,47 @@ async function hasWork(repo: string, main: string | null, ref: string, path: str
   const base = (await gitRead(repo, ['merge-base', main, ref])) || main;
   const changed = await gitRead(repo, ['diff', '--name-only', base, ref, '--', path]);
   if (!changed) return false;
-  return Boolean(await gitRead(repo, ['diff', '--name-only', main, ref, '--', path]));
+  return (
+    base === main || Boolean(await gitRead(repo, ['diff', '--name-only', main, ref, '--', path]))
+  );
 }
 
 async function changedAt(repo: string, ref: string, folder: string) {
   return (await gitRead(repo, ['log', '-1', '--format=%cI', ref, '--', `${folder}/`])) || null;
 }
 
-/** Every artifact of one project: on main, and those still only on their own branch. */
-export async function projectArtifacts(owner: string, project: any): Promise<ArtifactSummary[]> {
-  const repo = project.repositoryPath as string;
-  const main = await mainBranch(repo);
+type ArtifactRefs = { name: string; commit: string; at: string }[];
+type RepositoryArtifact = Omit<ArtifactSummary, 'projectId' | 'project' | 'state'> & {
+  unproposed: boolean;
+};
+
+async function artifactRefs(repo: string) {
+  const [main, lines] = await Promise.all([
+    mainBranch(repo),
+    gitRead(repo, [
+      'for-each-ref',
+      '--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)',
+      'refs/heads/design/',
+      'refs/heads/artifact/',
+    ]),
+  ]);
   const head = await gitRead(repo, [
     'rev-parse',
     '--verify',
     '--quiet',
     `refs/heads/${main}^{commit}`,
   ]);
-  const refs = (
-    (await gitRead(repo, [
-      'for-each-ref',
-      '--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)',
-      'refs/heads/design/',
-      'refs/heads/artifact/',
-    ])) ?? ''
-  )
+  const refs = (lines ?? '')
     .split('\n')
     .filter(Boolean)
     .map((line) => {
       const [name, commit, at] = line.split('\t');
       return { name, commit, at };
     });
-  const waiting = list('v2-inbox-native', owner).filter(
-    (row: any) =>
-      row.context?.source === 'design' &&
-      row.context.projectId === project.id &&
-      row.item.state === 'waiting',
-  );
+  return { head, refs, key: head && lines !== null ? `${head}\n${lines}` : null };
+}
+
+async function scanArtifacts(repo: string, head: string | null, refs: ArtifactRefs) {
   const folders = new Set<string>([appDesignFolder]);
   if (head) {
     const names = (await gitRead(repo, ['ls-tree', '-d', '--name-only', head, 'artifacts/'])) ?? '';
@@ -132,7 +138,7 @@ export async function projectArtifacts(owner: string, project: any): Promise<Art
     if (match && artifactNamePattern.test(match[1])) folders.add(folderOf(match[1]));
   }
   const found = await Promise.all(
-    [...folders].map(async (folder): Promise<ArtifactSummary | null> => {
+    [...folders].map(async (folder): Promise<RepositoryArtifact | null> => {
       const artifact = folder === appDesignFolder ? null : folder.slice('artifacts/'.length);
       const onMain = head ? await readArtifact(repo, head, folder) : null;
       // Branches with work on this folder that main does not have yet, newest first.
@@ -150,35 +156,92 @@ export async function projectArtifacts(owner: string, project: any): Promise<Art
       const newest = ahead[0];
       const read = onMain ?? (newest ? await readArtifact(repo, newest.commit, folder) : null);
       if (!read) return null;
-      const inReview = waiting.some(
-        (row: any) => (row.context.folder ?? appDesignFolder) === folder,
-      );
       const mainAt = head && onMain ? await changedAt(repo, head, folder) : null;
       const updatedAt =
         newest && (!mainAt || Date.parse(newest.at) > Date.parse(mainAt)) ? newest.at : mainAt;
       return {
-        projectId: project.id,
-        project: project.name ?? project.id,
         artifact,
         kind: read.kind,
         name: artifact ? read.name || artifact : 'App design',
         boards: read.boards,
         updatedAt,
         branch: onMain ? null : (newest?.name ?? null),
-        state: inReview ? 'review' : ahead.length ? 'unproposed' : null,
+        unproposed: ahead.length > 0,
       };
     }),
   );
   return found.filter((entry) => entry !== null);
 }
 
-export async function readArtifacts(owner: string) {
+// A scan reads immutable commits. Re-read the refs and inbox on every request so new edits,
+// approvals and project metadata appear immediately. Expiry also retries nullable Git reads.
+const scanCache = new Map<
+  string,
+  { key: string; expires: number; result: Promise<RepositoryArtifact[]> }
+>();
+const scanCacheSize = 64;
+const scanCacheMs = 30_000;
+
+async function repositoryArtifacts(repo: string, trace?: SpanContext) {
+  const { head, refs, key } = await requestPhase(trace, 'artifacts.refs', () => artifactRefs(repo));
+  const cached = scanCache.get(repo);
+  if (key && cached?.key === key && cached.expires > performance.now())
+    return requestPhase(trace, 'artifacts.scan.cached', () => cached.result);
+
+  const result = requestPhase(trace, 'artifacts.scan', () => scanArtifacts(repo, head, refs));
+  if (!key) return result;
+  scanCache.delete(repo);
+  if (scanCache.size >= scanCacheSize) scanCache.delete(scanCache.keys().next().value!);
+  const entry = { key, expires: performance.now() + scanCacheMs, result };
+  scanCache.set(repo, entry);
+  try {
+    return await result;
+  } catch (error) {
+    if (scanCache.get(repo) === entry) scanCache.delete(repo);
+    throw error;
+  }
+}
+
+async function projectArtifacts(
+  project: any,
+  waiting: ReadonlySet<string> | undefined,
+  trace?: SpanContext,
+): Promise<ArtifactSummary[]> {
+  const artifacts = await repositoryArtifacts(project.repositoryPath, trace);
+  return artifacts.map(({ unproposed, ...entry }) => ({
+    projectId: project.id,
+    project: project.name ?? project.id,
+    ...entry,
+    state: waiting?.has(entry.artifact ? folderOf(entry.artifact) : appDesignFolder)
+      ? 'review'
+      : unproposed
+        ? 'unproposed'
+        : null,
+  }));
+}
+
+export async function readArtifacts(owner: string, trace?: SpanContext) {
   const projects = list('project', owner).filter(
     (row: any) => row.repositoryPath && row.repositoryStatus !== 'removing',
   );
+  const waiting = new Map<string, Set<string>>();
+  for (const row of list('v2-inbox-native', owner)) {
+    const { context, item } = row;
+    if (context?.source !== 'design' || item?.state !== 'waiting') continue;
+    let folders = waiting.get(context.projectId);
+    if (!folders) waiting.set(context.projectId, (folders = new Set()));
+    folders.add(context.folder ?? appDesignFolder);
+  }
   const all = (
-    await Promise.all(
-      projects.map((project: any) => projectArtifacts(owner, project).catch(() => [])),
+    await requestPhase(trace, 'artifacts.projects', (phase) =>
+      Promise.all(
+        projects.map((project: any, index) =>
+          // Leave room for ref and scan phases inside the bounded request trace.
+          requestPhase(index < 4 ? phase : undefined, 'artifacts.repository', (repoPhase) =>
+            projectArtifacts(project, waiting.get(project.id), repoPhase),
+          ).catch(() => []),
+        ),
+      ),
     )
   ).flat();
   all.sort((a, b) => Date.parse(b.updatedAt ?? '') - Date.parse(a.updatedAt ?? '') || 0);
@@ -447,7 +510,7 @@ export async function artifactsApi(req: IncomingMessage, res: ServerResponse, ow
     route({
       method: 'GET',
       path: '/api/artifacts',
-      handler: async () => sendJson(res, await readArtifacts(owner)),
+      handler: async () => sendJson(res, await readArtifacts(owner, requestSpans.get(res)?.phases)),
     }),
     route({
       method: 'POST',

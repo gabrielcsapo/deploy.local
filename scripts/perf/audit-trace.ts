@@ -31,10 +31,34 @@ const durations: number[] = [];
 const seen = new Set<string>();
 for (const file of files) {
   const issues: string[] = [];
+  const clockWarnings: { client: string; server: string; gapMs: number }[] = [];
   let durationMs: number | undefined;
   try {
     const detail: TraceDetail & { traceId?: string } = JSON.parse(readFileSync(file, 'utf8'));
     const model = timeline(detail);
+    // A synchronous HTTP server must start before the caller receives its response.
+    // Keep raw timestamps and local durations intact when clocks disagree.
+    const clients = new Map(
+      (detail.spans ?? []).filter((s) => s.kind === 3).map((s) => [s.spanId, s]),
+    );
+    for (const server of detail.spans ?? []) {
+      if (server.kind !== 2 || !server.parentSpanId || !server.attributes['http.request.method'])
+        continue;
+      const client = clients.get(server.parentSpanId);
+      if (
+        !client ||
+        client.service === server.service ||
+        !client.attributes['http.response.status_code']
+      )
+        continue;
+      const gap = Number(server.startTimeUnixNano) / 1e6 - Number(client.endTimeUnixNano) / 1e6;
+      if (gap > 1)
+        clockWarnings.push({
+          client: client.spanId,
+          server: server.spanId,
+          gapMs: Math.round(gap * 100) / 100,
+        });
+    }
     if (detail.truncated) issues.push('truncated export');
     if (model.all.some((row) => row.parent && !model.byId.has(row.parent)))
       issues.push('missing parent');
@@ -74,7 +98,14 @@ for (const file of files) {
   } catch {
     issues.push('unreadable trace detail');
   }
-  console.log(JSON.stringify({ file, durationMs, issues }));
+  console.log(
+    JSON.stringify({
+      file,
+      durationMs,
+      issues,
+      ...(clockWarnings.length ? { clockWarnings } : {}),
+    }),
+  );
   if (issues.length) process.exitCode = 1;
   else if (durationMs !== undefined) durations.push(durationMs);
 }

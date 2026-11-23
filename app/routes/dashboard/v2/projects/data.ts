@@ -16,9 +16,12 @@ export async function request<T = any>(
   const response = await (interaction
     ? interaction.fetch(path, options, authenticatedFetch)
     : authenticatedFetch(path, options));
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error || 'Request failed');
-  return body;
+  async function readBody() {
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || 'Request failed');
+    return body;
+  }
+  return interaction ? interaction.span('http.body', readBody) : readBody();
 }
 /**
  * Whether an event can change what a page reads. A running step's progress ticks every second
@@ -37,7 +40,12 @@ export function useData<T>(
   {
     immutable = false,
     open,
-  }: { immutable?: boolean; open?: { current: Interaction | undefined } } = {},
+    traceFirstResult = false,
+  }: {
+    immutable?: boolean;
+    open?: { current: Interaction | undefined };
+    traceFirstResult?: boolean;
+  } = {},
 ) {
   const seed = useDataSeed();
   const lastVersion = useRef(0);
@@ -72,7 +80,9 @@ export function useData<T>(
     if (!path || (!forced && freshSeed(seed, path))) return;
     if (!forced && immutable && remembered<T>(path, seed) !== undefined) return;
     const controller = new AbortController();
-    request<T>(path, { signal: controller.signal }, open?.current)
+    const interaction =
+      traceFirstResult && remembered<T>(path, seed) !== undefined ? undefined : open?.current;
+    request<T>(path, { signal: controller.signal }, interaction)
       .then((value) => {
         if (controller.signal.aborted) return;
         remember(path, value);
@@ -82,7 +92,7 @@ export function useData<T>(
         if (!controller.signal.aborted) setError(error.message);
       });
     return () => controller.abort();
-  }, [path, version, seed, seededError, immutable, open]);
+  }, [path, version, seed, seededError, immutable, open, traceFirstResult]);
   useEffect(
     () =>
       onAuthReset(() => {

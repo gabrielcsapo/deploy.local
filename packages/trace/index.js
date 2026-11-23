@@ -42,6 +42,7 @@ export function startTrace(parent) {
   return {
     ...root,
     traceId,
+    completedSpans: finished,
     serverTiming() {
       return finished()
         .map(

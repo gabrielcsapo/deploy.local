@@ -1,8 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
 import { Banner, Group, Icon, ListTemplate, Skeleton, Tabs } from '@/components/ui';
 import type { ArtifactKind, ArtifactSummary } from '../../../../../shared/v2/artifacts';
+import type { Interaction } from '../../../../../packages/trace/interaction';
+import { startScreenOpen } from '../projects/interaction';
 import { useData } from '../projects/data';
 import { NewArtifact } from './NewArtifact';
 import { artifactHref, artifactMeta, galleryPath, galleryTab, shown, stateLabel } from './model';
@@ -41,7 +43,29 @@ export function Gallery() {
   const [params, setParams] = useSearchParams();
   const tab = galleryTab(params.get('kind'));
   const making = params.get('new');
-  const gallery = useData<Gallery>('/api/artifacts');
+  const open = useRef<Interaction | undefined>(undefined);
+  useEffect(() => {
+    const trace = startScreenOpen(galleryPath, 'screen.artifacts.open');
+    if (!trace) return;
+    open.current = trace.open;
+    window.addEventListener('pagehide', trace.pageLeft);
+    return () => {
+      window.removeEventListener('pagehide', trace.pageLeft);
+      trace.open.finish('navigation.left', 'cancelled');
+      open.current = undefined;
+    };
+  }, []);
+  const gallery = useData<Gallery>('/api/artifacts', { open, traceFirstResult: true });
+  useEffect(() => {
+    const interaction = open.current;
+    if (!interaction || (!gallery.data && !gallery.error)) return;
+    const frame = requestAnimationFrame(() => {
+      if (gallery.data) interaction.finish('gallery.visible');
+      else interaction.finish('gallery.failed', 'error');
+      open.current = undefined;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [gallery.data, gallery.error]);
   const [kind, setKind] = useState<ArtifactKind | null>(null);
   useEffect(() => {
     if (making === 'design' || making === 'document') setKind(making);

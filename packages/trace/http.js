@@ -1,3 +1,5 @@
+import { startTrace } from './index.js';
+
 // Only an incoming, sampled W3C parent opts a request into recording.
 export function startHttpSpan(parent) {
   const match =
@@ -6,10 +8,13 @@ export function startHttpSpan(parent) {
     return;
   const start = performance.now();
   const epoch = BigInt(Math.round((performance.timeOrigin + start) * 1000)) * 1000n;
-  return (method, route, status) => ({
+  const spanId = crypto.randomUUID().replaceAll('-', '').slice(0, 16);
+  let phases;
+  let phaseEpoch;
+  const finish = (method, route, status) => ({
     traceId: match[1],
     parentSpanId: match[2],
-    spanId: crypto.randomUUID().replaceAll('-', '').slice(0, 16),
+    spanId,
     name: method + ' ' + route,
     kind: 2,
     startTimeUnixNano: String(epoch),
@@ -20,6 +25,32 @@ export function startHttpSpan(parent) {
       { key: 'http.response.status_code', value: { intValue: String(status) } },
     ],
     status: { code: status >= 500 ? 2 : 0 },
+  });
+  Object.defineProperty(finish, 'phases', {
+    get() {
+      if (!phases) {
+        phaseEpoch =
+          BigInt(Math.round((performance.timeOrigin + performance.now()) * 1000)) * 1000n;
+        phases = startTrace(`00-${match[1]}-${spanId}-${match[3]}`);
+      }
+      return phases;
+    },
+  });
+  return Object.assign(finish, {
+    children() {
+      return (phases?.completedSpans() ?? []).map((span) => ({
+        traceId: match[1],
+        spanId: span.spanId,
+        parentSpanId: span.parentSpanId,
+        name: span.name,
+        kind: 1,
+        startTimeUnixNano: String(phaseEpoch + BigInt(Math.round(span.startMs * 1e6))),
+        endTimeUnixNano: String(
+          phaseEpoch + BigInt(Math.round((span.startMs + span.durationMs) * 1e6)),
+        ),
+        status: { code: span.failed ? 2 : 0 },
+      }));
+    },
   });
 }
 export function httpBatch(service, spans) {

@@ -14,12 +14,21 @@ if (process.env.DEPLOY_TEST_NO_BROWSER === '1') {
 const root = mkdtempSync(join(tmpdir(), 'v2-artifacts-'));
 process.env.DEPLOY_DATA_DIR = root;
 const store = await import('../store.ts');
-const { db, save } = await import('../workspace/store.ts');
+const { db, remove, save } = await import('../workspace/store.ts');
 const { gitText } = await import('../workspace/repository-git.ts');
 const { v2Api } = await import('./api.ts');
+const { readOtlp } = await import('../features/observability/trace-spans.ts');
+const { getRequestsSqlite } = await import('../requests-db.ts');
 const { answerInboxAsync } = await import('./inbox.ts');
 const server = createServer(async (req, res) => {
-  await v2Api(req, res, () => ({ username: 'alice' }));
+  const path = req.url?.split('?')[0];
+  await v2Api(
+    req,
+    res,
+    () => ({ username: 'alice' }),
+    undefined,
+    path === '/api/artifacts' ? path : undefined,
+  );
 });
 server.listen(0, '127.0.0.1');
 await once(server, 'listening');
@@ -84,6 +93,52 @@ const json = async (response: Response) => {
   const body = await response.json();
   return { status: response.status, body };
 };
+
+test('the gallery records repository scans and cache hits under the caller trace', async () => {
+  async function tracedGallery() {
+    const id = crypto.randomUUID().replaceAll('-', '');
+    const caller = '0123456789abcdef';
+    const response = await json(
+      await api('/api/artifacts', {
+        headers: { traceparent: `00-${id}-${caller}-01` },
+      }),
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const { spans } = readOtlp(getRequestsSqlite(), 'control:alice', id);
+    const http = spans.find((span) => span.name === 'GET /api/artifacts')!;
+    assert.equal(http.parentSpanId, caller);
+    const scan = spans.find((span) => span.name === 'artifacts.projects')!;
+    assert.equal(scan.parentSpanId, http.spanId);
+    const repos = spans.filter((span) => span.name === 'artifacts.repository');
+    assert.equal(repos.length, 2);
+    for (const repo of repos) {
+      assert.equal(repo.parentSpanId, scan.spanId);
+      const children = spans.filter((span) => span.parentSpanId === repo.spanId);
+      assert.equal(children.length, 2);
+      assert.ok(children.some((span) => span.name === 'artifacts.refs'));
+    }
+    return { response, spans };
+  }
+  const cold = await tracedGallery();
+  assert.equal(cold.spans.filter((span) => span.name === 'artifacts.scan').length, 2);
+  const warm = await tracedGallery();
+  assert.equal(warm.spans.filter((span) => span.name === 'artifacts.scan.cached').length, 2);
+  assert.deepEqual(warm.response, cold.response);
+
+  const id = 'fixture-gallery-review';
+  save('v2-inbox-native', 'alice', {
+    id,
+    item: { state: 'waiting' },
+    context: { source: 'design', projectId: 'site' },
+  });
+  try {
+    const reviewing = await tracedGallery();
+    assert.equal(reviewing.spans.filter((span) => span.name === 'artifacts.scan.cached').length, 2);
+    assert.equal(reviewing.response.body.artifacts[0].state, 'review');
+  } finally {
+    remove('v2-inbox-native', 'alice', id);
+  }
+});
 
 test('the gallery lists the App design and nothing for a project without one', async () => {
   const { body } = await json(await api('/api/artifacts'));

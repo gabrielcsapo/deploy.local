@@ -114,6 +114,8 @@ node scripts/perf/audit-trace.ts --service example.apple \
   --root screen.library.present --event screen.display_tick --expected-trials 6 trial-*.json
 ```
 
+The audit emits a `clockWarnings` entry when a linked HTTP server span starts more than 1 ms after the client has received the response. Each entry identifies the two spans and their gap in milliseconds. Compare the machines’ clocks before interpreting that gap. Durations use the original timestamps.
+
 For web navigation audits, exercise the earliest actionable link as well as a hydrated page. In a browser test, call `auditNavigation` from `scripts/perf/audit-navigation.mjs` with a fresh signed-in Playwright page per trial. Set `settleMs: 0` for the first visible link and repeat with a delay on a fresh page. The helper distinguishes a full document load from a client-side transition and lists matching OTLP/JSON root trace IDs emitted after the trusted click. An empty list means no matching root with the requested milestone was observed during `exportWaitMs` (default five seconds). Use the owner trace endpoint and `audit-trace.ts` to check receipt and parent links.
 
 ```js

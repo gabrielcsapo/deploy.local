@@ -12,6 +12,7 @@ export interface RecordedSpan {
 }
 export interface RequestTrace extends SpanContext {
   readonly traceId: string;
+  completedSpans(): RecordedSpan[];
   serverTiming(): string;
   clientEvent(
     requestId: string,

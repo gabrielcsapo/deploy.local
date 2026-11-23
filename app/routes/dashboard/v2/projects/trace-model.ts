@@ -1,6 +1,7 @@
 type Attributes = Record<string, string | number | boolean>;
 type SpanEvent = { name: string; timeUnixNano: string; attributes?: Attributes };
 type OtelSpan = {
+  kind?: number;
   spanId: string;
   parentSpanId?: string | null;
   name: string;

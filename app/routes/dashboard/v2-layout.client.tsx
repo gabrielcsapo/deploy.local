@@ -1,4 +1,5 @@
 'use client';
+import { galleryPath } from './v2/artifacts/model';
 import { commitScreen, projectTracer } from './v2/projects/interaction';
 import { useDataSeed } from './v2/data/seeds';
 import { waitingHref } from './v2/inbox/waiting';
@@ -320,7 +321,8 @@ function V2Shell() {
   const { pathname, search } = useLocation();
   useEffect(() => {
     projectTracer();
-    commitScreen(pathname);
+    // The gallery takes its navigation through its first rendered result.
+    if (pathname !== galleryPath) commitScreen(pathname);
   }, [pathname, data.user.data?.username]);
   const [navigation, setNavigation] = useState({ collapsed: false, updateOpen: false });
   const { collapsed, updateOpen } = navigation;

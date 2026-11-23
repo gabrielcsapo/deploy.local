@@ -1,4 +1,5 @@
 import { startHttpSpan, httpBatch } from '../../packages/trace/http.js';
+import { requestSpans } from './request-trace.ts';
 import { storeOtlp } from '../otlp.ts';
 import { getRequestsSqlite } from '../requests-db.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
@@ -110,15 +111,17 @@ export async function v2Api(
         const finish = startHttpSpan(req.headers.traceparent);
         if (finish) {
           observedResponses.add(res);
+          requestSpans.set(res, finish);
           const route = template ?? '/api/*';
           res.once('finish', () => {
             const span = finish(req.method ?? 'GET', route, res.statusCode);
+            const children = finish.children();
             setImmediate(() => {
               try {
                 storeOtlp(
                   getRequestsSqlite(),
                   'control:' + auth.username,
-                  httpBatch('deploy.server', [span]),
+                  httpBatch('deploy.server', [span, ...children]),
                 );
               } catch {}
             });

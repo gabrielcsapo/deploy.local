@@ -16,6 +16,18 @@ const screens =
   'projects inbox tasks agents live computers settings packages artifacts design apps'.split(' ');
 let navigation: ReturnType<typeof observeNavigation> | undefined;
 export const commitScreen = (path: string) => navigation?.committed(path);
+export function startScreenOpen(path: string, name: string) {
+  const tracer = projectTracer();
+  if (!tracer) return;
+  const open = navigation?.take(path) ?? tracer.start(name);
+  return {
+    open,
+    pageLeft() {
+      open.finish('navigation.left', 'cancelled');
+      queueMicrotask(() => void tracer.flush(true));
+    },
+  };
+}
 let current:
   | {
       owner: string;

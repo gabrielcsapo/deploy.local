@@ -60,6 +60,25 @@ test('a trace audit requires the sampled action, milestone, connected services a
   }
   const ok = audit([root, child]);
   assert.equal(ok.status, 0);
+  const client = { ...root, kind: 3, attributes: { 'http.response.status_code': 200 } };
+  const late = {
+    ...child,
+    kind: 2,
+    startTimeUnixNano: '36000000',
+    endTimeUnixNano: '37000000',
+    attributes: { 'http.request.method': 'GET' },
+  };
+  const inverted = audit([client, late]);
+  assert.equal(inverted.status, 0);
+  assert.deepEqual(inverted.rows[0].clockWarnings, [
+    { client: 'root', server: 'server', gapMs: 32 },
+  ]);
+  assert.equal(inverted.rows[1].medianMs, 3);
+  assert.equal(audit([client, { ...late, kind: 1 }]).rows[0].clockWarnings, undefined);
+  assert.equal(
+    audit([client, { ...late, startTimeUnixNano: '3000000' }]).rows[0].clockWarnings,
+    undefined,
+  );
   assert.equal(ok.rows[1].medianMs, 3);
   assert.equal(audit([root, child], ['--expected-trials', '2']).status, 1);
   assert.equal(audit([root]).status, 1);
