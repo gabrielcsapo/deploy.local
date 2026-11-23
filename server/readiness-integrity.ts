@@ -37,7 +37,8 @@ export function startIntegrityChecks(
           execArgv: [],
         },
       ),
-  }: { createWorker?: () => IntegrityWorker } = {},
+    stopGraceMs = 5000,
+  }: { createWorker?: () => IntegrityWorker; stopGraceMs?: number } = {},
 ) {
   // Fail closed only until the immediate startup scan completes (normally seconds).
   // Activation already retries readiness 30 times at one-second intervals. Reporting ok
@@ -47,6 +48,7 @@ export function startIntegrityChecks(
     workspace: 'integrity check pending',
   };
   let active: IntegrityWorker | undefined;
+  let exited: Promise<void> = Promise.resolve();
   let stopped = false;
   function run() {
     if (stopped || active) return;
@@ -75,10 +77,13 @@ export function startIntegrityChecks(
         failed = true;
         if (!stopped) result = unavailable;
       });
-      worker.once('exit', (code) => {
-        active = undefined;
-        if (!stopped) result = !failed && code === 0 && completed ? completed : unavailable;
-      });
+      exited = new Promise((resolve) =>
+        worker.once('exit', (code) => {
+          active = undefined;
+          if (!stopped) result = !failed && code === 0 && completed ? completed : unavailable;
+          resolve();
+        }),
+      );
       worker.unref();
     } catch {
       active = undefined;
@@ -93,6 +98,16 @@ export function startIntegrityChecks(
     async stop() {
       stopped = true;
       clearInterval(timer);
+      if (!active) return;
+      // Let a running scan finish first (it takes about a second). Terminating the thread while
+      // it is still loading the SQLite addon aborts the whole process (SIGABRT, no exit code),
+      // which is how a SIGTERM soon after start could fail a shutdown.
+      let grace: NodeJS.Timeout | undefined;
+      await Promise.race([
+        exited,
+        new Promise((resolve) => (grace = setTimeout(resolve, stopGraceMs))),
+      ]);
+      clearTimeout(grace);
       await active?.terminate();
     },
   };

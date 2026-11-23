@@ -172,6 +172,7 @@ test('integrity scans start immediately, never overlap, retain results and stop 
         workers.push(worker);
         return worker;
       },
+      stopGraceMs: 0,
     },
   );
   t.after(() => integrity.stop());
@@ -202,6 +203,26 @@ test('integrity scans start immediately, never overlap, retain results and stop 
   assert.equal(workers.length, 2, 'shutdown removes the timer');
 });
 
+test('shutdown lets a running scan finish instead of terminating it mid-load', async () => {
+  const worker = new TestIntegrityWorker();
+  const integrity = startIntegrityChecks(
+    { deploy: 'unused', workspace: 'unused' },
+    { createWorker: () => worker, stopGraceMs: 60_000 },
+  );
+  const stopping = integrity.stop();
+  setTimeout(() => worker.emit('exit', 0), 10);
+  await stopping;
+  assert.equal(worker.terminations, 0, 'a scan that finishes within the grace is never terminated');
+
+  const stuck = new TestIntegrityWorker();
+  const again = startIntegrityChecks(
+    { deploy: 'unused', workspace: 'unused' },
+    { createWorker: () => stuck, stopGraceMs: 10 },
+  );
+  await again.stop();
+  assert.equal(stuck.terminations, 1, 'a scan still running after the grace is terminated');
+});
+
 test('worker errors, silent exits and invalid results fail closed and retry on the next interval', async (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] });
   const workers: TestIntegrityWorker[] = [];
@@ -215,6 +236,7 @@ test('worker errors, silent exits and invalid results fail closed and retry on t
         workers.push(worker);
         return worker;
       },
+      stopGraceMs: 0,
     },
   );
   t.after(() => integrity.stop());
