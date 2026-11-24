@@ -108,7 +108,8 @@ import {
   constants as fsConstants,
   rmSync,
 } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { request as httpRequest } from 'node:http';
@@ -3502,6 +3503,38 @@ async function cmdTasks(create = false) {
   else console.log(`Started task ${task.title} · ${task.id}\n  Next: deploy tasks`);
 }
 
+async function cmdProjectCreate() {
+  const [, action, rawName] = positionals;
+  const name = rawName?.trim();
+  if (action !== 'create' || positionals.length !== 3 || !name)
+    throw cliError(
+      'Usage: deploy project create <name> [--json]',
+      'deploy project create --help',
+      2,
+    );
+
+  const project = await contracts.createProject(api, name, randomUUID());
+  const base = `/api/projects/${encodeURIComponent(project.id)}/repository`;
+  const projectUrl = new URL(`/dashboard/projects/${encodeURIComponent(project.id)}`, serverUrl)
+    .href;
+  const deadline = Date.now() + 30_000;
+  let repository;
+  try {
+    for (;;) {
+      repository = await api(base);
+      if (repository.status === 'ready') break;
+      if (repository.status !== 'preparing' || Date.now() >= deadline)
+        throw new Error(repository.operation?.error || `Repository status: ${repository.status}.`);
+      await delay(500);
+    }
+  } catch (error) {
+    throw cliError(`Created project ${project.name}. ${error.message}`, projectUrl);
+  }
+  const cloneUrl = new URL(repository.clonePath, serverUrl).href;
+  if (values.json) outputJson({ ...project, cloneUrl });
+  else console.log(`Created project ${project.name}.\ngit clone ${cloneUrl}`);
+}
+
 // ── CLI entry ───────────────────────────────────────────────────────────────
 
 const ADVANCED_HELP = `
@@ -3587,10 +3620,10 @@ Options:
   -h, --help                 Show this help
 `.trim();
 
-const _ciCommand =
-  process.argv[2] !== 'packages' &&
-  process.argv.slice(2).some((arg) => arg === 'publish' || arg === 'release');
-const _initialConfig = _ciCommand ? {} : loadConfig();
+const PROJECT_HELP = `Usage  deploy project create <name> [--json]
+
+Create a project and its hosted Git repository.`;
+
 let values, positionals;
 try {
   ({ values, positionals } = parseArgs({
@@ -3599,7 +3632,6 @@ try {
       url: {
         type: 'string',
         short: 'u',
-        default: _ciCommand ? undefined : _initialConfig.url || DEFAULT_URL,
       },
       tag: { type: 'string' },
       claim: { type: 'boolean' },
@@ -3686,14 +3718,17 @@ if (values.json) {
 }
 
 if (values.help || positionals[0] === 'help') {
+  const helpCommand = positionals[0] === 'help' ? positionals[1] : positionals[0];
   const help =
-    positionals[0] === 'design' || (positionals[0] === 'help' && positionals[1] === 'design')
-      ? DESIGN_HELP
-      : positionals[0] === 'worker'
-        ? 'Usage: deploy worker run\nRuns the enrolled task worker using local agent credentials.'
-        : positionals.includes('advanced')
-          ? ADVANCED_HELP
-          : HELP;
+    helpCommand === 'project'
+      ? PROJECT_HELP
+      : helpCommand === 'design'
+        ? DESIGN_HELP
+        : positionals[0] === 'worker'
+          ? 'Usage: deploy worker run\nRuns the enrolled task worker using local agent credentials.'
+          : positionals.includes('advanced')
+            ? ADVANCED_HELP
+            : HELP;
   console.log(values.json ? JSON.stringify({ help }) : help);
   process.exit(0);
 }
@@ -3704,7 +3739,8 @@ if (values.version && !positionals.length) {
 }
 
 const command = positionals[0] || 'deploy';
-const serverUrl = values.url;
+const ciCommand = command === 'release' || command === 'publish';
+const serverUrl = values.url ?? (ciCommand ? undefined : loadConfig().url || DEFAULT_URL);
 const appCommands = [
   'deploy',
   'd',
@@ -3799,7 +3835,7 @@ function requireApp() {
 }
 
 try {
-  if (!_ciCommand) enableLocalTlsTrust(serverUrl);
+  if (!ciCommand) enableLocalTlsTrust(serverUrl);
   if (explicitApp && positionalApp && explicitApp.toLowerCase() !== positionalApp.toLowerCase())
     throw cliError(
       'The positional app and -a name disagree.',
@@ -3824,6 +3860,9 @@ try {
       break;
     case 'task':
       await cmdTasks(true);
+      break;
+    case 'project':
+      await cmdProjectCreate();
       break;
     case 'tasks':
       await cmdTasks();

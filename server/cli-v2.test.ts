@@ -24,6 +24,7 @@ const requests: {
   repository?: string;
   commit?: string;
 }[] = [];
+let repositoryStates: string[] = [];
 let inboxStatus = 200;
 let waiting = true;
 let buildSuccess = true;
@@ -91,6 +92,11 @@ const server = createServer((request, response) => {
     } else if (path === '/api/upload') {
       uploadContent = { body: rawBody, contentType: request.headers['content-type'] || '' };
       response.end(JSON.stringify({ accepted: true, name: 'home-gym', buildLogId: 42 }));
+    } else if (path === '/api/projects' && request.method === 'POST') {
+      response.statusCode = 202;
+      response.end(JSON.stringify({ id: 'created', name: JSON.parse(body).name, apps: [] }));
+    } else if (path === '/api/projects/created/repository') {
+      response.end(JSON.stringify({ status: repositoryStates.shift(), clonePath: '/repo.git' }));
     } else if (path === '/api/projects/home-gym/releases') {
       response.statusCode = releasesSupported ? 200 : 404;
       response.end(
@@ -228,6 +234,47 @@ function run(args: string[], cwd = root) {
     child.on('close', (code) => resolve({ code, stdout, stderr }));
   });
 }
+
+test('project create waits for the hosted repository and prints its canonical clone URL', async () => {
+  const count = requests.length;
+  assert.match((await run(['project', 'create', '--help'])).stdout, /Usage  deploy project create/);
+  for (const args of [
+    ['project', 'create'],
+    ['project', 'create', 'one', 'two'],
+  ])
+    assert.equal((await run(args)).code, 2);
+  assert.equal(requests.length, count);
+
+  repositoryStates = ['preparing', 'ready'];
+  const created = await run(['project', 'create', 'My Project']);
+  assert.equal(created.code, 0, created.stderr);
+  const cloneUrl = `http://127.0.0.1:${port}/repo.git`;
+  assert.equal(created.stdout, `Created project My Project.\ngit clone ${cloneUrl}\n`);
+  const operation = requests[count];
+  assert.equal(operation.path, '/api/projects');
+  assert.equal(operation.method, 'POST');
+  assert.match(operation.body.operationId, /^[a-f0-9-]{36}$/);
+  assert.deepEqual(operation.body, {
+    name: 'My Project',
+    sourcePath: '',
+    operationId: operation.body.operationId,
+  });
+  assert.deepEqual(
+    requests.slice(count + 1).map((read) => read.path),
+    Array(2).fill('/api/projects/created/repository'),
+  );
+
+  repositoryStates = ['ready'];
+  const json = await run(['project', 'create', 'release', '--json']);
+  assert.equal(json.code, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout), { id: 'created', name: 'release', apps: [], cloneUrl });
+
+  repositoryStates = ['failed'];
+  const failed = await run(['project', 'create', 'test-project', '--json']);
+  assert.equal(failed.code, 1);
+  assert.equal(failed.stdout, '');
+  assert.match(JSON.parse(failed.stderr).error.message, /Created project test-project.*failed/);
+});
 
 test('register directs people to setup or an admin without anonymous registration', async () => {
   const count = requests.length;

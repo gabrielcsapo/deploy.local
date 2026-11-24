@@ -8,6 +8,15 @@
 /** @typedef {import('../shared/v2/contracts.ts').WorkspaceTask} WorkspaceTask */
 /** @typedef {import('../shared/v2/contracts.ts').InboxItem} InboxItem */
 
+/** @param {API} api @param {string} name @param {string} operationId
+ * @returns {Promise<import('../shared/v2/contracts.ts').Project>} */
+export function createProject(api, name, operationId) {
+  return api('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify({ name, sourcePath: '', operationId }),
+  });
+}
+
 /** @param {API} api @param {string} project @returns {Promise<Release[] | {releases: Release[]}>} */
 export function projectReleases(api, project) {
   return api(`/api/projects/${encodeURIComponent(project)}/releases`);

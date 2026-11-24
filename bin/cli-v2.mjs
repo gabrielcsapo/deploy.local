@@ -7,6 +7,7 @@ export const HELP = `deploy — ship and run apps on computers you own
 Usage  deploy [command] [app] [flags]
 
 Ship
+  project create <name>  Create a project and its hosted Git repository
   deploy                 Ship this folder to its project
   plan [app]             Show what would change, without shipping
   rollback [app]          Move a whole project back to its last release
