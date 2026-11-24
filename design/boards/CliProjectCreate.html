@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=480">
+<title>CLI — create a project</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<style>
+body { margin: 0; background: var(--paper); color: var(--ink); }
+.sheet { box-sizing: border-box; padding: 40px clamp(24px, 5vw, 64px); }
+h1 { margin: 4px 0 24px; }
+.terminal { max-width: 800px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg); }
+.bar { text-align: center; padding: 8px; color: var(--muted); border-bottom: 1px solid var(--line); }
+pre { margin: 0; padding: 18px; font: 13px/20px var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.prompt { color: var(--muted); }
+</style>
+</head>
+<body>
+<main data-layer="sheet" class="dl-sheet sheet">
+  <span data-layer="category" class="dl-meta">CLI · projects</span>
+  <h1 data-layer="title" class="dl-display">Create a project</h1>
+  <div data-layer="terminal" class="terminal" data-theme="dark">
+    <div data-layer="terminal-bar" class="dl-meta bar">zsh</div>
+    <pre data-layer="transcript"><span data-layer="discover-prompt" class="prompt">~ $</span> deploy --help | grep 'project create'
+  project create &lt;name&gt;  Create a project and its hosted Git repository
+
+<span data-layer="help-prompt" class="prompt">~ $</span> deploy project create --help
+Usage  deploy project create &lt;name&gt; [--json]
+
+Create a project and its hosted Git repository.
+
+<span data-layer="create-prompt" class="prompt">~ $</span> deploy project create brick-engine
+Created project brick-engine.
+git clone https://deploy.local/brick-engine.git</pre>
+  </div>
+</main>
+</body>
+</html>

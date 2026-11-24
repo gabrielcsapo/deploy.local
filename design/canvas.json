@@ -940,6 +940,14 @@
       "h": 1280,
       "title": "CLI — help that matches the app"
     },
+    "CliProjectCreate.html": {
+      "x": 11250,
+      "y": 34784,
+      "w": 1440,
+      "h": 480,
+      "title": "CLI — create a project",
+      "expand": "fill"
+    },
     "CliErrors.html": {
       "x": 8210,
       "y": 36124,
@@ -3994,6 +4002,7 @@
     "Restarting.html",
     "CliRules.html",
     "CliHelp.html",
+    "CliProjectCreate.html",
     "CliErrors.html",
     "AgentSettings.html",
     "AgentPage.html",
