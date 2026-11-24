@@ -10,6 +10,7 @@ import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import { lookup } from 'node:dns/promises';
 import { isIP, createServer, createConnection, type AddressInfo, type Socket } from 'node:net';
 import http from 'node:http';
 import { EventEmitter } from 'node:events';
@@ -285,8 +286,11 @@ let buildxAvailable: boolean | null = null;
 const BUILDX_BUILDER = 'deploy-local';
 let buildxDriver = 'docker-container';
 
+// Only success is remembered. A failed check (a slow daemon, a builder that could not be
+// created yet) is retried on the next build instead of downgrading every later build to a
+// plain `docker build` until the server restarts.
 async function hasBuildx(): Promise<boolean> {
-  if (buildxAvailable !== null) return buildxAvailable;
+  if (buildxAvailable) return true;
   try {
     await execFileAsync('docker', ['buildx', 'version'], { timeout: 5000 });
     try {
@@ -304,9 +308,58 @@ async function hasBuildx(): Promise<boolean> {
       );
     }
     return (buildxAvailable = true);
-  } catch {
-    return (buildxAvailable = false);
+  } catch (error) {
+    console.warn(`[Docker] buildx unavailable, using docker build: ${(error as Error).message}`);
+    return false;
   }
+}
+
+type BridgeInspect = () => Promise<{ stdout: string }>;
+const inspectBridge: BridgeInspect = () =>
+  execFileAsync('docker', ['network', 'inspect', 'bridge'], { timeout: 3000 });
+
+async function bridgeGateway(inspect: BridgeInspect): Promise<string | undefined> {
+  try {
+    const networks = JSON.parse((await inspect()).stdout);
+    return networks[0]?.IPAM?.Config?.map((entry: { Gateway?: string }) => entry.Gateway).find(
+      (value: string) => isIP(value || ''),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+/** Where a build reaches deploy.local. Containers don't resolve `.local` names, so every build
+ * for an owner with a registry gets this mapping, including projects that bring their own
+ * `.npmrc` or Cargo config: the mapping carries no credentials. */
+export async function deployHostArgs(
+  config: Pick<InstallConfig, 'registry' | 'address'> | null,
+  {
+    useBuildx,
+    driver,
+    remote = false,
+    inspect = inspectBridge,
+    resolveHost = async (host: string) => (await lookup(host)).address,
+  }: {
+    useBuildx: boolean;
+    driver: string;
+    remote?: boolean;
+    inspect?: BridgeInspect;
+    resolveHost?: (host: string) => Promise<string>;
+  },
+): Promise<string[]> {
+  if (!config?.registry) return [];
+  let address: string | undefined;
+  if (remote) {
+    address =
+      config.address ||
+      (await resolveHost(new URL(config.registry).hostname).catch(() => undefined));
+  } else if (useBuildx && driver !== 'docker') {
+    address = await bridgeGateway(inspect);
+  } else {
+    address = 'host-gateway';
+  }
+  return address ? ['--add-host', `deploy.local:${address}`] : [];
 }
 
 /** BuildKit's container driver cannot interpret host-gateway. Resolve the daemon bridge,
@@ -314,22 +367,14 @@ async function hasBuildx(): Promise<boolean> {
 export async function buildRegistryArgs(
   driver: string,
   install: { npmrc?: string; ca?: string; cargoConfig?: string; key: string },
-  inspect: () => Promise<{ stdout: string }> = () =>
-    execFileAsync('docker', ['network', 'inspect', 'bridge'], { timeout: 3000 }),
+  inspect: BridgeInspect = inspectBridge,
   resolvedAddress?: string,
 ): Promise<string[]> {
   if (!install.npmrc && !install.cargoConfig) return [];
-  let address = resolvedAddress || 'host-gateway';
+  let address: string | undefined = resolvedAddress || 'host-gateway';
   if (install.key && !resolvedAddress && driver !== 'docker') {
-    try {
-      const networks = JSON.parse((await inspect()).stdout);
-      address = networks[0]?.IPAM?.Config?.map((entry: { Gateway?: string }) => entry.Gateway).find(
-        (value: string) => isIP(value || ''),
-      );
-      if (!address) return [];
-    } catch {
-      return [];
-    }
+    address = await bridgeGateway(inspect);
+    if (!address) return [];
   }
   return [
     ...(install.npmrc ? ['--secret', `id=npmrc,src=${install.npmrc}`] : []),
@@ -355,10 +400,11 @@ export function imageBuildArguments({
   cacheExists: boolean;
   registryArgs: string[];
 }) {
+  // A plain docker build takes no secrets, only the deploy.local host mapping.
   if (!useBuildx)
     return noCache
-      ? ['build', '--no-cache', '-t', tag, '.']
-      : ['build', '--cache-from', tag, '-t', tag, '.'];
+      ? ['build', '--no-cache', ...registryArgs, '-t', tag, '.']
+      : ['build', '--cache-from', tag, ...registryArgs, '-t', tag, '.'];
   return [
     'buildx',
     'build',
@@ -415,40 +461,52 @@ export async function buildImage(
   if (!registrySupported && options?.remoteRegistry)
     onLine?.(buildRegistryUnavailable, new Date().toISOString());
   const generated = generatedNodeDirectories.has(resolve(dir));
-  const install = await preparePackageInstall(
-    registrySupported
-      ? options?.installConfig
-        ? await options.installConfig().catch(() => null)
-        : options?.owner
-          ? await packageHooks
-              .installConfig(options.owner, 'local', options.projectId)
-              .catch(() => null)
-          : null
-      : null,
-    {
-      cwd: dir,
-      root: deployDataPath('packages', 'tmp'),
-      container: true,
-      log: (line) => onLine?.(line, new Date().toISOString()),
-    },
-  );
+  // Local builds always want the config, if only for the deploy.local mapping. A remote builder
+  // that can't take secrets keeps its existing command.
+  const wantConfig = registrySupported || !options?.remoteRegistry;
+  const config = !wantConfig
+    ? null
+    : options?.installConfig
+      ? await options.installConfig().catch(() => null)
+      : options?.owner
+        ? await packageHooks
+            .installConfig(options.owner, 'local', options.projectId)
+            .catch(() => null)
+        : null;
+  const install = await preparePackageInstall(registrySupported ? config : null, {
+    cwd: dir,
+    root: deployDataPath('packages', 'tmp'),
+    container: true,
+    log: (line) => onLine?.(line, new Date().toISOString()),
+  });
   if (generated) await writeFile(resolve(dir, 'Dockerfile'), nodeDockerfile(useBuildx));
+  const secretArgs = useBuildx
+    ? await buildRegistryArgs(
+        buildxDriver,
+        install,
+        undefined,
+        options?.remoteRegistry && install.args.includes('--add-host')
+          ? install.args[install.args.indexOf('--add-host') + 1].replace('deploy.local:', '')
+          : undefined,
+      )
+    : [];
+  const registryArgs = secretArgs.includes('--add-host')
+    ? secretArgs
+    : [
+        ...secretArgs,
+        ...(await deployHostArgs(config, {
+          useBuildx,
+          driver: buildxDriver,
+          remote: options?.remoteRegistry,
+        })),
+      ];
   const buildArgs = imageBuildArguments({
     tag,
     cacheDir,
     noCache: options?.noCache,
     useBuildx,
     cacheExists: existsSync(resolve(cacheDir, 'index.json')),
-    registryArgs: useBuildx
-      ? await buildRegistryArgs(
-          buildxDriver,
-          install,
-          undefined,
-          options?.remoteRegistry && install.args.includes('--add-host')
-            ? install.args[install.args.indexOf('--add-host') + 1].replace('deploy.local:', '')
-            : undefined,
-        )
-      : [],
+    registryArgs,
   });
 
   const result = await new Promise<BuildResult>((resolve) => {

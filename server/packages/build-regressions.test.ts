@@ -8,7 +8,8 @@ import { promisify } from 'node:util';
 import { preparePackageInstall, secretOutput } from '../../shared/package-install.mjs';
 const root = await mkdtemp(join(tmpdir(), 'build-regressions-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { nodeDockerfile, buildRegistryArgs, imageBuildArguments } = await import('../docker.ts');
+const { nodeDockerfile, buildRegistryArgs, imageBuildArguments, deployHostArgs } =
+  await import('../docker.ts');
 const exec = promisify(execFile);
 const key = 'dlp_' + 'x'.repeat(43);
 after(async () => {
@@ -86,6 +87,93 @@ test('exact build argument lists for docker, docker-container and failed gateway
     }),
     ['build', '--no-cache', '-t', 'app', '.'],
   );
+});
+
+test('every build for an owner with a registry maps deploy.local, without credentials', async () => {
+  const config = { registry: 'https://deploy.local/packages/npm/' };
+  const noInspect = async () => {
+    throw Error('must not inspect');
+  };
+  // Plain docker build (buildx missing or not yet created) and the docker driver.
+  assert.deepEqual(
+    await deployHostArgs(config, {
+      useBuildx: false,
+      driver: 'docker-container',
+      inspect: noInspect,
+    }),
+    ['--add-host', 'deploy.local:host-gateway'],
+  );
+  assert.deepEqual(
+    await deployHostArgs(config, { useBuildx: true, driver: 'docker', inspect: noInspect }),
+    ['--add-host', 'deploy.local:host-gateway'],
+  );
+  // The container driver can't read host-gateway, so it gets the bridge gateway.
+  assert.deepEqual(
+    await deployHostArgs(config, {
+      useBuildx: true,
+      driver: 'docker-container',
+      inspect: async () => ({
+        stdout: JSON.stringify([{ IPAM: { Config: [{ Gateway: '172.17.0.1' }] } }]),
+      }),
+    }),
+    ['--add-host', 'deploy.local:172.17.0.1'],
+  );
+  assert.deepEqual(
+    await deployHostArgs(config, {
+      useBuildx: true,
+      driver: 'docker-container',
+      inspect: async () => ({ stdout: '[]' }),
+    }),
+    [],
+  );
+  // Remote workers use the coordinator address they resolved.
+  assert.deepEqual(
+    await deployHostArgs(
+      { ...config, address: '192.168.1.20' },
+      { useBuildx: true, driver: 'docker-container', remote: true, inspect: noInspect },
+    ),
+    ['--add-host', 'deploy.local:192.168.1.20'],
+  );
+  assert.deepEqual(
+    await deployHostArgs(config, {
+      useBuildx: true,
+      driver: 'docker-container',
+      remote: true,
+      resolveHost: async () => {
+        throw Error('no mDNS');
+      },
+    }),
+    [],
+  );
+  assert.deepEqual(await deployHostArgs(null, { useBuildx: false, driver: 'docker' }), []);
+  // A plain docker build carries the mapping too.
+  assert.deepEqual(
+    imageBuildArguments({
+      tag: 'app',
+      cacheDir: '/cache',
+      useBuildx: false,
+      cacheExists: false,
+      registryArgs: ['--add-host', 'deploy.local:host-gateway'],
+    }),
+    ['build', '--cache-from', 'app', '--add-host', 'deploy.local:host-gateway', '-t', 'app', '.'],
+  );
+});
+
+test('a project with its own .npmrc and a nested Cargo.toml gets no install secrets', async () => {
+  // This is why the mapping can't depend on the install: aob's own registry config makes
+  // preparePackageInstall step aside entirely.
+  const cwd = await mkdtemp(join(root, 'own-registry-'));
+  await writeFile(join(cwd, '.npmrc'), 'registry=https://deploy.local/packages/npm/\n');
+  await mkdir(join(cwd, 'native'));
+  await writeFile(join(cwd, 'native', 'Cargo.toml'), '[workspace]\n');
+  const install = await preparePackageInstall(
+    { registry: 'https://deploy.local/packages/npm/', key, ca: 'ca' },
+    { cwd, root: join(root, 'tmp'), container: true },
+  );
+  assert.equal(install.key, '');
+  assert.ok(!install.args.includes('--add-host'));
+  assert.deepEqual(await buildRegistryArgs('docker', install as any), []);
+  await install.cleanup();
 });
 
 test('gateway inspection is asynchronous and bounded with the exact Docker command', async () => {
