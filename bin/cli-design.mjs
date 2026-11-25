@@ -7,6 +7,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import * as contracts from './cli-contracts.mjs';
 import { cliError } from './cli-v2.mjs';
 import { WORKTREE, designFile, worktreeGit } from './design-check-local.mjs';
+import { designStatus, guideLines, statusLines } from './design-status.mjs';
 import { checkDesign } from '../server/features/design/board-check.ts';
 import { parseBoardMeta, setBoardMetaHeight } from '../shared/v2/design-board-meta.ts';
 
@@ -14,26 +15,32 @@ const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', 
 const LABEL = 33;
 
 /** `deploy design --help`, `deploy design -h` and `deploy help design`. */
-export const DESIGN_HELP = `deploy design — change what people see, and get it approved first
+export const DESIGN_HELP = `deploy design — change what people see, on the same branch as the code
 
 Usage  deploy design <command> [flags]
 
+  guide                    How to work on this project's design
+  status [<Board>…]        Where to start a board: its source, siblings, questions
+  check                    Draw what you changed beside main and check it, here
+  dev                      Open the Design page on this folder, as you save
+
+Legacy review flow
   start "<title>"          Start a design change on a branch from main
   propose                  Check it, push it and ask for review
   feedback                 Read the answer and the notes
   resolve <n> "<reply>"    Answer a note when it is done
 
-While you draw
-  dev                      Open the Design page on this folder, as you save
-  check                    Draw what you changed beside main, once
-
 Flags
+  --fix                    check: write what has one answer (measured heights)
+  --json                   Print the result as JSON
   --project <name>         The project, when origin is elsewhere
   --wait                   feedback: stay until there is an answer
   --title, --summary, --look-at
                            propose: answer its questions up front
   --drop-instances         check: put carried boards back as on main
-  --json                   Print the result as JSON
+
+Check exits 0 clean, 1 with problems, 2 on wrong usage, 4 when deploy.local
+is needed (no browser here) and out of reach.
 
 How a canvas and a board are written:  design/README.md`;
 
@@ -720,6 +727,29 @@ export async function runDesign(sub, args, options, deps) {
         fix: Boolean(options.fix),
       });
       return { exitCode: result.problems.length ? 1 : 0, json: envelope(result) };
+    }
+
+    case 'status': {
+      const top = root();
+      const status = designStatus({
+        top,
+        git: deps.git,
+        main: mainName(top),
+        names: args,
+        designSystem: deps.designSystem,
+        now: deps.now(),
+      });
+      for (const line of statusLines(status)) out(line);
+      const { now: _now, ...json } = status;
+      return { exitCode: 0, json: { ok: true, code: 'status', ...json } };
+    }
+
+    case 'guide': {
+      if (args.length) throw cliError('guide takes no names.', 'deploy design guide', 2);
+      const top = root();
+      const lines = guideLines({ top, designSystem: deps.designSystem });
+      for (const line of lines) out(line);
+      return { exitCode: 0, json: { ok: true, code: 'guide', guide: lines.join('\n') } };
     }
 
     case 'propose': {

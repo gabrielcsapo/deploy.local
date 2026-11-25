@@ -823,15 +823,56 @@ const under = (name: string, prefix: string) =>
  * that is a prefix of this one and keeps the group small (16 boards), else those starting with
  * this one's own name. Platforms are not told apart here; callers filter by platform.
  */
-export function screenFamily(file: string, files: string[], limit = 16) {
+export function screenFamily(
+  file: string,
+  files: string[],
+  keep: (other: string) => boolean = () => true,
+  limit = 16,
+) {
   const mine = screenBase(file);
   const bases = new Set(files.map(screenBase));
   const prefixes = [...(mine.match(/[A-Z0-9][a-z0-9]*|[a-z0-9]+/g) ?? [])]
     .map((_, at, words) => words.slice(0, at + 1).join(''))
     .filter((prefix) => prefix === mine || bases.has(prefix));
+  const kept = files.filter((other) => other !== file && keep(other));
   for (const prefix of prefixes) {
-    const group = files.filter((other) => other !== file && under(screenBase(other), prefix));
+    const group = kept.filter((other) => under(screenBase(other), prefix));
     if (group.length <= limit) return group;
   }
-  return files.filter((other) => other !== file && under(screenBase(other), mine));
+  return kept.filter((other) => under(screenBase(other), mine));
 }
+
+/** Every code the check reports, whether it blocks, and what it means: what guide prints. */
+export const checkCodes: { code: string; problem: boolean; means: string }[] = [
+  { code: 'text_cut_off', problem: true, means: 'text leaves the page at 700 px' },
+  { code: 'overflows_sideways', problem: true, means: 'the page scrolls sideways at 700 px' },
+  { code: 'low_contrast', problem: true, means: 'text under 4.5:1 (3:1 large) in light or dark' },
+  { code: 'not_a_token', problem: true, means: 'a colour written out instead of a token' },
+  { code: 'boards_overlap', problem: true, means: 'two boards on top of each other on the canvas' },
+  { code: 'question_invented', problem: true, means: 'a layer asks a question and states a value' },
+  { code: 'height_differs', problem: true, means: 'canvas.json and the head disagree; --fix' },
+  { code: 'lost_layer', problem: true, means: 'a layer ID main has is gone from the element' },
+  { code: 'broken_link', problem: true, means: 'a link to a board that does not exist' },
+  { code: 'not_on_canvas', problem: true, means: 'a board file canvas.json does not place' },
+  { code: 'canvas_only', problem: true, means: 'canvas.json places a board with no file' },
+  { code: 'part_carried', problem: true, means: 'boards carried only for a component change' },
+  { code: 'not_drawn', problem: true, means: 'the boards could not be drawn' },
+  { code: 'type_off_scale', problem: false, means: 'a font size not on the type scale' },
+  { code: 'spacing_off_scale', problem: false, means: 'a margin, padding or gap off the scale' },
+  { code: 'nearly_aligned', problem: false, means: 'left edges 1 to 4 px apart' },
+  {
+    code: 'row_height_differs',
+    problem: false,
+    means: 'list rows unlike the same list on siblings',
+  },
+  { code: 'box_in_card', problem: false, means: 'a bordered box inside a card' },
+  { code: 'second_primary', problem: false, means: 'more than one primary button shows' },
+  { code: 'layer_name_says_nothing', problem: false, means: 'new layer IDs like a, t-2, svg-3' },
+  { code: 'local_copy_of_component', problem: false, means: 'board CSS copying a dl-* class' },
+  { code: 'open_question', problem: false, means: 'a data-question the owner has not answered' },
+  {
+    code: 'differs_from_source',
+    problem: false,
+    means: 'words or ways out unlike its source board',
+  },
+];

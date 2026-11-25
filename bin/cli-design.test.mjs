@@ -341,10 +341,15 @@ test('the README start writes says how a canvas and a board are written, as the 
       'Web boards are 1440 wide and are checked at 700 too. Phone boards',
     ].join('\n'),
   );
-  assert.match(DESIGN_HELP, /^deploy design — change what people see, and get it approved first\n/);
+  assert.match(
+    DESIGN_HELP,
+    /^deploy design — change what people see, on the same branch as the code\n/,
+  );
+  assert.match(DESIGN_HELP, /\n {2}guide {20}How to work on this project's design\n/);
+  assert.match(DESIGN_HELP, /\n {2}status \[<Board>…\] {8}Where to start a board/);
+  assert.match(DESIGN_HELP, /\nLegacy review flow\n {2}start /);
   assert.match(DESIGN_HELP, /\n {2}dev {22}Open the Design page on this folder, as you save\n/);
   assert.doesNotMatch(DESIGN_HELP, /capture/);
-  assert.doesNotMatch(DESIGN_HELP, /guide/);
 });
 
 test('check prints each step, what changed per board and the problems, and exits 1 on one', async () => {
@@ -1233,4 +1238,142 @@ test('with no browser, check falls back to deploy.local and still writes nothing
   } finally {
     repo.cleanup();
   }
+});
+
+test('status says where to start: platform, sizes, current or replaced, source, siblings, questions, other branches', async () => {
+  const repo = repository();
+  try {
+    const board = (meta, body = '') =>
+      `<meta name="design-board" content="${meta}">\n<main>${body}</main>\n`;
+    const boards = {
+      'Run.html': board(
+        'width=1440,height=900; title=A run',
+        '<p data-layer="kept" data-question="How long are files kept?">Kept</p>',
+      ),
+      'RunKept.html': board('width=1440,height=900'),
+      'RunOld.html': board('width=1440,height=900'),
+      'RunNew.html': board('width=1440,height=900; replaces=RunOld.html'),
+      'Inbox.html': board('width=1440,height=900'),
+      'InboxPhone.html': board('width=390,height=844'),
+    };
+    for (const [file, html] of Object.entries(boards))
+      writeFileSync(join(repo.clone, 'design/boards', file), html);
+    mkdirSync(join(repo.clone, 'design/ds/deploy-local/components'), { recursive: true });
+    writeFileSync(
+      join(repo.clone, 'design/ds/deploy-local/components/library.json'),
+      JSON.stringify({
+        components: [
+          {
+            id: 'list-group',
+            name: 'List row',
+            group: 'Lists',
+            description: 'Rows in a group. More.',
+            html: '',
+          },
+          {
+            id: 'template-detail-phone',
+            name: 'Detail, iPhone',
+            group: 'Page templates',
+            html: '',
+          },
+        ],
+      }),
+    );
+    git(['add', '.'], repo.clone);
+    git(['commit', '-qm', 'Boards'], repo.clone);
+    git(['push', '-q', 'origin', 'main'], repo.clone);
+    // Another branch on origin changes Run.html.
+    git(['checkout', '-qb', 'sidebar'], repo.clone);
+    writeFileSync(join(repo.clone, 'design/boards/Run.html'), board('width=1440,height=900', 'x'));
+    git(['commit', '-qam', 'Sidebar'], repo.clone);
+    git(['push', '-q', 'origin', 'sidebar'], repo.clone);
+    git(['checkout', '-q', 'main'], repo.clone);
+    git(['fetch', '-q', 'origin'], repo.clone);
+
+    const run = terminal(repo.clone, coordinator().api);
+    const result = await runDesign('status', ['Run', 'RunOld.html', 'RunPhone'], {}, run.deps);
+    assert.equal(result.exitCode, 0);
+    const [first, old, phone] = result.json.boards;
+    assert.equal(first.platform, 'web');
+    assert.deepEqual(first.sizes, [1440, 700]);
+    assert.equal(first.current, true);
+    assert.deepEqual(first.siblings.map((sibling) => sibling.file).sort(), [
+      'RunKept.html',
+      'RunNew.html',
+      'RunOld.html',
+    ]);
+    assert.deepEqual(first.questions, [{ layer: 'kept', question: 'How long are files kept?' }]);
+    assert.deepEqual(
+      first.otherBranches.map((other) => other.branch),
+      ['sidebar'],
+    );
+    assert.equal(old.current, false);
+    assert.equal(old.replacedBy, 'RunNew.html');
+    assert.equal(phone.exists, false);
+    assert.equal(phone.platform, 'phone');
+    assert.equal(phone.source, 'Run.html');
+    assert.deepEqual(phone.templates, ['template-detail-phone']);
+    const text = run.text();
+    assert.match(text, /^Run\.html {2}web · 1440 and 700 · light, dark · current\n/);
+    assert.match(text, /\n {2}Open question {3}kept: "How long are files kept\?"\n/);
+    assert.match(text, /\n {2}Also changing {3}branch sidebar \(Test, /);
+    assert.match(text, /\nRunOld\.html .* replaced by RunNew\.html\n/);
+    assert.match(
+      text,
+      /\nRunPhone\.html {2}no board yet · phone · 390\n {2}Source {10}Run\.html \(web\)/,
+    );
+    assert.match(
+      text,
+      /\nNext {2}edit design\/boards\/Run\.html, then deploy design check --fix\n$/,
+    );
+
+    // With no names: the boards this branch changed.
+    git(['checkout', '-qb', 'mine'], repo.clone);
+    writeFileSync(
+      join(repo.clone, 'design/boards/Inbox.html'),
+      board('width=1440,height=900', 'y'),
+    );
+    const changed = await runDesign(
+      'status',
+      [],
+      { json: true },
+      terminal(repo.clone, coordinator().api).deps,
+    );
+    assert.deepEqual(
+      changed.json.boards.map((entry) => entry.file),
+      ['Inbox.html'],
+    );
+    assert.deepEqual(changed.json.boards[0].siblings, [], 'InboxPhone is another platform');
+
+    const guide = terminal(repo.clone, coordinator().api);
+    await runDesign('guide', [], {}, guide.deps);
+    assert.match(guide.text(), /^Platforms and sizes\n {2}web {5}1440 {2}drawn at 1440 and 700/);
+    assert.match(guide.text(), /\n {2}list-group {13}Rows in a group\n/);
+    assert.match(guide.text(), /\n {2}low_contrast +problem {2}/);
+    assert.match(guide.text(), /data-question=/);
+    assert.match(guide.text(), /\n {2}3\. deploy design check --fix/);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('guide lists every code the check can report', async () => {
+  const { checkCodes } = await import('../server/design/board-quality.ts');
+  const listed = new Set(checkCodes.map((entry) => entry.code));
+  const sources = [
+    '../server/features/design/board-check.ts',
+    '../server/design/board-quality.ts',
+    '../shared/v2/design-overflow.ts',
+  ]
+    .map((path) => readFileSync(join(import.meta.dirname, path), 'utf8'))
+    .join('\n');
+  const used = new Set([...sources.matchAll(/\bcode: '([a-z_]+)'/g)].map((match) => match[1]));
+  assert.deepEqual(
+    [...used].filter((code) => !listed.has(code)),
+    [],
+  );
+  assert.deepEqual(
+    [...listed].filter((code) => !used.has(code)),
+    [],
+  );
 });
