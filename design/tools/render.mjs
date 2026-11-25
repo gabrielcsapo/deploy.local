@@ -8,7 +8,8 @@
 // has; --stale-ok renders it anyway. --main renders the approved design itself, from
 // origin/main, into output/design-main: use it to review, and for the Before of a pair.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -87,6 +88,59 @@ if (fromMain) {
   if (missing.length > 0) console.warn(`Rendering ${label} although main has newer design files.`);
 }
 
+/**
+ * A function drawing a page at a size to PNG: with this checkout's Playwright when it is installed,
+ * else with the same browser `deploy design check` finds (Playwright's Chromium or the computer's
+ * Chrome), so a fresh worktree with no node_modules renders too. Exits with one line when neither.
+ */
+async function openBrowser() {
+  let chromium = null;
+  try {
+    ({ chromium } = createRequire(`${root}/`)('playwright'));
+  } catch {
+    chromium = null;
+  }
+  if (chromium) {
+    try {
+      const browser = await chromium.launch();
+      const draw = async (url, width, height) => {
+        const page = await browser.newPage({ viewport: { width, height } });
+        await page.goto(url);
+        await page.evaluate(() => document.fonts.ready);
+        const png = await page.screenshot();
+        await page.close();
+        return png;
+      };
+      draw.close = () => browser.close();
+      return draw;
+    } catch {
+      // Playwright without its browser: try the one the check uses.
+    }
+  }
+  const lookup = resolve(root, 'bin/design-browser.mjs');
+  const { browser, reason } = existsSync(lookup)
+    ? await (await import(pathToFileURL(lookup).href)).openChromium()
+    : { browser: null, reason: 'no Playwright in this checkout' };
+  if (!browser) {
+    console.error(
+      `No browser to render with (${reason}). Fix: deploy browser install, or pnpm install, then run this again.`,
+    );
+    process.exit(1);
+  }
+  const draw = async (url, width, height) => {
+    const tab = await browser.newTab({ width, height });
+    try {
+      await tab.goto(url);
+      await tab.evaluate('document.fonts.ready.then(() => true)');
+      return await tab.screenshot();
+    } finally {
+      await tab.close();
+    }
+  };
+  draw.close = () => browser.close();
+  return draw;
+}
+
 try {
   const canvas = JSON.parse(readFileSync(resolve(source, 'design/canvas.json'), 'utf8'));
   const boards = Object.entries(canvas.boards).filter(
@@ -99,25 +153,18 @@ try {
     const folder = fromMain ? 'output/design-main' : 'output/design';
     const out = resolve(root, folder);
     mkdirSync(out, { recursive: true });
-    const { chromium } = createRequire(`${root}/`)('playwright');
-    const browser = await chromium.launch();
+    const draw = await openBrowser();
     try {
       for (const [file, board] of boards) {
         const widths = board.w <= 500 ? [board.w] : [1440, 700];
-        for (const width of widths) {
-          const page = await browser.newPage({
-            viewport: { width, height: board.h },
-          });
-          await page.goto(pathToFileURL(resolve(source, 'design/boards', file)).href);
-          await page.evaluate(() => document.fonts.ready);
-          await page.screenshot({
-            path: resolve(out, `${file.replace(/\.html$/, '')}-${width}.png`),
-          });
-          await page.close();
-        }
+        for (const width of widths)
+          writeFileSync(
+            resolve(out, `${file.replace(/\.html$/, '')}-${width}.png`),
+            await draw(pathToFileURL(resolve(source, 'design/boards', file)).href, width, board.h),
+          );
       }
     } finally {
-      await browser.close();
+      await draw.close();
     }
     console.log(
       `Rendered ${boards.length} board${boards.length === 1 ? '' : 's'} from ${label} into ${folder}.`,

@@ -253,6 +253,10 @@ export async function launchChromium(executable, { timeoutMs = 20000 } = {}) {
         const file = join(pages, `page-${++pageCount}.html`);
         writeFileSync(file, html);
         files.push(file);
+        await this.goto(pathToFileURL(file).href);
+      },
+      /** Loads a file:// page (the network stays shut), waiting for its load event. */
+      async goto(url) {
         const loaded = new Promise((resolve) => {
           const stop = cdp.on((message) => {
             if (message.sessionId === sessionId && message.method === 'Page.loadEventFired') {
@@ -261,7 +265,7 @@ export async function launchChromium(executable, { timeoutMs = 20000 } = {}) {
             }
           });
         });
-        await send('Page.navigate', { url: pathToFileURL(file).href });
+        await send('Page.navigate', { url });
         await withTimeout(loaded, 15000, 'The board did not finish loading');
       },
       async evaluate(expression) {
