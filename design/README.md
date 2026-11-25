@@ -1,6 +1,6 @@
 # deploy.local design
 
-This folder is the source of deploy.local's design: every screen on web, the Mac app and iPhone, drawn as a board. People and agents change a design the same way they change code, on a branch, and it reaches main through review.
+This folder is the source of deploy.local's design: every screen on web, the Mac app and iPhone, drawn as a board. People and agents change a design the same way they change code: on a branch, beside the code, merged when its check is clean.
 
 The claude.ai canvas (https://claude.ai/artifact/3mS7t8tGJgTKdo1bnAanTr) shows the same boards; it was imported from there on 2026-10-30.
 
@@ -28,12 +28,17 @@ The server tests check that every board on the canvas exists and has unique laye
 
 ## Changing a design
 
-From the project's folder:
+A design is the boards on a branch, beside the code that builds them. Merging the branch is the approval. From the project's folder:
 
-1. `deploy design start "<title>"` makes `design/<title>` from main, in its own folder beside this one. Edit the boards in `design/boards/` there (and `canvas.json` for a new board, its place or its notes), and commit as you go.
-2. `deploy design check` names new layers, draws each changed board beside main in light and dark into `output/design/pairs`, and lists problems. deploy.local draws it, as review does, from this folder as it is; nothing runs here. To look at the approved design itself, `node design/tools/render.mjs --main`.
-3. `deploy design propose` checks, pushes and asks for review. Nothing visual is built until the design is approved (see `AGENTS.md`).
-4. `deploy design feedback --wait` prints the answer, the note and every pin, numbered. `deploy design resolve <n> "<what you did>"` answers a pin; then propose again. Once the design is on main, feedback removes the folder and the local branch.
+1. `deploy design guide` once: platforms and sizes, the type and spacing scale, components, fixture names and the check codes.
+2. `deploy design status <Board>` before you start: the current board of that screen (boards that were replaced are never offered), its source on the other platform, components, open questions and other branches changing it.
+3. Edit the boards in `design/boards/` (and `canvas.json` for a new board's place, title and notes). Mark what the product doesn't decide with `data-question="…"` instead of inventing it.
+4. `deploy design check --fix` runs on this computer: it draws each changed board beside main in light and dark into `output/design/pairs`, fixes what has one answer (layer IDs, heights) and lists problems (block the merge) and notes (taste: type or spacing off the scale, edges nearly aligned, rows unlike their siblings, a second primary button, layer names that say nothing). Look at every pair.
+5. Rebase on main, run check again, merge when it is clean.
+
+### Board meta
+
+`<meta name="design-board" content="width=390,height=844,platform=phone,source=PipelineRun.html">`. Keys: `width`, `height`, `platform` (web, phone, mac…), `schemes`, `title`, `source` (the board this one was drawn from on another platform) and `replaces` (boards this one replaced, space-separated). A replaced board stays on main for history; `status` and agents start from the board that replaced it.
 
 ## Parity: implementation against design
 
