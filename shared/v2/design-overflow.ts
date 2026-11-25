@@ -3,7 +3,22 @@
 // the parent, in a hidden frame that runs no board script). Both use this one rule.
 
 export type Overflow = { scrolls: boolean; cut: string | null };
-export type CheckProblem = { file: string | null; label: string; detail: string; short: string };
+/**
+ * One thing the check found. `code` is stable for scripts and agents; `board`, `width`, `scheme`
+ * and `layer` say where, when the check knows; `fix` says what to do about it.
+ */
+export type CheckProblem = {
+  code?: string;
+  file: string | null;
+  label: string;
+  detail: string;
+  short: string;
+  board?: string;
+  width?: number;
+  scheme?: 'light' | 'dark';
+  layer?: string;
+  fix?: string;
+};
 
 /**
  * The first piece of text that leaves the page sideways, and whether the page scrolls. It runs in
@@ -45,19 +60,29 @@ export function overflowProblems(
   if (after.cut && !(before && before.cut === after.cut))
     return [
       {
+        code: 'text_cut_off',
         file,
+        board: title,
+        width: 700,
+        scheme: 'light',
         label: `${title} is cut off at 700 px`,
         detail: `"${after.cut}" leaves the page`,
         short: 'cut off at 700 px',
+        fix: 'let the row wrap or scroll sideways, or shorten the words',
       },
     ];
   if (after.scrolls && !before?.scrolls)
     return [
       {
+        code: 'overflows_sideways',
         file,
+        board: title,
+        width: 700,
+        scheme: 'light',
         label: `${title} overflows at 700 px`,
         detail: 'the page scrolls sideways',
         short: 'overflows at 700 px',
+        fix: 'find what is wider than 700 px and let it shrink or wrap',
       },
     ];
   return [];

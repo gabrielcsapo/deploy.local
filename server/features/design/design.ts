@@ -11,8 +11,14 @@ import { mergeBoard, type BoardChoice } from '../../design/board-merge.ts';
 import { hasTools } from '../../workspace/tool-probes.ts';
 import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
 import {
+  buildBoardPage,
+  inlineBoardCaptures,
+  pairPage,
+  shootBoard,
+  type DrawingTab,
+} from '../../design/check-drawing.ts';
+import {
   checkDesign,
-  measureOverflow,
   type CheckDrawing,
   type CheckProgress,
   type CheckResult,
@@ -3333,12 +3339,11 @@ async function fontResponse(route: import('playwright').Route) {
  * pictures inlined so the page needs nothing from this server.
  */
 async function boardPage(repo: string, commit: string, html: string) {
-  let page = await boardAsShown(repo, commit, html);
-  for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
-    const css = await designSystemFile(repo, commit, match[1]);
-    page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
-  }
-  return inlineCaptures(repo, commit, page);
+  return buildBoardPage(html, {
+    library: () => libraryAt(repo, commit),
+    css: (path) => designSystemFile(repo, commit, path),
+    capture: (path) => readFile(repo, commit, `${designFolder()}/boards/${path}`, captureLimit),
+  });
 }
 
 /** The Chromium this computer draws boards with. */
@@ -3357,7 +3362,7 @@ async function drawingChromium() {
  */
 export function checkDrawing(repo: string): CheckDrawing {
   return {
-    shoot: async ({ commit, file, width, height, scheme, measure }) => {
+    shoot: async ({ commit, file, width, height, scheme, measure, inspect }) => {
       const html = await readFile(repo, commit, `${designFolder()}/boards/${file}`);
       if (!html) return null;
       const page = await boardPage(repo, commit, html.toString());
@@ -3373,16 +3378,11 @@ export function checkDrawing(repo: string): CheckDrawing {
               ? fontResponse(route)
               : route.abort(),
           );
-          const tab = await context.newPage();
-          await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
-          if (scheme === 'dark')
-            await tab.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
-          await tab.evaluate(() => document.fonts.ready);
-          // Run in the page itself, on its own document.
-          const measured = measure
-            ? await tab.evaluate(measureOverflow as () => ReturnType<typeof measureOverflow>)
-            : null;
-          return { png: await tab.screenshot(), measured };
+          return await shootBoard(playwrightTab(await context.newPage()), page, {
+            scheme,
+            measure,
+            inspect,
+          });
         } finally {
           await context.close();
         }
@@ -3396,21 +3396,24 @@ export function checkDrawing(repo: string): CheckDrawing {
         });
         try {
           const tab = await context.newPage();
-          const image = (png: Buffer | null) =>
-            png
-              ? `<img src="data:image/png;base64,${png.toString('base64')}">`
-              : '<p>New board · no Before</p>';
-          await tab.setContent(
-            `<style>body{margin:0;display:flex;gap:16px;padding:16px;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}</style>` +
-              `<figure><figcaption>Before · main · ${width} · ${scheme}</figcaption>${image(before)}</figure>` +
-              `<figure><figcaption>After · this branch · ${width} · ${scheme}</figcaption>${image(after)}</figure>`,
-            { waitUntil: 'load', timeout: 15000 },
-          );
+          await tab.setContent(pairPage({ before, after, width, scheme }), {
+            waitUntil: 'load',
+            timeout: 15000,
+          });
           return await tab.screenshot({ fullPage: true });
         } finally {
           await context.close();
         }
       }),
+  };
+}
+
+/** A Playwright page as the check's drawing tab. */
+function playwrightTab(tab: import('playwright').Page): DrawingTab {
+  return {
+    setContent: (html) => tab.setContent(html, { waitUntil: 'load', timeout: 15000 }),
+    evaluate: (expression) => tab.evaluate(expression),
+    screenshot: (options) => tab.screenshot({ fullPage: Boolean(options?.fullPage) }),
   };
 }
 
@@ -3557,7 +3560,6 @@ async function drawBoard(
 }
 
 /** Pictures that sit beside the boards, in boards/captures, as the commit has them. */
-const captureLink = /((?:src|srcset)=")(captures\/[A-Za-z0-9_.-]+\.png)(")/g;
 export const captureLimit = 16 * 1024 * 1024;
 
 /**
@@ -3565,16 +3567,8 @@ export const captureLimit = 16 * 1024 * 1024;
  * boards/captures it shows goes in as data.
  */
 export async function inlineCaptures(repo: string, commit: string, page: string) {
-  const paths = [...new Set([...page.matchAll(captureLink)].map((match) => match[2]))];
-  if (!paths.length) return page;
-  const data = new Map<string, string>();
-  for (const path of paths) {
-    if (path.split('/').includes('..')) continue;
-    const bytes = await readFile(repo, commit, `${designFolder()}/boards/${path}`, captureLimit);
-    if (bytes) data.set(path, `data:image/png;base64,${bytes.toString('base64')}`);
-  }
-  return page.replace(captureLink, (whole, before, path, after) =>
-    data.has(path) ? `${before}${data.get(path)}${after}` : whole,
+  return inlineBoardCaptures(page, (path) =>
+    readFile(repo, commit, `${designFolder()}/boards/${path}`, captureLimit),
   );
 }
 

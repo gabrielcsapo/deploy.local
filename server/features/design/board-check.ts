@@ -1,9 +1,15 @@
-// `deploy design check`, drawn by deploy.local. The terminal pushes its working copy of design/
-// as a private commit; this checks that commit against main the way review sees it. It names new
-// elements, draws each changed board at its widths in light and dark beside main, and looks for
-// problems: content cut off or overflowing sideways at 700 px, a layer ID main has that the branch
-// lost, a board missing from canvas.json or the reverse, and a link to a board that does not
-// exist. A change to a shared part (a component in the design system's library) is one row, with
+// `deploy design check`: a branch's design/ against main. The CLI runs it on the computer, with
+// the working copy as the branch; when no browser can start there, deploy.local runs it on a
+// private commit the terminal pushed. It names new elements, draws each changed board at its
+// widths in its schemes beside main, and looks for problems: content cut off or overflowing
+// sideways at 700 px, a layer ID main has that the branch lost, a board missing from canvas.json
+// or the reverse, a link to a board that does not exist, low contrast in light or dark, colours
+// that are not tokens, boards on top of each other on the canvas, a question answered with a
+// made-up fact, and a height the canvas and the board disagree on. Notes are taste and blocks
+// nothing: type and spacing off the scale, edges nearly lined up, rows unlike sibling boards', a
+// box in a card, a second primary button, layer names that say nothing, a board-local copy of a
+// component, open questions and differences from a board's source (see board-quality.ts). Each
+// looks only at what the branch changed. A change to a shared part (a component in the design system's library) is one row, with
 // the screens that show it; boards the branch carries only because their instances were drawn
 // again are a problem, since landing draws them anyway, and `drop` lists them to put back as they
 // were on main. Nothing is written here: the terminal writes the named boards and restores the
@@ -19,6 +25,23 @@ import {
   type Library,
 } from '../../design/board-html.ts';
 import { layerLabel } from '../../../shared/v2/design.ts';
+import { boardPlatform, parseBoardMeta } from '../../../shared/v2/design-board-meta.ts';
+import type { Inspection } from '../../../shared/v2/design-inspect.ts';
+import {
+  contrastProblems,
+  drawnNotes,
+  heightProblem,
+  layerNameNote,
+  localCopyNotes,
+  notATokenProblems,
+  overlapProblems,
+  questionFindings,
+  readTokens,
+  screenFamily,
+  sourceNotes,
+  spacingNotes,
+  type Finding,
+} from '../../design/board-quality.ts';
 import { reviewWidths, screenName } from '../../../shared/v2/design-review.ts';
 import {
   measureOverflow,
@@ -136,7 +159,7 @@ export function canvasProblems(
   branch: { disk: string[]; canvas: string[] },
   main: { disk: string[]; canvas: string[] } = { disk: [], canvas: [] },
 ) {
-  const problems: { file: string; label: string; detail: string }[] = [];
+  const problems: { code: string; file: string; label: string; detail: string }[] = [];
   const onCanvas = new Set(branch.canvas);
   const onDisk = new Set(branch.disk);
   const mainCanvas = new Set(main.canvas);
@@ -144,6 +167,7 @@ export function canvasProblems(
   for (const file of branch.disk)
     if (!onCanvas.has(file) && !(mainDisk.has(file) && !mainCanvas.has(file)))
       problems.push({
+        code: 'not_on_canvas',
         file,
         label: `${file} is not on the canvas`,
         detail: 'add it to canvas.json',
@@ -151,6 +175,7 @@ export function canvasProblems(
   for (const file of branch.canvas)
     if (!onDisk.has(file) && !(mainCanvas.has(file) && !mainDisk.has(file)))
       problems.push({
+        code: 'canvas_only',
         file,
         label: `${file} is on the canvas only`,
         detail: 'no board file has that name',
@@ -229,7 +254,9 @@ export function partRow(part: { id: string; name: string }, shown: number, carri
   const problems: CheckProblem[] = carried
     ? [
         {
+          code: 'part_carried',
           file: row.file,
+          fix: 'deploy design check --drop-instances',
           label: `${part.name} is carried on ${screens(carried)}`,
           detail: 'landing draws them; run deploy design check --drop-instances',
           short: `carried on ${screens(carried)}`,
@@ -242,10 +269,13 @@ export function partRow(part: { id: string; name: string }, shown: number, carri
 /** The widths a board is drawn at: web boards at 1440 and 700, phone boards at their own. */
 export const checkWidths = (width: number | undefined) => reviewWidths(width ?? 1440);
 
-/** One side of a pair: a board drawn at a commit, with what overflows when measured. */
-export type CheckShot = { png: Buffer; measured: Overflow | null };
+/** One side of a pair: a board drawn at a commit, with what the check measured there. */
+export type CheckShot = { png: Buffer; measured: Overflow | null; inspected?: Inspection | null };
 export type CheckDrawing = {
-  /** A board at a commit and width, in a scheme; measured only when `measure` is set. */
+  /**
+   * A board at a commit and width, in a scheme; measured for what leaves the page only when
+   * `measure` is set, inspected for contrast and taste only when `inspect` is set.
+   */
   shoot(input: {
     commit: string;
     file: string;
@@ -253,6 +283,7 @@ export type CheckDrawing = {
     height: number;
     scheme: 'light' | 'dark';
     measure: boolean;
+    inspect?: boolean;
   }): Promise<CheckShot | null>;
   /** Before and after side by side, captioned, as one PNG. */
   pair(input: {
@@ -278,12 +309,17 @@ export type CheckResult = {
   seconds: number;
   dropped?: number;
   boards: CheckBoardRow[];
+  /** What blocks: each with a stable code, where it is and a fix. */
   problems: CheckProblem[];
+  /** Taste and open questions: blocks nothing. */
+  notes: CheckProblem[];
   pairs: string;
   /** Boards whose new elements got layer IDs, as they read now, for the terminal to write. */
   layers: Record<string, string>;
   /** Carried boards to put back, from the commit each comes back from (with drop). */
   restore: { commit: string; files: string[] }[];
+  /** Boards whose canvas and meta heights disagree, with the height drawn: what --fix writes. */
+  heights: Record<string, number>;
   /** Before and after, named <Board>-<width>-<scheme>.png, as base64. */
   pictures: { name: string; png: string }[];
 };
@@ -294,12 +330,23 @@ export type CheckProgress = { drawn: number; total: number };
 /** Boards drawn at once; each waits for the drawing queue, which keeps Chromium's slots. */
 export const checkConcurrency = 6;
 
+/** Sibling boards drawn from main to compare list rows with, at most, per changed board. */
+export const siblingLimit = 3;
+
 /**
- * Checks a commit's design/ against main. `commit` is the terminal's working copy; `base` is
- * main as deploy.local has it.
+ * Checks a commit's design/ against main. `commit` is the working copy (a pushed commit, or
+ * whatever the CLI's reader takes for the folder); `base` is main. `systemFile` gives the design
+ * system's files (by their path under design/) for a project that has none of its own.
  */
 export async function checkDesign(
-  input: { commit: string; base: string; baseRef?: string; drop?: boolean; folder?: string },
+  input: {
+    commit: string;
+    base: string;
+    baseRef?: string;
+    drop?: boolean;
+    folder?: string;
+    systemFile?: (path: string) => string | null;
+  },
   git: CheckGit,
   drawing: CheckDrawing,
   clock = Date.now,
@@ -344,6 +391,21 @@ export async function checkDesign(
     if (!texts.has(file)) texts.set(file, await show(commit, `${folder}/boards/${file}`));
     return texts.get(file) ?? null;
   };
+  const mainTexts = new Map<string, Promise<string | null>>();
+  const onMain = (file: string) => {
+    if (!mainTexts.has(file)) mainTexts.set(file, show(base, `${folder}/boards/${file}`));
+    return mainTexts.get(file)!;
+  };
+
+  // The design system the boards are drawn with: the branch's, else the one the project falls
+  // back to.
+  const system = async (name: string) =>
+    (await show(commit, `${folder}/ds/deploy-local/${name}`)) ??
+    input.systemFile?.(`ds/deploy-local/${name}`) ??
+    null;
+  const tokens = readTokens(await system('tokens.json'), await system('tokens.css'));
+  const bundle = await system('components/bundle.css');
+  const branchLibrary = parseLibrary(await system('components/library.json'));
 
   // A component the branch changed is one row, with the screens that show it. Boards the branch
   // carries only because their instances were drawn again are left to the landing, which draws
@@ -369,7 +431,7 @@ export async function checkDesign(
       }
     for (const part of changed) {
       // Counted as landing draws them: every board on main with an instance, and the branch's own.
-      const onMain = (
+      const onMainBoards = (
         (await git.read([
           'grep',
           '-l',
@@ -385,7 +447,7 @@ export async function checkDesign(
         .map((line) => line.slice(line.lastIndexOf('/') + 1));
       const holding: string[] = [];
       for (const file of files) if (hasInstance(await after(file), part.id)) holding.push(file);
-      const shown = new Set([...onMain, ...holding]);
+      const shown = new Set([...onMainBoards, ...holding]);
       const bringing = [...carried.keys()].filter((file) => holding.includes(file));
       parts.push({ part, shown: shown.size, carried: bringing.length });
     }
@@ -417,31 +479,74 @@ export async function checkDesign(
   }
 
   const problems: CheckProblem[] = [];
+  const notes: CheckProblem[] = [];
   const partRows = parts.map((entry) => {
     const { row, problems: carriedProblems } = partRow(entry.part, entry.shown, entry.carried);
     problems.push(...carriedProblems);
     return row;
   });
   const boardRows: CheckBoardRow[] = [];
+  // Heights to measure for --fix: boards whose canvas and meta disagree.
+  const measureHeight = new Set<string>();
   for (const file of own) {
     const text = await after(file);
-    const before = await show(base, `${folder}/boards/${file}`);
+    const before = await onMain(file);
     // The board's name, as the boards and the review's list name it; a canvas title is a sentence.
     const title = screenName(file);
     for (const layer of lostLayers(before, text))
       problems.push({
+        code: 'lost_layer',
         file,
+        board: title,
+        layer,
         label: `${title} lost layer ${layer}`,
         detail: 'main has it; keep its ID',
         short: `lost layer ${layer}`,
+        fix: `put data-layer="${layer}" back on the element`,
       });
     for (const to of text ? brokenLinks(text, disk) : [])
       problems.push({
+        code: 'broken_link',
         file,
+        board: title,
         label: `${title} links to ${to}`,
         detail: 'no board has that name',
         short: `links to ${to}`,
+        fix: `link to a board that exists, or add ${to}`,
       });
+    if (text) {
+      const board = { file, title, before, after: text };
+      problems.push(...notATokenProblems({ ...board, tokens, library: branchLibrary }));
+      const asked = questionFindings(board);
+      problems.push(...asked.problems);
+      notes.push(...asked.notes);
+      const nameNote = layerNameNote(board);
+      if (nameNote) notes.push(nameNote);
+      notes.push(...spacingNotes({ ...board, tokens }));
+      notes.push(...localCopyNotes({ ...board, bundle, library: branchLibrary }));
+      const meta = parseBoardMeta(text);
+      if (meta.source && meta.source !== file)
+        notes.push(
+          ...sourceNotes({
+            ...board,
+            source: meta.source,
+            sourceAfter: await after(meta.source),
+            sourceBefore: await onMain(meta.source),
+          }),
+        );
+      const height = heightProblem({
+        file,
+        title,
+        canvasHeight: Number(canvas?.boards?.[file]?.h) || undefined,
+        metaHeight: meta.height,
+        mainCanvasHeight: Number(mainCanvas?.boards?.[file]?.h) || undefined,
+        mainMetaHeight: parseBoardMeta(before).height,
+      });
+      if (height) {
+        problems.push(height);
+        measureHeight.add(file);
+      }
+    }
     boardRows.push({
       file,
       title,
@@ -456,30 +561,78 @@ export async function checkDesign(
     { disk: mainDisk, canvas: Object.keys(mainCanvas?.boards ?? {}) },
   ))
     problems.push({ ...problem, short: problem.label.slice(problem.file.length + 1) });
+  problems.push(...overlapProblems(canvas?.boards, mainCanvas?.boards));
 
-  // Each of the branch's own boards beside main's, at its widths in light and dark. Several boards
+  // The platform of a board, from its head or its width, for sizes and siblings.
+  const platformOf = async (at: 'branch' | 'main', file: string) =>
+    boardPlatform(
+      parseBoardMeta(at === 'branch' ? await after(file) : await onMain(file)),
+      Number((at === 'branch' ? canvas : mainCanvas)?.boards?.[file]?.w) || undefined,
+    );
+
+  // Each of the branch's own boards beside main's, at its widths in its schemes. Several boards
   // are drawn at once (the drawing queue decides how many reach Chromium); results keep the
   // boards' order, and the first failure stops the boards not yet started.
   const overflow: Record<string, { after: Overflow; before: Overflow | null }> = {};
+  const drawnFindings: Record<string, { problems: Finding[]; notes: Finding[] }> = {};
+  const heights: Record<string, number> = {};
+  const usedSchemes = new Set<string>();
   const drawBoard = async (file: string) => {
     const placed = canvas?.boards?.[file];
-    if ((await after(file)) === null) return null;
-    const height = Number(placed?.h ?? 900);
-    const onMain = (await show(base, `${folder}/boards/${file}`)) !== null;
+    const text = await after(file);
+    if (text === null) return null;
+    const meta = parseBoardMeta(text);
+    const height = Number(placed?.h ?? meta.height ?? 900);
+    const mainHas = (await onMain(file)) !== null;
     const name = file.replace(/\.html$/, '');
+    const title = screenName(file);
+    const widths = checkWidths(Number(placed?.w) || meta.width || undefined);
+    const schemes = meta.schemes ?? (['light', 'dark'] as const);
     const shots: CheckResult['pictures'] = [];
-    for (const width of checkWidths(placed?.w)) {
-      for (const scheme of ['light', 'dark'] as const) {
+    const found = { problems: [] as Finding[], notes: [] as Finding[] };
+    for (const width of widths) {
+      for (const scheme of schemes) {
+        usedSchemes.add(scheme);
         const measure = width === 700 && scheme === 'light';
+        const inspect = width === widths[0];
         const shot = (at: string) =>
-          drawing.shoot({ commit: at, file, width, height, scheme, measure });
+          drawing.shoot({ commit: at, file, width, height, scheme, measure, inspect });
         const [afterShot, beforeShot] = await Promise.all([
           shot(commit),
-          onMain ? shot(base) : null,
+          mainHas ? shot(base) : null,
         ]);
         if (!afterShot) continue;
         if (afterShot.measured)
           overflow[file] = { after: afterShot.measured, before: beforeShot?.measured ?? null };
+        if (inspect && afterShot.inspected) {
+          const inspected = { after: afterShot.inspected, before: beforeShot?.inspected ?? null };
+          found.problems.push(
+            ...contrastProblems({ file, title, width, scheme, tokens, ...inspected }),
+          );
+          if (scheme === schemes[0]) {
+            if (measureHeight.has(file)) heights[file] = afterShot.inspected.height;
+            // Rows are compared with the same lists on sibling boards of this platform, on main.
+            const siblings: { file: string; rows: Record<string, number[]> }[] = [];
+            if (Object.keys(afterShot.inspected.rows).length) {
+              const platform = await platformOf('branch', file);
+              for (const sibling of screenFamily(file, mainDisk)) {
+                if (siblings.length >= siblingLimit) break;
+                if ((await platformOf('main', sibling)) !== platform) continue;
+                const drawn = await drawing.shoot({
+                  commit: base,
+                  file: sibling,
+                  width,
+                  height: Number(mainCanvas?.boards?.[sibling]?.h ?? 900),
+                  scheme,
+                  measure: false,
+                  inspect: true,
+                });
+                if (drawn?.inspected) siblings.push({ file: sibling, rows: drawn.inspected.rows });
+              }
+            }
+            found.notes.push(...drawnNotes({ file, title, width, tokens, siblings, ...inspected }));
+          }
+        }
         const png = await drawing.pair({
           before: beforeShot?.png ?? null,
           after: afterShot.png,
@@ -490,6 +643,7 @@ export async function checkDesign(
         shots.push({ name: `${name}-${width}-${scheme}.png`, png: png.toString('base64') });
       }
     }
+    drawnFindings[file] = found;
     return shots;
   };
   const results: (CheckResult['pictures'] | null | undefined)[] = new Array(own.length);
@@ -516,10 +670,12 @@ export async function checkDesign(
     if (rejected) throw (rejected as PromiseRejectedResult).reason;
   } catch (error: any) {
     problems.push({
+      code: 'not_drawn',
       file: null,
       label: 'Could not draw the boards',
       detail: String(error?.message || error).split('\n')[0],
       short: 'not drawn',
+      fix: 'deploy browser install, then run the check again',
     });
   }
   // A board counts as drawn when it finished, in the order the boards were listed.
@@ -530,8 +686,11 @@ export async function checkDesign(
     drawn.push(file);
     pictures.push(...results[at]!);
   });
-  for (const board of boardRows)
+  for (const board of boardRows) {
     problems.push(...overflowProblems(board.file, board.title, overflow[board.file]));
+    problems.push(...(drawnFindings[board.file]?.problems ?? []));
+    notes.push(...(drawnFindings[board.file]?.notes ?? []));
+  }
   const widths = [...new Set(drawn.flatMap((file) => checkWidths(canvas?.boards?.[file]?.w)))].sort(
     (a, b) => b - a,
   );
@@ -542,14 +701,16 @@ export async function checkDesign(
     named,
     drawn: drawn.length,
     widths,
-    schemes: ['light', 'dark'],
+    schemes: ['light', 'dark'].filter((scheme) => !drawn.length || usedSchemes.has(scheme)),
     seconds: Math.round((clock() - started) / 1000),
     ...(drop ? { dropped } : {}),
     boards,
     problems,
+    notes,
     pairs: 'output/design/pairs',
     layers,
     restore,
+    heights,
     pictures,
   };
 }

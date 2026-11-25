@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -20,6 +20,24 @@ import {
   partRow,
   type CheckDrawing,
 } from './board-check.ts';
+import {
+  contentDifferences,
+  contrastProblems,
+  drawnNotes,
+  heightProblem,
+  layerNameNote,
+  localCopyNotes,
+  notATokenProblems,
+  overlapProblems,
+  questionFindings,
+  readTokens,
+  screenFamily,
+  sourceNotes,
+  spacingNotes,
+  type DesignTokens,
+} from '../../design/board-quality.ts';
+import { parseBoardMeta, setBoardMetaHeight } from '../../../shared/v2/design-board-meta.ts';
+import type { Inspection, InspectedText } from '../../../shared/v2/design-inspect.ts';
 
 test('only board files in the design folder count as changed boards', () => {
   assert.deepEqual(
@@ -163,10 +181,15 @@ test('cut off and sideways scrolling at 700 are problems only when the branch ma
   const cut = { scrolls: true, cut: 'Show archived' };
   assert.deepEqual(overflowProblems('Projects.html', 'Projects', { after: cut, before: null }), [
     {
+      code: 'text_cut_off',
       file: 'Projects.html',
+      board: 'Projects',
+      width: 700,
+      scheme: 'light',
       label: 'Projects is cut off at 700 px',
       detail: '"Show archived" leaves the page',
       short: 'cut off at 700 px',
+      fix: 'let the row wrap or scroll sideways, or shorten the words',
     },
   ]);
   assert.deepEqual(overflowProblems('Projects.html', 'Projects', { after: cut, before: cut }), []);
@@ -235,7 +258,9 @@ test('a part is one row with its screens, and one problem for every board it car
   });
   assert.deepEqual(partRow(sidebar, 242, 234).problems, [
     {
+      code: 'part_carried',
       file: 'part:sidebar',
+      fix: 'deploy design check --drop-instances',
       label: 'Sidebar is carried on 234 screens',
       detail: 'landing draws them; run deploy design check --drop-instances',
       short: 'carried on 234 screens',
@@ -521,6 +546,441 @@ test('drop lists the carried boards to put back, and the check passes', async ()
       fixed.boards.map((board) => [board.title, board.words]),
       [['Sidebar', '3 screens']],
     );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+// ── The checks a person would make ───────────────────────────────────────────────────────────────
+
+const tokens: DesignTokens = readTokens(
+  JSON.stringify({
+    color: {
+      tokens: [
+        { name: 'surface', value: { light: '#ffffff', dark: '#24222a' } },
+        { name: 'paper', value: { light: '#f7f7f8', dark: '#18171b' } },
+        { name: 'ink', value: { light: '#1c1b1f', dark: '#f3f2f5' } },
+        { name: 'muted', value: { light: '#67636f', dark: '#9a95a3' } },
+      ],
+    },
+    type: {
+      groups: [{ styles: [{ fontSize: '13px' }, { fontSize: '12px' }, { fontSize: '22px' }] }],
+    },
+    spacing: { tokens: [{ value: '4px' }, { value: '8px' }, { value: '12px' }, { value: '16px' }] },
+  }),
+  null,
+)!;
+const board = (style: string, body: string) =>
+  `<!doctype html><html><head><meta name="design-board" content="width=1440,height=900"><style>${style}</style></head><body>${body}</body></html>`;
+
+test("a board's head may say its platform, schemes, source and what it replaces; old heads still read", () => {
+  assert.deepEqual(parseBoardMeta(board('', '')), {
+    width: 1440,
+    height: 900,
+    platform: null,
+    schemes: null,
+    replaces: null,
+    source: null,
+    title: null,
+    other: {},
+  });
+  const phone = parseBoardMeta(
+    '<meta name="design-board" content="platform=phone; schemes=light dark; title=Inbox, phone; source=PipelineRun; replaces=OldInbox.html; height=844">',
+  );
+  assert.equal(phone.platform, 'phone');
+  assert.deepEqual(phone.schemes, ['light', 'dark']);
+  assert.equal(phone.title, 'Inbox, phone');
+  assert.equal(phone.source, 'PipelineRun.html');
+  assert.equal(phone.replaces, 'OldInbox.html');
+  assert.equal(phone.height, 844);
+  assert.equal(
+    parseBoardMeta('<meta name="design-board" content="width=390,height=844,source=Inbox.html">')
+      .source,
+    'Inbox.html',
+  );
+  assert.match(setBoardMetaHeight(board('', ''), 1200), /content="width=1440,height=1200"/);
+  assert.match(
+    setBoardMetaHeight('<meta name="design-board" content="platform=web; title=A">', 960),
+    /content="platform=web; title=A; height=960"/,
+  );
+});
+
+test("a colour the branch hard-codes is a problem that names the token; main's are not", () => {
+  const before = board('body{background:#fafafb}', '<p data-layer="name">Name</p>');
+  const after = board(
+    'body{background:#fafafb}.row{color:#ffffff;border:1px solid var(--line)}',
+    '<p data-layer="name" style="background:color-mix(in srgb, #fff 80%, black)">Name</p><p data-layer="tint" style="color:var(--ink)">Fine</p>',
+  );
+  const found = notATokenProblems({ file: 'A.html', title: 'A', before, after, tokens });
+  assert.deepEqual(
+    found.map((problem) => [problem.code, problem.label, problem.layer ?? null, problem.fix]),
+    [
+      [
+        'not_a_token',
+        'A hard-codes #ffffff',
+        null,
+        'use var(--surface), which is #ffffff, so it works in dark too',
+      ],
+      [
+        'not_a_token',
+        'A hard-codes color-mix(in srgb, #fff 80%, black)',
+        'name',
+        'use a colour token from design/ds, so it works in dark too',
+      ],
+    ],
+  );
+  assert.deepEqual(
+    notATokenProblems({ file: 'A.html', title: 'A', before, after: before, tokens }),
+    [],
+  );
+});
+
+test('boards placed on top of each other are a problem only when the branch did it', () => {
+  const main = {
+    'A.html': { x: 0, y: 0, w: 1440, h: 900 },
+    'B.html': { x: 2000, y: 0, w: 1440, h: 900 },
+  };
+  assert.deepEqual(overlapProblems(main, main), []);
+  const moved = { ...main, 'B.html': { x: 1000, y: 100, w: 1440, h: 900 } };
+  const [problem] = overlapProblems(moved, main);
+  assert.equal(problem!.code, 'boards_overlap');
+  assert.equal(problem!.file, 'B.html');
+  assert.match(problem!.fix!, /clear of A\.html/);
+  // Two boards that already overlapped on main are not this branch's problem.
+  assert.deepEqual(overlapProblems(moved, moved), []);
+  assert.equal(
+    overlapProblems({ ...main, 'C.html': { x: 100, y: 100, w: 390, h: 844 } }, main)[0]!.file,
+    'C.html',
+  );
+});
+
+test('a height the canvas and the head disagree on is a problem with a fix', () => {
+  const problem = heightProblem({
+    file: 'A.html',
+    title: 'A',
+    canvasHeight: 900,
+    metaHeight: 1100,
+  });
+  assert.equal(problem!.code, 'height_differs');
+  assert.match(problem!.fix!, /--fix/);
+  assert.equal(
+    heightProblem({ file: 'A.html', title: 'A', canvasHeight: 900, metaHeight: 900 }),
+    null,
+  );
+  assert.equal(
+    heightProblem({
+      file: 'A.html',
+      title: 'A',
+      canvasHeight: 900,
+      metaHeight: 1100,
+      mainCanvasHeight: 900,
+      mainMetaHeight: 1100,
+    }),
+    null,
+    'main already disagreed',
+  );
+});
+
+test('new layers whose names say nothing are one note; named ones and old ones are fine', () => {
+  const before = '<main data-layer="page"><p data-layer="t">Old</p></main>';
+  const after =
+    '<main data-layer="page"><p data-layer="t">Old</p><span data-layer="a">x</span><span data-layer="t-2">y</span><svg data-layer="svg-3"></svg><b data-layer="item-3">z</b><i data-layer="on"></i><p data-layer="run-status">Passed</p></main>';
+  const note = layerNameNote({ file: 'A.html', title: 'A', before, after });
+  assert.equal(note!.code, 'layer_name_says_nothing');
+  assert.equal(note!.detail, 'a, t-2, svg-3, item-3, on');
+  assert.equal(layerNameNote({ file: 'A.html', title: 'A', before, after: before }), null);
+});
+
+test('a question is an open note; a layer that asks one and states a date or number is a problem', () => {
+  const before = board('', '<p data-layer="kept">Kept files</p>');
+  const after = board(
+    '',
+    '<p data-layer="kept" data-question="How long are kept files kept?">Kept for 30 days</p><p data-layer="where" data-question="Where do they go?">Somewhere</p>',
+  );
+  const found = questionFindings({ file: 'Run.html', title: 'Run', before, after });
+  assert.deepEqual(
+    found.problems.map((problem) => [problem.code, problem.layer, problem.detail]),
+    [
+      [
+        'question_invented',
+        'kept',
+        '"How long are kept files kept?" but it says "Kept for 30 days"',
+      ],
+    ],
+  );
+  assert.deepEqual(
+    found.notes.map((note) => [note.code, note.label]),
+    [
+      ['open_question', 'Run asks: How long are kept files kept?'],
+      ['open_question', 'Run asks: Where do they go?'],
+    ],
+  );
+  // Questions main already asks are not new notes.
+  assert.equal(
+    questionFindings({ file: 'Run.html', title: 'Run', before: after, after }).notes.length,
+    0,
+  );
+});
+
+test('a board drawn from a source lists what the source shows or reaches that it does not', () => {
+  const source = board(
+    '',
+    '<nav data-component="sidebar"><a href="Home.html">Home</a></nav><main><h1>Pipeline run</h1><a href="PipelineRuns.html">5 runs</a><button>Download</button><p>Kept files</p></main>',
+  );
+  const phone = board(
+    '',
+    '<main><h1>Pipeline run</h1><p>Kept files</p><p>Swipe to retry</p></main>',
+  );
+  assert.deepEqual(contentDifferences(phone, source), {
+    onlySource: ['5 runs', 'Download'],
+    onlyBoard: ['Swipe to retry'],
+    linksOnlySource: ['PipelineRuns.html'],
+  });
+  const notes = sourceNotes({
+    file: 'PipelineRunPhone.html',
+    title: 'Pipeline Run on iPhone',
+    source: 'PipelineRun.html',
+    before: null,
+    after: phone,
+    sourceBefore: null,
+    sourceAfter: source,
+  });
+  assert.deepEqual(
+    notes.map((note) => note.label),
+    [
+      'PipelineRun leads to PipelineRuns; PipelineRunPhone has no way to reach it',
+      'PipelineRun shows "5 runs", "Download"; PipelineRunPhone does not',
+      'PipelineRunPhone shows "Swipe to retry"; PipelineRun does not',
+    ],
+  );
+  assert.ok(notes.every((note) => note.code === 'differs_from_source'));
+});
+
+const text = (layer: string, extra: Partial<InspectedText> = {}): InspectedText => ({
+  layer,
+  text: layer,
+  size: 13,
+  weight: 400,
+  color: [28, 27, 31],
+  bg: [255, 255, 255],
+  left: 32,
+  top: 0,
+  width: 100,
+  height: 20,
+  ...extra,
+});
+const inspection = (extra: Partial<Inspection> = {}): Inspection => ({
+  height: 900,
+  texts: [],
+  aligned: [],
+  rows: {},
+  boxes: [],
+  primaries: [],
+  ...extra,
+});
+
+test('white text on white in dark is low contrast; what main already had is not reported', () => {
+  const dark = inspection({
+    texts: [
+      text('row-title', { color: [243, 242, 245], bg: [255, 255, 255] }),
+      text('ok', { color: [243, 242, 245], bg: [36, 34, 42] }),
+      text('photo', { color: [255, 255, 255], bg: null }),
+    ],
+  });
+  const found = contrastProblems({
+    file: 'Run.html',
+    title: 'Run',
+    width: 1440,
+    scheme: 'dark',
+    after: dark,
+    before: inspection(),
+    tokens,
+  });
+  assert.deepEqual(
+    found.map((problem) => [problem.code, problem.layer, problem.scheme, problem.label]),
+    [['low_contrast', 'row-title', 'dark', 'Run row-title is 1.1:1 in dark']],
+  );
+  assert.match(found[0]!.detail, /#f3f2f5 on #ffffff, needs 4.5:1/);
+  assert.match(found[0]!.fix!, /var\(--/);
+  assert.deepEqual(
+    contrastProblems({
+      file: 'Run.html',
+      title: 'Run',
+      width: 1440,
+      scheme: 'dark',
+      after: dark,
+      before: dark,
+      tokens,
+    }),
+    [],
+  );
+});
+
+test('taste: type and spacing off the scale, near edges, odd rows, a box in a card, two primaries', () => {
+  const after = inspection({
+    texts: [
+      text('label', { size: 11 }),
+      text('title', { size: 22 }),
+      text('old-small', { size: 19 }),
+    ],
+    aligned: [{ a: 'title', b: 'label', dx: 2 }],
+    rows: { 'dl-item': [64, 64, 64] },
+    boxes: [{ layer: 'files', inside: 'card' }],
+    primaries: ['publish', 'retry'],
+  });
+  const before = inspection({
+    texts: [text('old-small', { size: 19 })],
+    rows: { 'dl-item': [48] },
+  });
+  const notes = drawnNotes({
+    file: 'Run.html',
+    title: 'Run',
+    width: 1440,
+    after,
+    before,
+    tokens,
+    siblings: [{ file: 'Runs.html', rows: { 'dl-item': [48, 48] } }],
+  });
+  assert.deepEqual(
+    notes.map((note) => [note.code, note.label]),
+    [
+      ['type_off_scale', 'Run sets 11 px type'],
+      ['nearly_aligned', 'Run label starts 2 px from title'],
+      ['row_height_differs', 'Run dl-item rows are 64 px; 48 px on Runs'],
+      ['box_in_card', 'Run draws a box, files, inside card'],
+      ['second_primary', 'Run shows 2 primary buttons'],
+    ],
+  );
+  assert.deepEqual(
+    drawnNotes({ file: 'Run.html', title: 'Run', width: 1440, after, before: after, tokens }),
+    [],
+  );
+
+  const spaced = spacingNotes({
+    file: 'Run.html',
+    title: 'Run',
+    before: board('.a{padding:10px}', ''),
+    after: board('.a{padding:10px}.b{margin:0 12px 6px;gap:var(--space-2)}', ''),
+    tokens,
+  });
+  assert.deepEqual(
+    spaced.map((note) => [note.code, note.label]),
+    [['spacing_off_scale', 'Run spaces by 6 px']],
+  );
+});
+
+test('a board-local rule that copies a design-system class is a note pointing at the component', () => {
+  const bundle =
+    '.dl-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}';
+  const notes = localCopyNotes({
+    file: 'Run.html',
+    title: 'Run',
+    before: board('', ''),
+    after: board('.pk-row{display:flex;align-items:center;gap:12px;padding:12px 16px}', ''),
+    bundle,
+    library: {
+      components: [{ id: 'list-group', name: 'List row', html: '<div class="dl-item"></div>' }],
+    } as any,
+  });
+  assert.deepEqual(
+    notes.map((note) => [note.code, note.label, note.fix]),
+    [
+      [
+        'local_copy_of_component',
+        'Run .pk-row copies .dl-item',
+        'use the List row component (class dl-item) instead',
+      ],
+    ],
+  );
+});
+
+test("a board's screen is the shortest board name before it that keeps the group small", () => {
+  const files = [
+    'App.html',
+    ...Array.from({ length: 20 }, (_, at) => `AppThing${at}.html`),
+    'AppPerformance.html',
+    'AppPerformancePhone.html',
+    'AppPerformanceEmpty.html',
+    'Apps.html',
+    'PipelineRun.html',
+  ];
+  assert.deepEqual(screenFamily('AppPerformanceEmpty.html', files), [
+    'AppPerformance.html',
+    'AppPerformancePhone.html',
+  ]);
+  assert.deepEqual(screenFamily('PipelineRunPhone.html', files), ['PipelineRun.html']);
+});
+
+test('the check reports drawn problems and notes, measures heights for --fix, and keeps to schemes', async () => {
+  const repo = repository();
+  try {
+    repo.write(
+      'design/ds/deploy-local/tokens.json',
+      readFileSync(
+        join(import.meta.dirname, '../../../design/ds/deploy-local/tokens.json'),
+        'utf8',
+      ),
+    );
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({ boards: { 'Run.html': { x: 0, y: 0, w: 1440, h: 900 } } }),
+    );
+    repo.write(
+      'design/boards/Run.html',
+      board('', '<main data-layer="page"><p data-layer="name">Run</p></main>'),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'kept-files']);
+    repo.write(
+      'design/boards/Run.html',
+      board(
+        '.row{background:#fff}',
+        '<main data-layer="page"><p data-layer="name">Run</p><p data-layer="kept-row" class="row">Kept</p></main>',
+      ).replace('width=1440,height=900', 'width=1440,height=1100; schemes=dark'),
+    );
+    repo.run(['commit', '-qam', 'Kept files']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const asked: string[] = [];
+    const drawer: CheckDrawing = {
+      shoot: async ({ commit: at, width, scheme, inspect }) => {
+        asked.push(
+          `${at === commit ? 'branch' : 'main'} ${width} ${scheme}${inspect ? ' inspect' : ''}`,
+        );
+        return {
+          png: Buffer.from('png'),
+          measured: null,
+          inspected: inspect
+            ? inspection({
+                height: 1240,
+                texts:
+                  at === commit
+                    ? [text('kept-row', { color: [243, 242, 245], bg: [255, 255, 255], size: 11 })]
+                    : [],
+              })
+            : null,
+        };
+      },
+      pair: async () => Buffer.from('pair'),
+    };
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.deepEqual(asked, [
+      'branch 1440 dark inspect',
+      'main 1440 dark inspect',
+      'branch 700 dark',
+      'main 700 dark',
+    ]);
+    assert.deepEqual(result.schemes, ['dark']);
+    assert.deepEqual(
+      result.problems.map((problem) => problem.code),
+      ['not_a_token', 'height_differs', 'low_contrast'],
+    );
+    assert.deepEqual(
+      result.notes.map((note) => note.code),
+      ['type_off_scale'],
+    );
+    assert.deepEqual(result.heights, { 'Run.html': 1240 });
   } finally {
     repo.cleanup();
   }
