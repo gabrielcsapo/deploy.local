@@ -31,7 +31,7 @@ The server tests check that every board on the canvas exists and has unique laye
 From the project's folder:
 
 1. `deploy design start "<title>"` makes `design/<title>` from main, in its own folder beside this one. Edit the boards in `design/boards/` there (and `canvas.json` for a new board, its place or its notes), and commit as you go.
-2. `deploy design check` names new layers, draws each changed board beside main in light and dark into `output/design/pairs`, and lists problems. deploy.local draws it, as review does, from this folder as it is; nothing runs here. To look at the approved design itself, `node design/tools/render.mjs --main`.
+2. `deploy design check` names new layers, draws each changed board beside main in light and dark into `output/design/pairs`, and lists problems and notes, each with a code and a fix (`deploy design guide` lists them). It runs on this computer against this checkout's `origin/main`, writing nothing in `.git`; with no browser here, deploy.local draws it. `--fix` writes what has one answer. `deploy design status <Board>` says where to start a board. To look at the approved design itself, `node design/tools/render.mjs --main`.
 3. `deploy design propose` checks, pushes and asks for review. Nothing visual is built until the design is approved (see `AGENTS.md`).
 4. `deploy design feedback --wait` prints the answer, the note and every pin, numbered. `deploy design resolve <n> "<what you did>"` answers a pin; then propose again. Once the design is on main, feedback removes the folder and the local branch.
 
