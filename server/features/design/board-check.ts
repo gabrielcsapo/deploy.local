@@ -32,11 +32,13 @@ import {
   drawnNotes,
   heightProblem,
   layerNameNote,
+  layerReferenced,
   localCopyNotes,
   notATokenProblems,
   overlapProblems,
   questionFindings,
   readTokens,
+  renamedLayersNote,
   screenFamily,
   sourceNotes,
   spacingNotes,
@@ -493,14 +495,26 @@ export async function checkDesign(
     const before = await onMain(file);
     // The board's name, as the boards and the review's list name it; a canvas title is a sentence.
     const title = screenName(file);
-    for (const layer of lostLayers(before, text))
+    // A lost layer matters when something refers to it on main: a link, a note, a decision, the
+    // library or another board. Renaming one nothing refers to is fine, and only noted.
+    const renamed: string[] = [];
+    const referenced: string[] = [];
+    for (const layer of lostLayers(before, text)) {
+      const lines = (
+        (await git.read(['grep', '-h', '-F', '-e', layer, base, '--', `${folder}/`])) ?? ''
+      ).split('\n');
+      (layerReferenced(layer, lines) ? referenced : renamed).push(layer);
+    }
+    const renamedNote = renamedLayersNote({ file, title, layers: renamed });
+    if (renamedNote) notes.push(renamedNote);
+    for (const layer of referenced)
       problems.push({
         code: 'lost_layer',
         file,
         board: title,
         layer,
         label: `${title} lost layer ${layer}`,
-        detail: 'main has it; keep its ID',
+        detail: 'something on main refers to it; keep its ID',
         short: `lost layer ${layer}`,
         fix: `put data-layer="${layer}" back on the element`,
       });
@@ -516,15 +530,18 @@ export async function checkDesign(
       });
     if (text) {
       const board = { file, title, before, after: text };
-      problems.push(...notATokenProblems({ ...board, tokens, library: branchLibrary }));
+      const meta = parseBoardMeta(text);
+      // A new board is judged against the board it says it came from, when it says.
+      const from = !before ? (meta.source ?? meta.replaces) : null;
+      const origin = from && from !== file ? ((await after(from)) ?? (await onMain(from))) : null;
+      problems.push(...notATokenProblems({ ...board, tokens, library: branchLibrary, origin }));
       const asked = questionFindings(board);
       problems.push(...asked.problems);
       notes.push(...asked.notes);
       const nameNote = layerNameNote(board);
       if (nameNote) notes.push(nameNote);
       notes.push(...spacingNotes({ ...board, tokens }));
-      notes.push(...localCopyNotes({ ...board, bundle, library: branchLibrary }));
-      const meta = parseBoardMeta(text);
+      notes.push(...localCopyNotes({ ...board, bundle, library: branchLibrary, origin }));
       if (meta.source && meta.source !== file)
         notes.push(
           ...sourceNotes({

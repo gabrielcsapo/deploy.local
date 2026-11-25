@@ -194,10 +194,17 @@ export function nearestToken(literal: string, tokens: DesignTokens | null) {
   return best;
 }
 
+const atomPattern = /#[0-9a-f]{3,8}\b|\brgba?\([^)]*\)|\bhsla?\([^)]*\)|\b(?:white|black)\b/gi;
+/** The plain colours in a literal, written one way: a color-mix() is its parts. */
+export const colourAtoms = (literal: string) =>
+  [...literal.matchAll(atomPattern)].map((match) => match[0].toLowerCase().replace(/\s+/g, ''));
+
 /**
- * Colours the branch wrote into a changed board's CSS or style attributes instead of a token.
- * A component's own markup (from the library) is not the board's to change, so its styles are
- * left out.
+ * Colours the branch wrote into a changed board's CSS or style attributes instead of a token. A
+ * colour counts only when main's board (or, for a new board, the board it says it came from)
+ * had no such colour anywhere: a declaration that changed around a colour it already had, like
+ * a color-mix() whose other half became a token, is not new. A component's own markup (from the
+ * library) is not the board's to change, so its styles are left out.
  */
 export function notATokenProblems(input: {
   file: string;
@@ -206,27 +213,38 @@ export function notATokenProblems(input: {
   after: string | null;
   tokens: DesignTokens | null;
   library?: Library | null;
+  /** For a new board: the board it was drawn from (source= or replaces=), if any. */
+  origin?: string | null;
 }): Finding[] {
   const fromLibrary = new Set(
     (input.library?.components ?? []).flatMap((component) =>
       boardDeclarations(component.html).map(key),
     ),
   );
-  const added = addedDeclarations(boardDeclarations(input.before), boardDeclarations(input.after));
+  const baseline = input.before ?? input.origin ?? null;
+  const known = new Set(
+    boardDeclarations(baseline).flatMap((declaration) =>
+      colourLiterals(declaration.value).flatMap(colourAtoms),
+    ),
+  );
   const findings: Finding[] = [];
   const seen = new Set<string>();
-  for (const declaration of added) {
+  for (const declaration of boardDeclarations(input.after)) {
     if (fromLibrary.has(key(declaration)) || declaration.property.startsWith('--')) continue;
     for (const literal of colourLiterals(declaration.value)) {
+      const atoms = colourAtoms(literal);
+      if (atoms.length && atoms.every((atom) => known.has(atom))) continue;
       const id = `${declaration.where} ${declaration.property} ${literal}`;
       if (seen.has(id)) continue;
       seen.add(id);
       const near = nearestToken(literal, input.tokens);
-      const fix = near
-        ? near.distance < 1
-          ? `use var(--${near.name}), which is ${near.value}`
-          : `use a token: the nearest is var(--${near.name}) (${near.value})`
-        : 'use a colour token from design/ds';
+      const fix = /shadow/.test(declaration.property)
+        ? 'use a shadow token: var(--shadow-sm), var(--shadow-raised), var(--shadow-lg) or var(--shadow-xl)'
+        : near
+          ? near.distance < 1
+            ? `use var(--${near.name}), which is ${near.value}`
+            : `use a token: the nearest is var(--${near.name}) (${near.value})`
+          : 'use a colour token from design/ds';
       findings.push({
         code: 'not_a_token',
         file: input.file,
@@ -744,6 +762,10 @@ export function drawnNotes(input: {
 
 // ── Board-local copies of components ────────────────────────────────────────────────────────────
 
+/** Layout that any column or row sets: sharing it says nothing about copying a component. */
+const layoutOnly =
+  /^(display|flex|flex-[a-z-]+|align-[a-z-]+|justify-[a-z-]+|gap|row-gap|column-gap|width|min-width|max-width|height|min-height|max-height|box-sizing|position|overflow|overflow-[xy])\s*:/;
+
 /**
  * Board-local rules the branch added that set what a design-system class already sets: three or
  * more of the same declarations, most of the rule. Cheap, and only a hint.
@@ -755,6 +777,7 @@ export function localCopyNotes(input: {
   after: string | null;
   bundle: string | null;
   library?: Library | null;
+  origin?: string | null;
 }): Finding[] {
   if (!input.bundle || !input.after) return [];
   const systemRules = cssRules(input.bundle)
@@ -765,7 +788,7 @@ export function localCopyNotes(input: {
         rule.body
           .split(';')
           .map((part) => part.trim().replace(/\s*:\s*/, ':'))
-          .filter(Boolean),
+          .filter((part) => part && !layoutOnly.test(part)),
       ),
     }))
     .filter((rule) => rule.set.size >= 3);
@@ -773,14 +796,18 @@ export function localCopyNotes(input: {
     [...(html ?? '').matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].flatMap((style) =>
       cssRules(style[1]).filter((rule) => !/(^|[\s,>+~])\.dl-/.test(rule.selector)),
     );
-  const old = new Set(local(input.before).map((rule) => `${rule.selector}{${rule.body}}`));
+  // Only rules the branch added: a selector main's board (or, for a new board, the board it was
+  // drawn from) did not have. A rule that changed is the board's own and was judged before.
+  const old = new Set(local(input.before ?? input.origin ?? null).map((rule) => rule.selector));
   const notes: Finding[] = [];
+  const done = new Set<string>();
   for (const rule of local(input.after)) {
-    if (old.has(`${rule.selector}{${rule.body}}`)) continue;
+    if (old.has(rule.selector) || done.has(rule.selector)) continue;
+    done.add(rule.selector);
     const set = rule.body
       .split(';')
       .map((part) => part.trim().replace(/\s*:\s*/, ':'))
-      .filter(Boolean);
+      .filter((part) => part && !layoutOnly.test(part));
     if (set.length < 3) continue;
     let best: { selector: string; shared: number } | null = null;
     for (const system of systemRules) {
@@ -851,7 +878,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'boards_overlap', problem: true, means: 'two boards on top of each other on the canvas' },
   { code: 'question_invented', problem: true, means: 'a layer asks a question and states a value' },
   { code: 'height_differs', problem: true, means: 'canvas.json and the head disagree; --fix' },
-  { code: 'lost_layer', problem: true, means: 'a layer ID main has is gone from the element' },
+  {
+    code: 'lost_layer',
+    problem: true,
+    means: 'a layer ID something refers to is gone from the element',
+  },
   { code: 'broken_link', problem: true, means: 'a link to a board that does not exist' },
   { code: 'not_on_canvas', problem: true, means: 'a board file canvas.json does not place' },
   { code: 'canvas_only', problem: true, means: 'canvas.json places a board with no file' },
@@ -869,6 +900,7 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'second_primary', problem: false, means: 'more than one primary button shows' },
   { code: 'layer_name_says_nothing', problem: false, means: 'new layer IDs like a, t-2, svg-3' },
   { code: 'local_copy_of_component', problem: false, means: 'board CSS copying a dl-* class' },
+  { code: 'layer_renamed', problem: false, means: 'layer IDs changed that nothing refers to' },
   { code: 'open_question', problem: false, means: 'a data-question the owner has not answered' },
   {
     code: 'differs_from_source',
@@ -876,3 +908,29 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: 'words or ways out unlike its source board',
   },
 ];
+
+/**
+ * Whether anything in these lines points at a layer ID: a link to it (#id, Board.html#id), a note,
+ * a decision, the library, any mention as a whole name. Elements' own data-layer attributes do
+ * not count: another board having a layer of the same name is not a reference.
+ */
+export function layerReferenced(layer: string, lines: string[]) {
+  const escaped = layer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(^|[^A-Za-z0-9_-])${escaped}($|[^A-Za-z0-9_-])`);
+  return lines.some((line) => pattern.test(line.replace(/\sdata-layer="[^"]*"/g, ' ')));
+}
+
+/** Layer IDs the branch changed that nothing refers to: fine, and listed once per board. */
+export function renamedLayersNote(input: { file: string; title: string; layers: string[] }) {
+  if (!input.layers.length) return null;
+  const { layers } = input;
+  return {
+    code: 'layer_renamed',
+    file: input.file,
+    board: input.title,
+    label: `${input.title} renamed ${layers.length} layer${layers.length === 1 ? '' : 's'} nothing refers to`,
+    detail: `${layers.slice(0, 6).join(', ')}${layers.length > 6 ? ` and ${layers.length - 6} more` : ''}`,
+    short: 'layers renamed',
+    fix: 'nothing to do; comments made on the old names will not find them',
+  } satisfies Finding;
+}

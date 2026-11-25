@@ -871,12 +871,15 @@ test('taste: type and spacing off the scale, near edges, odd rows, a box in a ca
 
 test('a board-local rule that copies a design-system class is a note pointing at the component', () => {
   const bundle =
-    '.dl-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}';
+    '.dl-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink)}';
   const notes = localCopyNotes({
     file: 'Run.html',
     title: 'Run',
     before: board('', ''),
-    after: board('.pk-row{display:flex;align-items:center;gap:12px;padding:12px 16px}', ''),
+    after: board(
+      '.pk-row{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px}',
+      '',
+    ),
     bundle,
     library: {
       components: [{ id: 'list-group', name: 'List row', html: '<div class="dl-item"></div>' }],
@@ -981,6 +984,100 @@ test('the check reports drawn problems and notes, measures heights for --fix, an
       ['type_off_scale'],
     );
     assert.deepEqual(result.heights, { 'Run.html': 1240 });
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('a colour main already had is not new, even when its declaration changed around it', () => {
+  const before = board(
+    '.live{box-shadow:0 0 0 3px color-mix(in srgb,#0e9f8e 25%,#fff)}.ghost{box-shadow:0 4px 8px rgba(20,20,30,.2)}',
+    '',
+  );
+  const after = board(
+    '.live{box-shadow:0 0 0 3px color-mix(in srgb,#0e9f8e 25%,var(--surface))}.ghost{box-shadow:0 4px 8px rgba(20,20,30,.2)}.new{box-shadow:0 1px 2px rgba(0,0,0,.3)}',
+    '',
+  );
+  const found = notATokenProblems({ file: 'A.html', title: 'A', before, after, tokens });
+  assert.deepEqual(
+    found.map((problem) => [problem.label, problem.fix]),
+    [
+      [
+        'A hard-codes rgba(0,0,0,.3)',
+        'use a shadow token: var(--shadow-sm), var(--shadow-raised), var(--shadow-lg) or var(--shadow-xl), so it works in dark too',
+      ],
+    ],
+  );
+  // A new board drawn from another is judged against it.
+  assert.equal(
+    notATokenProblems({ file: 'B.html', title: 'B', before: null, origin: before, after, tokens })
+      .length,
+    1,
+  );
+  assert.equal(
+    notATokenProblems({ file: 'B.html', title: 'B', before: null, after, tokens }).length,
+    3,
+  );
+});
+
+test('a board-local copy of a component is noted once, and only for a rule the branch added', () => {
+  const bundle =
+    '.dl-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink)}';
+  const rule =
+    '.pk-row{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px}';
+  const notes = (before: string, after: string) =>
+    localCopyNotes({
+      file: 'R.html',
+      title: 'R',
+      before: board(before, ''),
+      after: board(after, ''),
+      bundle,
+    });
+  assert.equal(notes(rule.replace('12px 16px', '8px'), rule).length, 0, 'a changed rule');
+  assert.equal(notes('', `${rule}${rule}@media(max-width:800px){${rule}}`).length, 1);
+});
+
+test('a lost layer is a problem only when something refers to it; renames nothing uses are noted', async () => {
+  const repo = repository();
+  try {
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        boards: {
+          'A.html': { x: 0, y: 0, w: 1440, h: 900 },
+          'B.html': { x: 2000, y: 0, w: 1440, h: 900 },
+        },
+      }),
+    );
+    repo.write(
+      'design/boards/A.html',
+      '<main data-layer="page"><p data-layer="t-2">Hi</p><p data-layer="menu">Menu</p></main>',
+    );
+    // B links to A's menu, and has a t-2 of its own, which is no reference.
+    repo.write(
+      'design/boards/B.html',
+      '<main><a href="A.html#menu" data-layer="t-2">Open</a></main>',
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'rename']);
+    repo.write(
+      'design/boards/A.html',
+      '<main data-layer="page"><p data-layer="greeting">Hi</p><p data-layer="nav">Menu</p></main>',
+    );
+    repo.run(['commit', '-qam', 'Rename']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const { drawer } = drawing();
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.deepEqual(
+      result.problems.filter((p) => p.code === 'lost_layer').map((p) => p.layer),
+      ['menu'],
+    );
+    assert.deepEqual(
+      result.notes.filter((n) => n.code === 'layer_renamed').map((n) => n.detail),
+      ['t-2'],
+    );
   } finally {
     repo.cleanup();
   }
