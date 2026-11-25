@@ -1,5 +1,7 @@
+import { artifactRequests, type ArtifactRequest } from './features/tasks/job-artifact-spec.ts';
 export type PipelineJob = {
   run: string;
+  artifacts?: ArtifactRequest[];
   runsOn: { os: 'linux' | 'macos'; architecture?: string; capabilities: string[] };
   needs: string[];
   timeoutSeconds: number;
@@ -75,7 +77,7 @@ export function compilePipeline(value: unknown): PipelineSpec {
     const job = object(rawJobs[name], `pipeline.jobs.${name}`);
     keys(
       job,
-      ['run', 'runsOn', 'needs', 'timeoutSeconds', 'container', 'paths'],
+      ['run', 'runsOn', 'needs', 'timeoutSeconds', 'container', 'paths', 'artifacts'],
       `pipeline.jobs.${name}`,
     );
     if (typeof job.run !== 'string' || !job.run.trim() || job.run.length > 16000)
@@ -102,7 +104,9 @@ export function compilePipeline(value: unknown): PipelineSpec {
     if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600)
       throw new Error(`${name}: timeoutSeconds must be 1–3600`);
     const jobPaths = pathFilters(job.paths, `pipeline.jobs.${name}.paths`);
+    const artifacts = artifactRequests(job.artifacts);
     jobs[name] = {
+      ...(artifacts.length ? { artifacts } : {}),
       ...(jobPaths ? { paths: jobPaths } : {}),
       run: job.run,
       runsOn: {

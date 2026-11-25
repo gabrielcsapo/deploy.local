@@ -148,3 +148,17 @@ test('the repository pipeline checks every main push and PR', async () => {
       /paths/,
     );
 });
+
+test('pipeline artifacts retain their paths and captions and reject paths outside the checkout', () => {
+  const manifest = (path: string) =>
+    source.replace(
+      'run: node --version',
+      `artifacts: [{path: ${JSON.stringify(path)}, caption: Screenshot}]\n      run: node --version`,
+    );
+  const compiled = compileDeployYaml(manifest('screens/*.png'));
+  assert.deepEqual(compiled.spec.pipeline?.jobs.test.artifacts, [
+    { path: 'screens/*.png', caption: 'Screenshot' },
+  ]);
+  assert.equal(compileApplicationManifest(compiled.spec).digest, compiled.digest);
+  assert.throws(() => compileDeployYaml(manifest('../screens/*.png')), /job directory/);
+});

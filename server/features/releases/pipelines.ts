@@ -126,6 +126,7 @@ export async function pipelineStart(
           name,
           needs: spec.needs,
           requirements: spec.runsOn,
+          ...(spec.artifacts?.length ? { artifactPaths: spec.artifacts, artifacts: [] } : {}),
           workerId: null,
           command: spec.run,
           container: spec.container || null,

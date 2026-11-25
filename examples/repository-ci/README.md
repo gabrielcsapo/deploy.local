@@ -21,3 +21,11 @@ Copy this directory into its own Git repository, create a project in deploy.loca
 2. Restore a positive release, commit, and push. The check must pass and the running application must report that exact new release.
 
 This fixture changes only its own application. Keep it separate from the deploy.local server repository and from production applications. Jobs receive no application release credentials; publication is performed by the coordinator using the pinned commit.
+
+A job can declare files to keep from its checkout. The worker collects them when the command finishes, including when it fails.
+
+```yaml
+artifacts:
+  - path: output/screenshots/*.png
+    caption: Browser screenshots
+```

@@ -30,7 +30,12 @@ after(async () => {
   db.close();
   rmSync(data, { recursive: true, force: true });
 });
-function fixture(command = 'printf first', second = 'printf second', on = '[manual, push]') {
+function fixture(
+  command = 'printf first',
+  second = 'printf second',
+  on = '[manual, push]',
+  artifacts = '',
+) {
   const source = join(data, randomUUID());
   mkdirSync(source);
   git(source, ['init', '--initial-branch=main']);
@@ -38,7 +43,7 @@ function fixture(command = 'printf first', second = 'printf second', on = '[manu
   git(source, ['config', 'user.email', 'pipeline@example.invalid']);
   writeFileSync(
     join(source, 'deploy.yaml'),
-    `apiVersion: deploy.local/v1\nkind: Application\npipeline:\n  on: ${on}\n  jobs:\n    first:\n      runsOn: {os: ${os}}\n      run: ${JSON.stringify(command)}\n    second:\n      runsOn: {os: ${os}}\n      needs: [first]\n      run: ${JSON.stringify(second)}\n`,
+    `apiVersion: deploy.local/v1\nkind: Application\npipeline:\n  on: ${on}\n  jobs:\n    first:\n${artifacts}      runsOn: {os: ${os}}\n      run: ${JSON.stringify(command)}\n    second:\n      runsOn: {os: ${os}}\n      needs: [first]\n      run: ${JSON.stringify(second)}\n`,
   );
   writeFileSync(join(source, 'source.txt'), 'committed');
   git(source, ['add', '.']);
@@ -81,6 +86,46 @@ test('real jobs fetch a pinned Git commit, run dependencies and persist checks w
     assert.equal(detail.jobs[1].output, 'second');
     assert.ok(detail.jobs.every((job: any) => job.digest === f.commit));
     assert.throws(() => pipelineRead('other', f.project.id, pipeline.id), /Not found/);
+  } finally {
+    runner.shutdown();
+  }
+});
+test('a failed pipeline job retains readable artifacts without a task', async () => {
+  const f = fixture(
+    'printf evidence > report.txt; exit 9',
+    'true',
+    '[manual]',
+    '      artifacts: [{path: report.txt}]\n',
+  );
+  const pipeline = await start(f.project.id);
+  const { receiveJobArtifact } = await import('../tasks/job-artifacts.ts');
+  const { attachmentBytes } = await import('../../workspace/attachments.ts');
+  const instanceId = 'pipeline-artifact';
+  const runner = new JobRunner(
+    join(data, 'jobs-artifacts'),
+    async (action, body) => jobCommand(owner, 'local', action, { ...body, instanceId }),
+    undefined,
+    {
+      uploadArtifact: (job, file, body) =>
+        receiveJobArtifact(
+          body,
+          owner,
+          'local',
+          job.id,
+          new URLSearchParams({ generation: job.generation, path: file.path }),
+          instanceId,
+        ),
+    },
+  );
+  try {
+    await runUntil(runner, () => get('pipeline-run', owner, pipeline.id).status === 'failed');
+    const [job] = (pipelineRead(owner, f.project.id, pipeline.id) as any).jobs;
+    assert.equal(job.exitCode, 9);
+    const attachment = await attachmentBytes(owner, job.artifacts[0].attachmentId);
+    assert.equal(attachment.data.toString(), 'evidence');
+    assert.equal(attachment.row.pipelineId, pipeline.id);
+    assert.equal(attachment.row.taskId, null);
+    assert.throws(() => attachmentBytes('other', attachment.row.id), /Not found/);
   } finally {
     runner.shutdown();
   }

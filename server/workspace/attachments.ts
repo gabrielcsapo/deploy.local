@@ -12,9 +12,15 @@ export function taskAttachments(owner: string, taskId: string) {
   get('task', owner, taskId);
   return list('attachment', owner).filter((a) => a.taskId === taskId);
 }
+// Pipeline jobs can run without a task. Keep their files under the owning run.
+function attachmentParent(owner: string, taskId: string | null, pipelineId?: string) {
+  if (pipelineId) return get('pipeline-run', owner, pipelineId);
+  if (!taskId) throw new Error('Missing attachment parent');
+  return get('task', owner, taskId);
+}
 export function attachmentBytes(owner: string, attachmentId: string) {
   const row = get('attachment', owner, attachmentId);
-  get('task', owner, row.taskId);
+  attachmentParent(owner, row.taskId, row.pipelineId);
   return readFile(resolve(root, 'attachments', row.sha256)).then((data) => ({ row, data }));
 }
 export function validateAttachments(owner: string, taskId: string, ids: unknown = []) {
@@ -44,6 +50,7 @@ export function createAttachment(
     sessionId?: string;
     actionId?: string;
     jobId?: string;
+    pipelineId?: string;
   },
 ) {
   const image = sniffImage(data);
@@ -129,7 +136,7 @@ function commitAttachment(
   input: AttachmentInput,
   persist: (path: string) => void,
 ) {
-  get('task', owner, taskId);
+  attachmentParent(owner, taskId, input.pipelineId);
   const { image, video, sha256, size, duration } = media;
   const signature = createHash('sha256')
     .update(JSON.stringify({ taskId, sha256, ...input }))
@@ -138,7 +145,9 @@ function commitAttachment(
     owner,
     input.operationId,
     () => {
-      let rows = taskAttachments(owner, taskId);
+      let rows = input.pipelineId
+        ? list('attachment', owner).filter((a) => a.pipelineId === input.pipelineId)
+        : taskAttachments(owner, taskId);
       if (input.source === 'computer-use' && !video) {
         const frames = rows.filter(
           (a) =>
@@ -171,6 +180,7 @@ function commitAttachment(
         id: id(),
         owner,
         taskId,
+        ...(input.pipelineId ? { pipelineId: input.pipelineId } : {}),
         runId: input.runId,
         messageId: input.messageId,
         sha256,
@@ -190,7 +200,8 @@ function commitAttachment(
         ...(input.jobId ? { jobId: input.jobId } : {}),
         createdAt: now(),
       });
-      event(owner, taskId, input.runId || null, 'attachment.created', { id: attachment.id });
+      if (taskId)
+        event(owner, taskId, input.runId || null, 'attachment.created', { id: attachment.id });
       return attachment;
     },
     signature,
@@ -244,7 +255,7 @@ export async function streamAttachment(
   taskId: string,
   input: AttachmentInput,
 ) {
-  get('task', owner, taskId);
+  attachmentParent(owner, taskId, input.pipelineId);
   if (!input.operationId) throw new Error('operationId required');
   const directory = resolve(root, 'attachments');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -320,7 +331,7 @@ export async function serveAttachment(
   attachmentId: string,
 ) {
   const row = get('attachment', owner, attachmentId);
-  get('task', owner, row.taskId);
+  attachmentParent(owner, row.taskId, row.pipelineId);
   const path = resolve(root, 'attachments', row.sha256);
   const etag = `"${row.sha256}"`;
   const headers = {

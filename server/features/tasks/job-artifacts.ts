@@ -138,6 +138,7 @@ export async function receiveJobArtifact(
     source: 'job-artifact',
     runId: job.runId,
     jobId: job.id,
+    ...(!job.taskId && job.pipelineId ? { pipelineId: job.pipelineId } : {}),
   };
   let attachment: any;
   if (sniffImage(prefix) || sniffVideo(prefix) || (prefix[0] === 0xff && prefix[1] === 0xd8)) {
@@ -193,11 +194,12 @@ export async function receiveJobArtifact(
       deleteAttachment(owner, attachment.id);
     throw error;
   }
-  event(owner, job.taskId, job.runId, 'job.artifact', {
-    jobId: job.id,
-    attachmentId: attachment.id,
-    kind: attachment.kind,
-  });
+  if (job.taskId)
+    event(owner, job.taskId, job.runId, 'job.artifact', {
+      jobId: job.id,
+      attachmentId: attachment.id,
+      kind: attachment.kind,
+    });
   return result;
 }
 
