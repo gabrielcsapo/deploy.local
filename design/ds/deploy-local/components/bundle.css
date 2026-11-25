@@ -850,3 +850,42 @@ a.dl-asks-row:hover{background:color-mix(in srgb,var(--line) 35%,transparent)}
 .dl-start-quiet .dl-t > b{font-size:13px;line-height:20px;font-weight:500}
 .dl-start-quiet .dl-t > span{font-size:12px;line-height:16px;color:var(--muted)}
 @media (max-width:560px){.dl-starts-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- Rows inside a row, files, commands and phone status ----------
+   What a row holds sits under it: indented to the row's text, on a hairline from its glyph.
+   A file is mono and truncates (in the middle when split in two spans); a file not kept is muted
+   with its reason. A command as a second line is mono and wraps. Phone rows take the web's status
+   glyphs (dl-run, dl-ok, dl-fail, dl-skip) in an 18 px slot. */
+.dl-skip{color:var(--muted)}
+.dl-nest{position:relative;display:flex;flex-direction:column;padding:0 16px 8px 44px;border-bottom:1px solid var(--line)}
+.dl-nest:last-child{border-bottom:0}
+.dl-nest::before{content:"";position:absolute;left:23px;top:0;bottom:12px;border-left:1px solid var(--line)}
+.dl-item:has(+ .dl-nest){border-bottom:0}
+.dl-nest-row{display:flex;align-items:center;gap:12px;min-width:0;min-height:var(--size-row);font-size:13px;line-height:20px}
+.dl-ph-nest{position:relative;display:flex;flex-direction:column;padding:0 16px 8px 46px;border-bottom:1px solid var(--line)}
+.dl-ph-nest:last-child{border-bottom:0}
+.dl-ph-nest::before{content:"";position:absolute;left:24px;top:0;bottom:14px;border-left:1px solid var(--line)}
+.dl-ph-row:has(+ .dl-ph-nest){border-bottom:0}
+.dl-ph-nest-row{display:flex;align-items:center;gap:12px;min-width:0;min-height:var(--size-touch);font-size:15px;line-height:20px}
+.dl-file{display:flex;align-items:center;gap:12px;min-width:0}
+.dl-file-name{flex:1;min-width:0;display:flex;font-family:var(--font-mono);font-size:12px;line-height:18px;color:var(--ink)}
+.dl-file-name > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-file-name > span + span{flex:none;overflow:visible}
+.dl-file-size,.dl-file-why{flex:none;font-size:12px;line-height:16px;color:var(--muted);white-space:nowrap}
+.dl-file-size{font-variant-numeric:tabular-nums}
+.dl-file > .dl-file-why:last-child{padding-right:8px}
+.dl-file.missing .dl-file-name{color:var(--muted)}
+:is(.dl-ph-nest,.dl-ph-row) .dl-file-name{font-size:13px;line-height:18px}
+:is(.dl-ph-nest,.dl-ph-row) :is(.dl-file-size,.dl-file-why){font-size:13px;line-height:18px}
+.dl-file .dl-ph-btn{margin-right:-12px;color:var(--ink-soft)}
+:is(.dl-ph-nest-row,.dl-ph-row).dl-file > .dl-file-why{padding-right:0}
+:is(.dl-item,.dl-setting,.dl-ph-row) .dl-t > span + span.dl-cmd{font-family:var(--font-mono);white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+:is(.dl-item,.dl-setting) .dl-t > span + span.dl-cmd{font-size:12px;line-height:18px}
+.dl-ph-row .dl-t > span + span.dl-cmd{font-size:13px;line-height:18px}
+.dl-item:has(.dl-cmd){align-items:flex-start}
+.dl-item:has(.dl-cmd) > :is(svg,.dl-c){margin-top:2px}
+.dl-item:has(.dl-cmd) > .dl-btn{margin-top:-6px}
+.dl-ph-status{width:18px;height:18px;flex:none;display:inline-flex;align-items:center;justify-content:center}
+.dl-ph-status > svg{width:18px;height:18px}
+.dl-ph-row:has(.dl-cmd){align-items:flex-start;padding-top:12px;padding-bottom:12px}
+.dl-ph-row:has(.dl-cmd) > :is(.dl-ph-status,.dl-c){margin-top:2px}

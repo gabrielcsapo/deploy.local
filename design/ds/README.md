@@ -50,9 +50,54 @@ Version 2 holds deploy.local to the restraint of [hob](https://github.com/Frigad
 - Web uses the same rules with `.dl-group` / `.dl-item` at its sizes, composed inside `.dl-list`, with `.dl-list-note` for footnotes. No dense tables for settings-like content; tables are only for real tabular data.
 - Web and iOS must use the shared list components. Native `V2SettingsGroup` / `V2SettingsRow` already implement the Settings pattern; keep group spacing, row height, tiles, values, disclosure and footnotes in parity across clients.
 
+## Rows inside a row, files and commands
+
+The design-system board `DesignSystemRows` shows all four in light and dark, on web and iPhone.
+
+- **Rows inside a row** (`.dl-nest` on web, `.dl-ph-nest` on phone): what a row holds, such as the files a pipeline job kept, sits directly after that row in the same group. It indents to the row's text (44 px web, 46 px phone, after a 16 or 18 px glyph) on a hairline from the glyph; the separator falls after the last nested row. Nested rows (`.dl-nest-row`, `.dl-ph-nest-row`) are 32 px on web and 44 px on phone. Never a box or a second card inside the group, and never nest twice.
+
+  ```html
+  <div class="dl-item">…job…</div>
+  <div class="dl-nest"><div class="dl-nest-row dl-file">…</div></div>
+  ```
+
+- **File row** (`.dl-file` on a `.dl-nest-row`, `.dl-ph-nest-row` or `.dl-item`): the name in mono (`.dl-file-name`), the size (`.dl-file-size`) and a quiet Download (`.dl-btn.quiet` on web, a 44 px `.dl-ph-btn` download icon on phone). Put the folder and the file in two spans to truncate in the middle and keep the file name; one span truncates at the end. Give the full path as `title`. A file that was not kept is `.dl-file.missing`: the name muted and its reason (`.dl-file-why`: "Unsupported file type", "No files matched") in place of size and Download.
+
+  ```html
+  <div class="dl-nest-row dl-file">
+    <span class="dl-file-name" title="test-results/…/output.log"
+      ><span>test-results/…/</span><span>output.log</span></span
+    ><span class="dl-file-size">12 KB</span
+    ><button type="button" class="dl-btn quiet">Download</button>
+  </div>
+  <div class="dl-nest-row dl-file missing">
+    <span class="dl-file-name"><span>coverage/*.lcov</span></span
+    ><span class="dl-file-why">No files matched</span>
+  </div>
+  ```
+
+- **A command as the second line** (`.dl-cmd` on the second span of `.dl-item`, `.dl-setting` or `.dl-ph-row`): mono (12 web, 13 phone) and it wraps rather than truncating, so the whole command reads. The glyph, state and actions stay with the first line.
+
+  ```html
+  <span class="dl-t"
+    ><span>flight-router-e2e</span
+    ><span class="dl-cmd">pnpm --filter react-flight-router-e2e test</span></span
+  >
+  ```
+
+- **Phone status** (`.dl-ph-status`): an 18 px slot leading a phone row that holds the web's own status glyphs, so state reads the same on both: passed `.dl-ok` (success), failed `.dl-fail` (danger), running `.dl-run` (active), skipped `.dl-skip` (muted, a circle with a dash). Stroke 2, with the state as `aria-label`.
+
+  ```html
+  <div class="dl-ph-row">
+    <span class="dl-ph-status"
+      ><svg class="dl-fail" width="18" height="18" … aria-label="Failed">…</svg></span
+    ><span class="dl-t">…</span>
+  </div>
+  ```
+
 ## Components
 
-Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settings rows, Status, Dialog, Phone. Each card shows its markup; class names live in `components/bundle.css`.
+Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settings rows, Rows inside a row, File row, Row with a command, Status, Phone status, Dialog, Phone. Each card shows its markup; class names live in `components/bundle.css`.
 
 ## States and trust moments
 

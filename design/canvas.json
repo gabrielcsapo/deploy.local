@@ -15,6 +15,13 @@
       "h": 720,
       "title": "Empty, loading and error"
     },
+    "DesignSystemRows.html": {
+      "x": 4040,
+      "y": 720,
+      "w": 1440,
+      "h": 1480,
+      "title": "Rows inside a row, files and commands"
+    },
     "Structure.html": {
       "x": 1000,
       "y": 2320,
@@ -3798,6 +3805,7 @@
   "order": [
     "DesignSystem.html",
     "States.html",
+    "DesignSystemRows.html",
     "PageLoading.html",
     "Structure.html",
     "Flow.html",
