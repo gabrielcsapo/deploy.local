@@ -11,7 +11,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
+import { readdirSync, statSync } from 'node:fs';
 import {
   DESIGN_HELP,
   DESIGN_README,
@@ -358,6 +359,7 @@ test('check prints each step, what changed per board and the problems, and exits
     assert.equal(
       run.text(),
       [
+        '! Drawn by deploy.local            no browser here: this terminal has no browser',
         '✓ Named 4 new elements             layer IDs kept on the rest',
         '✓ Drew 3 boards beside main        1440 · 700 · light · dark   12 s',
         '✗ Projects is cut off at 700 px    "Show archived" leaves the page',
@@ -379,7 +381,10 @@ test('check prints each step, what changed per board and the problems, and exits
       checking(coordinator().api, () => checked()),
     );
     assert.equal((await runDesign('check', [], { project: 'site' }, clean.deps)).exitCode, 0);
-    assert.match(clean.text(), /No problems\. Ask for review with:\n {2}deploy design propose\n$/);
+    assert.match(
+      clean.text(),
+      /No problems\. Next: commit the boards with the code they picture:\n {2}git commit -am "…"\n$/,
+    );
   } finally {
     repo.cleanup();
   }
@@ -427,8 +432,8 @@ test('check follows the drawing as a job, shows how far it is, and prints the sa
     const clear = '\r\x1b[2K';
     assert.ok(live.text().startsWith(clear), live.text());
     const [progress, rest] = live.text().slice(clear.length).split(clear);
-    assert.match(progress, /^. Drawing 1 of 2 boards +beside main$/);
-    assert.match(rest, /^✓ Named/);
+    assert.match(progress, /^. Drawing 1 of 2 boards +beside main, on deploy\.local$/);
+    assert.match(rest, /^! Drawn by deploy.local .*\n✓ Named/);
 
     // A check that fails on deploy.local fails here, with its words.
     states.push({
@@ -489,6 +494,7 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
     assert.equal(
       carried.text(),
       [
+        '! Drawn by deploy.local            no browser here: this terminal has no browser',
         '✓ Named 0 new elements             layer IDs kept on the rest',
         '✓ Drew 1 board beside main         1440 · 700 · light · dark   3 s',
         '✗ Sidebar is carried on 234 screens landing draws them; run deploy design check --drop-instances',
@@ -519,6 +525,7 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
     assert.equal(
       dropping.text(),
       [
+        '! Drawn by deploy.local            no browser here: this terminal has no browser',
         '✓ Restored 234 boards to main      landing draws their instances',
         '✓ Named 0 new elements             layer IDs kept on the rest',
         '✓ Drew 1 board beside main         1440 · 700 · light · dark   3 s',
@@ -529,8 +536,8 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
         '',
         'Before and after, side by side:  output/design/pairs',
         '',
-        'No problems. Commit the restored boards, then ask for review with:',
-        '  deploy design propose',
+        'No problems. Next: commit the boards with the code they picture:',
+        '  git commit -am "…"',
         '',
       ].join('\n'),
     );
@@ -1070,6 +1077,159 @@ test('dev serves the Design page on this folder, prints a line per save, and sto
       () => runDesign('dev', [], {}, run.deps),
       (error) => error.message === 'This folder has no design yet.' && error.exitCode === 1,
     );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+/**
+ * Every file inside .git with its size and time: what a check must leave as it was. Objects are
+ * listed without their time: Git may touch an object it already has instead of writing it again,
+ * and where it cannot (a read-only .git) it writes the copy into the check's own folder.
+ */
+function gitFolder(folder) {
+  const common = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], folder);
+  const own = git(['rev-parse', '--path-format=absolute', '--git-dir'], folder);
+  const seen = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else {
+        const name = relative(common, path);
+        const time = name.startsWith('objects/') ? '' : ` ${statSync(path).mtimeMs}`;
+        seen.push(`${name} ${statSync(path).size}${time}`);
+      }
+    }
+  };
+  walk(common);
+  if (own !== common && !own.startsWith(`${common}/`)) walk(own);
+  return seen.sort().join('\n');
+}
+
+test('check runs on this computer on any branch, writes nothing in .git, and --fix writes heights', async () => {
+  const repo = repository();
+  try {
+    git(['checkout', '-qb', 'kept-files'], repo.clone);
+    // A board Git does not track yet, with a height its head and the canvas disagree on.
+    writeFileSync(
+      join(repo.clone, 'design/boards/Kept.html'),
+      '<meta name="design-board" content="width=1440,height=1100">\n<style>.row{color:#ffffff}</style><main><p class="row">Kept</p></main>\n',
+    );
+    writeFileSync(
+      join(repo.clone, 'design/canvas.json'),
+      JSON.stringify({
+        title: 'Site',
+        boards: {
+          'Sidebar.html': { x: 0, y: 0, w: 1440, h: 900 },
+          'Kept.html': { x: 2000, y: 0, w: 1440, h: 900 },
+        },
+      }),
+    );
+    const before = gitFolder(repo.clone);
+    const drawn = [];
+    let closed = 0;
+    const openLocalDrawing = async () => ({
+      executable: '/fake/chromium',
+      drawing: {
+        shoot: async ({ commit, file, width, scheme, inspect }) => {
+          drawn.push(`${file} ${commit === ':worktree:' ? 'here' : 'main'} ${width} ${scheme}`);
+          return {
+            png: Buffer.from('png'),
+            measured: null,
+            inspected: inspect
+              ? { height: 1240, texts: [], aligned: [], rows: {}, boxes: [], primaries: [] }
+              : null,
+          };
+        },
+        pair: async () => Buffer.from('pair'),
+      },
+      close: async () => closed++,
+    });
+    const run = terminal(repo.clone, coordinator().api, { openLocalDrawing });
+    const result = await runDesign('check', [], { json: true }, run.deps);
+    assert.equal(result.exitCode, 1);
+    assert.equal(closed, 1);
+    const json = result.json;
+    for (const key of ['ok', 'code', 'message', 'fix', 'problems', 'notes', 'fixed', 'next'])
+      assert.ok(key in json, key);
+    assert.equal(json.ok, false);
+    assert.equal(json.where, 'computer');
+    assert.deepEqual(
+      json.problems.map((problem) => problem.code),
+      ['not_a_token', 'height_differs'],
+    );
+    assert.equal(json.next, 'deploy design check --fix');
+    assert.ok(drawn.includes('Kept.html here 1440 light'));
+    assert.equal(gitFolder(repo.clone), before, 'nothing inside .git changed');
+    // New elements were named in the folder's own file.
+    assert.match(
+      readFileSync(join(repo.clone, 'design/boards/Kept.html'), 'utf8'),
+      /data-layer="kept"/,
+    );
+
+    const fixed = terminal(repo.clone, coordinator().api, { openLocalDrawing });
+    const again = await runDesign('check', [], { fix: true }, fixed.deps);
+    assert.equal(again.exitCode, 1, 'the colour is still a problem');
+    assert.deepEqual(
+      again.json.problems.map((problem) => problem.code),
+      ['not_a_token'],
+    );
+    assert.match(fixed.text(), /^✓ Checked on this computer +against origin\/main [0-9a-f]{7}\n/);
+    assert.match(fixed.text(), /✓ Fixed +Kept is 1240 px tall in its meta and canvas.json/);
+    assert.match(fixed.text(), /not_a_token · fix: /);
+    assert.match(
+      readFileSync(join(repo.clone, 'design/boards/Kept.html'), 'utf8'),
+      /content="width=1440,height=1240"/,
+    );
+    assert.equal(
+      JSON.parse(readFileSync(join(repo.clone, 'design/canvas.json'), 'utf8')).boards['Kept.html']
+        .h,
+      1240,
+    );
+    assert.equal(gitFolder(repo.clone), before, 'still nothing inside .git');
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('with no browser, check falls back to deploy.local and still writes nothing in .git', async () => {
+  const repo = repository();
+  try {
+    writeFileSync(
+      join(repo.clone, 'design/boards/Sidebar.html'),
+      '<p data-layer="name">Changed</p>',
+    );
+    const before = gitFolder(repo.clone);
+    let sent;
+    const answer = (body) => {
+      sent = git(['show', `${body.ref}:design/boards/Sidebar.html`], repo.origin);
+      return checked();
+    };
+    const run = terminal(repo.clone, checking(coordinator().api, answer), {
+      openLocalDrawing: async () => ({ reason: 'no Chromium or Chrome on this computer' }),
+    });
+    const result = await runDesign('check', [], { project: 'site' }, run.deps);
+    assert.equal(result.exitCode, 0);
+    assert.equal(sent, '<p data-layer="name">Changed</p>');
+    assert.match(
+      run.text(),
+      /^! Drawn by deploy.local +no browser here: no Chromium or Chrome on this computer\n/,
+    );
+    assert.equal(gitFolder(repo.clone), before);
+
+    // deploy.local out of reach is exit 4.
+    const away = terminal(
+      repo.clone,
+      async (path) => {
+        if (path.endsWith('/check')) throw new Error('fetch failed');
+        return coordinator().api(path);
+      },
+      { openLocalDrawing: async () => ({ reason: 'none' }) },
+    );
+    await assert.rejects(runDesign('check', [], { project: 'site' }, away.deps), {
+      exitCode: 4,
+    });
   } finally {
     repo.cleanup();
   }

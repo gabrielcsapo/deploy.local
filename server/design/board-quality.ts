@@ -615,6 +615,10 @@ export function contrastProblems(input: {
   for (const [id, { ratio, text, need }] of failing(input.after)) {
     if (old.has(id)) continue;
     const better = readableToken(text.bg!, input.scheme, input.tokens, need);
+    // A background no theme colour matches does not change with the theme: that is the fix.
+    const themed = (input.tokens?.colors ?? []).some(
+      (token) => token[input.scheme] && parseHex(token[input.scheme]!)?.join() === text.bg!.join(),
+    );
     findings.push({
       code: 'low_contrast',
       file: input.file,
@@ -625,9 +629,10 @@ export function contrastProblems(input: {
       label: `${input.title} ${text.layer ?? 'text'} is ${ratio.toFixed(1)}:1 in ${input.scheme}`,
       detail: `"${text.text}" ${hex(text.color)} on ${hex(text.bg!)}, needs ${need}:1`,
       short: `low contrast in ${input.scheme}`,
-      fix: better
-        ? `colour it var(--${better.name}), so it reads in ${input.scheme}`
-        : `what is behind it does not change with the theme: put it on var(--surface) and colour the text var(--ink)`,
+      fix:
+        !themed || !better
+          ? `what is behind it (${hex(text.bg!)}) is no theme colour in ${input.scheme}: put it on var(--surface) and colour the text var(--ink)`
+          : `colour it var(--${better.name}), so it reads in ${input.scheme}`,
     });
   }
   return findings;

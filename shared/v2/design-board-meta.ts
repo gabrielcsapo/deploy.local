@@ -17,7 +17,7 @@ export type BoardMeta = {
   other: Record<string, string>;
 };
 
-const metaPattern = /<meta\s+name="design-board"\s+content="([^"]*)"\s*\/?>/i;
+const metaPattern = /<meta\b(?=[^>]*\sname="design-board")[^>]*\scontent="([^"]*)"[^>]*>/i;
 
 /** The board's own file name for a value like "PipelineRun" or "PipelineRun.html". */
 const boardFile = (value: string | undefined) => {

@@ -44,6 +44,7 @@ import { readNodeStatus } from '../server/features/computers/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
 import { serveDesignFolder } from './design-dev.mjs';
+import { openLocalDrawing } from './design-check-local.mjs';
 import { designLocalAssets, designSystemFiles } from './design-local-assets.mjs';
 import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
 import { createRelayController } from './relay-client.mjs';
@@ -3690,6 +3691,7 @@ try {
       summary: { type: 'string' },
       'look-at': { type: 'string' },
       'drop-instances': { type: 'boolean', default: false },
+      fix: { type: 'boolean', default: false },
     },
     strict: false,
   }));
@@ -3775,6 +3777,9 @@ const api = (path, options = {}) =>
     },
   });
 const outputJson = (data) => console.log(JSON.stringify(data, null, 2));
+/** deploy.local's own design system file, read once, for a project with no design/ds. */
+let designSystemCache;
+const ownDesignSystem = (path) => (designSystemCache ??= designSystemFiles())[path] ?? null;
 /** What deploy design needs from this process: the coordinator, Git and the terminal. */
 function designDeps() {
   const computer = (() => {
@@ -3806,6 +3811,9 @@ function designDeps() {
     prompt,
     now: Date.now,
     sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
+    designSystem: ownDesignSystem,
+    // The check draws on this computer when a browser starts here; otherwise deploy.local draws.
+    openLocalDrawing: (top) => openLocalDrawing({ top, designSystem: ownDesignSystem }),
     serveDesign: (options) => {
       const assets = designLocalAssets();
       if (!assets)
@@ -3936,7 +3944,28 @@ try {
       break;
     }
     case 'design': {
-      const result = await runDesign(positionals[1], positionals.slice(2), values, designDeps());
+      let result;
+      try {
+        result = await runDesign(positionals[1], positionals.slice(2), values, designDeps());
+      } catch (error) {
+        if (!values.json) throw error;
+        // The same envelope as a check, so a script reads one shape whatever happened.
+        const exitCode = error.exitCode || 1;
+        const code = { 2: 'wrong_usage', 4: 'unreachable' }[exitCode] ?? 'failed';
+        const next = error.next || 'deploy design --help';
+        outputJson({
+          ok: false,
+          code,
+          message: error.message,
+          fix: next,
+          problems: [],
+          notes: [],
+          fixed: [],
+          next,
+        });
+        process.exitCode = exitCode;
+        break;
+      }
       if (values.json) outputJson(result.json);
       process.exitCode = result.exitCode;
       break;
