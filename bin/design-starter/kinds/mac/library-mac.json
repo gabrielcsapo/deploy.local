@@ -1,0 +1,235 @@
+{
+  "name": "Mac kind",
+  "components": [
+    {
+      "id": "mac-window",
+      "name": "Window",
+      "group": "Mac layout",
+      "platform": "mac",
+      "description": "A window with its title bar and toolbar. The board is the window; wrap it in .ds-mac-desk.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Window title"
+        },
+        {
+          "id": "sub",
+          "label": "Subtitle",
+          "default": "Secondary"
+        }
+      ],
+      "html": "<div class=\"ds-mac-desk\"><div class=\"ds-mac-window\"><header class=\"ds-mac-titlebar\"><div class=\"ds-mac-lights\" aria-hidden=\"true\"><i></i><i></i><i></i></div><div class=\"ds-mac-titles\"><span class=\"ds-mac-title\">{{title}}</span><span class=\"ds-mac-subtitle\">{{sub}}</span></div><div class=\"ds-mac-spacer\"></div></header><div class=\"ds-mac-body\"></div></div></div>"
+    },
+    {
+      "id": "mac-sidebar",
+      "name": "Sidebar",
+      "group": "Mac layout",
+      "platform": "mac",
+      "description": "Sections and items; the current item is a grey fill, icons are in the accent.",
+      "props": [
+        {
+          "id": "section",
+          "label": "Section",
+          "default": "Library"
+        }
+      ],
+      "html": "<nav class=\"ds-mac-sidebar\"><div class=\"ds-mac-section\">{{section}}</div><div class=\"ds-mac-sideitem on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg>Place one<span class=\"count\">24</span></div><div class=\"ds-mac-sideitem\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Place two</div></nav>"
+    },
+    {
+      "id": "mac-list",
+      "name": "List pane",
+      "group": "Mac layout",
+      "platform": "mac",
+      "description": "The middle pane of a three-pane split; the selected item is in the accent.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Selected item",
+          "default": "Item one"
+        }
+      ],
+      "html": "<section class=\"ds-mac-list\"><div class=\"ds-mac-item on\"><span class=\"name\">{{name}}</span><span class=\"sub\">Secondary line</span></div><div class=\"ds-mac-item\"><span class=\"name\">Item two</span><span class=\"sub\">Secondary line</span></div></section>"
+    },
+    {
+      "id": "mac-detail",
+      "name": "Detail pane",
+      "group": "Mac layout",
+      "platform": "mac",
+      "description": "The selected item: a title, one line of facts, then content.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Item one"
+        }
+      ],
+      "html": "<main class=\"ds-mac-detail\"><h1>{{title}}</h1><p class=\"ds-mac-secondary\">Created 12 January</p></main>"
+    },
+    {
+      "id": "mac-inspector",
+      "name": "Inspector",
+      "group": "Mac layout",
+      "platform": "mac",
+      "description": "Properties of the selection, 260 px, at the right.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Name"
+        }
+      ],
+      "html": "<aside class=\"ds-mac-inspector\"><div class=\"ds-mac-prop\"><span class=\"label\">{{label}}</span><div class=\"ds-mac-field\" style=\"min-width: 0\">Value</div></div></aside>"
+    },
+    {
+      "id": "mac-table",
+      "name": "Table",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "24 px rows, 11 px header, selection in the accent.",
+      "props": [
+        {
+          "id": "row",
+          "label": "Selected row",
+          "default": "Row two"
+        }
+      ],
+      "html": "<table class=\"ds-mac-table\"><thead><tr><th>Name</th><th class=\"num\">Size</th></tr></thead><tbody><tr><td>Row one</td><td class=\"num\">1 MB</td></tr><tr class=\"on\"><td>{{row}}</td><td class=\"num\">2 MB</td></tr></tbody></table>"
+    },
+    {
+      "id": "mac-popup",
+      "name": "Popup button",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "A choice of several values.",
+      "props": [
+        {
+          "id": "value",
+          "label": "Value",
+          "default": "Choice"
+        }
+      ],
+      "html": "<div class=\"ds-mac-popup\"><span>{{value}}</span><span class=\"arrows\"><svg viewBox=\"0 0 12 12\"><path d=\"M3.5 4.5 6 2l2.5 2.5M3.5 7.5 6 10l2.5-2.5\"/></svg></span></div>"
+    },
+    {
+      "id": "mac-check",
+      "name": "Checkbox",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "On or off; .on for checked.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Option"
+        }
+      ],
+      "html": "<div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>{{label}}</div>"
+    },
+    {
+      "id": "mac-seg",
+      "name": "Segmented control",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "Two to four choices.",
+      "props": [
+        {
+          "id": "one",
+          "label": "Selected",
+          "default": "One"
+        }
+      ],
+      "html": "<div class=\"ds-mac-seg\"><span class=\"on\">{{one}}</span><span>Two</span></div>"
+    },
+    {
+      "id": "mac-search",
+      "name": "Search field",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "In the toolbar at the right.",
+      "props": [
+        {
+          "id": "hint",
+          "label": "Placeholder",
+          "default": "Search"
+        }
+      ],
+      "html": "<div class=\"ds-mac-search\" style=\"width: 200px\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 11a6 6 0 1 0 12 0 6 6 0 0 0-12 0M16 16l4.5 4.5\"/></svg><span>{{hint}}</span></div>"
+    },
+    {
+      "id": "mac-button",
+      "name": "Push button",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "22 px tall; .default is the near-black one, one per window or sheet.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Done"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-mac-btn default\">{{label}}</button>"
+    },
+    {
+      "id": "mac-settings-tabs",
+      "name": "Settings tabs",
+      "group": "Mac settings",
+      "platform": "mac",
+      "description": "Toolbar tabs of a settings window: icon above label, current in the accent.",
+      "props": [
+        {
+          "id": "tab",
+          "label": "Current tab",
+          "default": "General"
+        }
+      ],
+      "html": "<nav class=\"ds-mac-tabs\"><div class=\"ds-mac-tab on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/></svg>{{tab}}</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 6v6l4 2\"/></svg>Second</div></nav>"
+    },
+    {
+      "id": "mac-form",
+      "name": "Settings form",
+      "group": "Mac settings",
+      "platform": "mac",
+      "description": "Labels right-aligned in a 160 px column; notes under a control.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Setting"
+        }
+      ],
+      "html": "<div class=\"ds-mac-form\"><span class=\"label\">{{label}}</span><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>Option</div><span class=\"note\">One line of explanation.</span></div>"
+    },
+    {
+      "id": "mac-menubar-extra",
+      "name": "Menu-bar extra",
+      "group": "Mac menu bar",
+      "platform": "mac",
+      "description": "The menu bar with one highlighted extra, and its popover.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Name",
+          "default": "Product name"
+        }
+      ],
+      "html": "<div class=\"ds-mac-menubar\"><span style=\"font-weight: 600\">App</span><span class=\"grow\"></span><span class=\"extra on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 7v5l3 2\"/></svg></span></div><div class=\"ds-mac-popover\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">Open window<span class=\"value\">Cmd O</span></div><hr class=\"ds-mac-rule\" /><div class=\"ds-mac-menu-row\">Quit<span class=\"value\">Cmd Q</span></div></div>"
+    },
+    {
+      "id": "mac-sheet",
+      "name": "Sheet",
+      "group": "Mac dialogs",
+      "platform": "mac",
+      "description": "Drops from the title bar over a dimmed window; Cancel and one default button.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "New item"
+        }
+      ],
+      "html": "<div class=\"ds-mac-dim\"></div><div class=\"ds-mac-sheet\"><h2>{{title}}</h2><p>One sentence of explanation.</p><div class=\"ds-mac-sheet-foot\"><button type=\"button\" class=\"ds-mac-btn\">Cancel</button><button type=\"button\" class=\"ds-mac-btn default\">Add</button></div></div>"
+    }
+  ]
+}

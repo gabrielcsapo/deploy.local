@@ -1,0 +1,96 @@
+{
+  "name": "Print kind",
+  "components": [
+    {
+      "id": "print-face",
+      "name": "Card face",
+      "group": "Print layout",
+      "platform": "print",
+      "description": "One face at trim size plus bleed. Change the four sizes with the board meta. Content goes in .ds-print-safe.",
+      "props": [
+        {
+          "id": "ground",
+          "label": "Ground class",
+          "default": " ground-quiet"
+        }
+      ],
+      "html": "<div class=\"ds-print-face{{ground}}\" style=\"--print-w: 85mm; --print-h: 55mm; --print-bleed: 3mm; --print-safe: 4mm\"><div class=\"ds-print-safe\"></div></div>"
+    },
+    {
+      "id": "print-bleed-ground",
+      "name": "Bleed ground",
+      "group": "Print layout",
+      "platform": "print",
+      "description": "A solid ground that runs into the bleed; first child of the face.",
+      "props": [],
+      "html": "<div class=\"ds-print-bleed ground-brand\"></div>"
+    },
+    {
+      "id": "print-person",
+      "name": "Person and contact",
+      "group": "Print blocks",
+      "platform": "print",
+      "description": "Name and role at the top, two or three contact lines at the foot.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Name",
+          "default": "Person Name"
+        },
+        {
+          "id": "role",
+          "label": "Role",
+          "default": "Role or title"
+        },
+        {
+          "id": "email",
+          "label": "Email",
+          "default": "name@example.com"
+        }
+      ],
+      "html": "<div class=\"ds-print-safe\"><div><p class=\"ds-print-name\">{{name}}</p><p class=\"ds-print-small ds-print-muted\">{{role}}</p></div><div class=\"ds-print-contact\"><span>{{email}}</span><span>+00 000 000 000</span><span>example.com</span></div></div>"
+    },
+    {
+      "id": "print-wordmark",
+      "name": "Wordmark",
+      "group": "Print blocks",
+      "platform": "print",
+      "description": "The mark and the name, one place, one size.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Name",
+          "default": "Product name"
+        }
+      ],
+      "html": "<div class=\"ds-print-wordmark\"><svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><path fill-rule=\"evenodd\" fill=\"currentColor\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle cx=\"32\" cy=\"32\" r=\"8\" fill=\"currentColor\"/></svg>{{name}}</div>"
+    },
+    {
+      "id": "print-address",
+      "name": "Address block",
+      "group": "Print blocks",
+      "platform": "print",
+      "description": "The recipient on rules, for a postcard back; keep the lower 15 mm free for the post.",
+      "props": [],
+      "html": "<address class=\"ds-print-address\"><span class=\"line\">Recipient name</span><hr class=\"ds-print-rule\" style=\"margin: 2mm 0\" /><span class=\"line\">Street and number</span><hr class=\"ds-print-rule\" style=\"margin: 2mm 0\" /><span class=\"line\">Postcode and town</span></address>"
+    },
+    {
+      "id": "print-stamp",
+      "name": "Stamp box",
+      "group": "Print blocks",
+      "platform": "print",
+      "description": "20 x 24 mm, empty, top right of a postcard back.",
+      "props": [],
+      "html": "<div class=\"ds-print-stamp\">Stamp</div>"
+    },
+    {
+      "id": "print-pair",
+      "name": "Front and back pair",
+      "group": "Print layout",
+      "platform": "print",
+      "description": "A proof sheet with both faces side by side; its board meta is the sheet size.",
+      "props": [],
+      "html": "<div class=\"ds-print-pair\"><div class=\"ds-print-face\"><div class=\"ds-print-safe\"></div></div><div class=\"ds-print-face\"><div class=\"ds-print-safe\"></div></div></div>"
+    }
+  ]
+}

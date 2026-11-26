@@ -1,0 +1,106 @@
+{
+  "name": "Game kind",
+  "components": [
+    {
+      "id": "game-stage",
+      "name": "Game screen",
+      "group": "Game layout",
+      "platform": "game",
+      "description": "A full-screen frame; .landscape for 844 x 390. Everything in it is a flex column.",
+      "props": [],
+      "html": "<div class=\"ds-game\"></div>"
+    },
+    {
+      "id": "game-hud",
+      "name": "HUD bar",
+      "group": "Game layout",
+      "platform": "game",
+      "description": "Pause at the left, the level or score in the middle, lives at the right.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Middle",
+          "default": "Level 1"
+        }
+      ],
+      "html": "<div class=\"ds-game-hud\"><button type=\"button\" class=\"ds-game-btn small\" aria-label=\"Pause\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6v12M15 6v12\"/></svg></button><span class=\"grow\">{{label}}</span><span class=\"ds-game-pips\"><i></i><i></i><i class=\"off\"></i></span></div>"
+    },
+    {
+      "id": "game-stage-area",
+      "name": "Stage",
+      "group": "Game layout",
+      "platform": "game",
+      "description": "The playfield; put flat shapes in it.",
+      "props": [],
+      "html": "<div class=\"ds-game-stage\"></div>"
+    },
+    {
+      "id": "game-button",
+      "name": "Round button",
+      "group": "Game controls",
+      "platform": "game",
+      "description": "A 56 px thumb button; .small for 44 px, .primary for the one main one.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Jump"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-game-btn primary\" aria-label=\"{{label}}\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 14l6-6 6 6\"/></svg></button>"
+    },
+    {
+      "id": "game-play",
+      "name": "Wide button",
+      "group": "Game controls",
+      "platform": "game",
+      "description": "Play, Next, Resume: the primary action; .secondary for the quieter one.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Play"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-game-play\" style=\"border: 0\">{{label}}</button>"
+    },
+    {
+      "id": "game-grid",
+      "name": "Level grid",
+      "group": "Game levels",
+      "platform": "game",
+      "description": "Four across; tiles are done, available or locked.",
+      "props": [],
+      "html": "<div class=\"ds-game-grid\"><div class=\"ds-game-tile done\">1<svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12.5l4.5 4.5L19 7.5\"/></svg></div><div class=\"ds-game-tile available\">2</div><div class=\"ds-game-tile locked\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z\"/></svg></div><div class=\"ds-game-tile locked\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z\"/></svg></div></div>"
+    },
+    {
+      "id": "game-result",
+      "name": "Result card",
+      "group": "Game results",
+      "platform": "game",
+      "description": "Level complete: stars, the score and two stats.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Level complete"
+        },
+        {
+          "id": "score",
+          "label": "Score",
+          "default": "1,240"
+        }
+      ],
+      "html": "<div class=\"ds-game-result\"><h2 class=\"ds-game-title\">{{title}}</h2><div class=\"ds-game-stars\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 4l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z\"/></svg><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 4l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z\"/></svg><span class=\"off\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 4l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z\"/></svg></span></div><div class=\"ds-game-score\">{{score}}</div><div class=\"ds-game-stats\"><div><span class=\"ds-game-label\">Time</span><strong>0:48</strong></div><div><span class=\"ds-game-label\">Best</span><strong>1,310</strong></div></div></div>"
+    },
+    {
+      "id": "game-pause",
+      "name": "Pause sheet",
+      "group": "Game results",
+      "platform": "game",
+      "description": "Resume, Restart, Quit over the dimmed game.",
+      "props": [],
+      "html": "<div class=\"ds-game-dim\"></div><div class=\"ds-game-sheet\"><span class=\"grab\"></span><h2 class=\"ds-game-title\">Paused</h2><button type=\"button\" class=\"ds-game-play\" style=\"border: 0\">Resume</button><button type=\"button\" class=\"ds-game-play secondary\">Restart</button><button type=\"button\" class=\"ds-game-play secondary\">Quit</button></div>"
+    }
+  ]
+}

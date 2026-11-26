@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=doc,page=letter,schemes=light dark" />
+    <title>Example reference</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/doc.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-doc">
+      <header class="ds-doc-head"><span>Reference</span><span>Settings</span></header>
+      <main class="ds-doc-page">
+        <h1>Settings</h1>
+        <p class="ds-doc-lede">Every setting, its default and what it changes.</p>
+        <table class="ds-doc-table">
+          <thead>
+            <tr><th>Name</th><th>Default</th><th>What it does</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>retries</code></td><td data-label="Default">3</td><td data-label="What it does">How many times a failed step is tried again.</td></tr>
+            <tr><td><code>timeout</code></td><td data-label="Default">30 s</td><td data-label="What it does">How long a step may take before it stops.</td></tr>
+            <tr><td><code>notify</code></td><td data-label="Default">on</td><td data-label="What it does">Sends a message when a run ends.</td></tr>
+          </tbody>
+        </table>
+        <div class="ds-doc-callout warn">
+          <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 4 3 20h18zM12 10v4M12 17h.01" />
+          </svg>
+          <div>
+            <p class="ds-doc-callout-title">Changing timeout</p>
+            <p>A shorter timeout ends slow steps early; they are not tried again.</p>
+          </div>
+        </div>
+        <h2>Example</h2>
+<pre><code>retries = 5
+timeout = 60</code></pre>
+      </main>
+      <footer class="ds-doc-foot"><span>Reference</span><span>Updated 1 January</span></footer>
+    </div>
+  </body>
+</html>

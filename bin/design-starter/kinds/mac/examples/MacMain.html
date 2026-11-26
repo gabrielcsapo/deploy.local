@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=mac,width=1280,height=800,schemes=light dark" />
+    <title>Example Mac window</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/mac.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: var(--bg-sunken);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-mac-desk">
+    <div class="ds-mac-window">
+      <header class="ds-mac-titlebar">
+        <div class="ds-mac-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+        <button type="button" class="ds-mac-tool" aria-label="Toggle sidebar"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM9 5v14"/></svg></button>
+        <div class="ds-mac-titles"><span class="ds-mac-title">All items</span><span class="ds-mac-subtitle">24 items</span></div>
+        <div class="ds-mac-spacer"></div>
+        <button type="button" class="ds-mac-tool" aria-label="Share"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 8l4-4 4 4M5 13v6h14v-6"/></svg></button>
+        <button type="button" class="ds-mac-tool" aria-label="Add"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="ds-mac-search" style="width: 200px"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>Search</span></div>
+      </header>
+      <div class="ds-mac-body">
+        <nav class="ds-mac-sidebar" aria-label="Places">
+          <div class="ds-mac-section">Library</div>
+          <div class="ds-mac-sideitem on"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>All items<span class="count">24</span></div>
+          <div class="ds-mac-sideitem"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>Favourites<span class="count">3</span></div>
+          <div class="ds-mac-sideitem"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Recent</div>
+          <div class="ds-mac-section">Collections</div>
+          <div class="ds-mac-sideitem"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Collection one<span class="count">8</span></div>
+          <div class="ds-mac-sideitem"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Collection two<span class="count">11</span></div>
+          <div class="ds-mac-sideitem"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Collection three<span class="count">5</span></div>
+        </nav>
+        <section class="ds-mac-list" aria-label="Items">
+          <div class="ds-mac-item on"><span class="name">Item one</span><span class="sub">Secondary line, 2 days ago</span></div>
+          <div class="ds-mac-item"><span class="name">Item two</span><span class="sub">Secondary line, 3 days ago</span></div>
+          <div class="ds-mac-item"><span class="name">Item three</span><span class="sub">Secondary line, last week</span></div>
+          <div class="ds-mac-item"><span class="name">Item four</span><span class="sub">Secondary line, last week</span></div>
+          <div class="ds-mac-item"><span class="name">Item five</span><span class="sub">Secondary line, last month</span></div>
+          <div class="ds-mac-item"><span class="name">Item six</span><span class="sub">Secondary line, last month</span></div>
+          <div class="ds-mac-item"><span class="name">Item seven</span><span class="sub">Secondary line, last month</span></div>
+          <div class="ds-mac-item"><span class="name">Item eight</span><span class="sub">Secondary line, last month</span></div>
+          <div class="ds-mac-item"><span class="name">Item nine</span><span class="sub">Secondary line, last month</span></div>
+          <div class="ds-mac-item"><span class="name">Item ten</span><span class="sub">Secondary line, last month</span></div>
+          <div class="ds-mac-item"><span class="name">Item eleven</span><span class="sub">Secondary line, last month</span></div>
+        </section>
+        <main class="ds-mac-detail">
+          <h1>Item one</h1>
+          <p class="ds-mac-secondary">Created 12 January, edited 2 days ago</p>
+          <p style="margin-top: 16px">A paragraph of placeholder text that describes the selected item in a sentence or two, set at body size.</p>
+          <h2>Activity</h2>
+          <table class="ds-mac-table">
+            <thead><tr><th>Name</th><th>Kind</th><th class="num">Size</th></tr></thead>
+            <tbody>
+              <tr><td>Row one</td><td>Kind</td><td class="num">1.2 MB</td></tr>
+              <tr class="on"><td>Row two</td><td>Kind</td><td class="num">340 KB</td></tr>
+              <tr><td>Row three</td><td>Kind</td><td class="num">8.1 MB</td></tr>
+              <tr><td>Row four</td><td>Kind</td><td class="num">52 KB</td></tr>
+              <tr><td>Row five</td><td>Kind</td><td class="num">2.7 MB</td></tr>
+            </tbody>
+          </table>
+        </main>
+        <aside class="ds-mac-inspector" aria-label="Inspector">
+          <div class="ds-mac-prop"><span class="label">Name</span><div class="ds-mac-field" style="min-width: 0">Item one</div></div>
+          <div class="ds-mac-prop"><span class="label">Collection</span><div class="ds-mac-popup"><span>Collection one</span><span class="arrows"><svg viewBox="0 0 12 12"><path d="M3.5 4.5 6 2l2.5 2.5M3.5 7.5 6 10l2.5-2.5"/></svg></span></div></div>
+          <div class="ds-mac-prop"><span class="label">View</span><div class="ds-mac-seg"><span class="on">List</span><span>Grid</span><span>Table</span></div></div>
+          <div class="ds-mac-prop"><span class="label">Options</span>
+            <div class="ds-mac-check on"><span class="box"><svg viewBox="0 0 12 12"><path d="M2.5 6.2 5 8.7l4.5-5"/></svg></span>Show in sidebar</div>
+            <div class="ds-mac-check"><span class="box"></span>Keep offline</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+    </div>
+  </body>
+</html>
