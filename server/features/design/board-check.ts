@@ -43,6 +43,7 @@ import {
   removedLayersNote,
   boardSimilarity,
   distinctiveWords,
+  editedInstanceProblems,
   isSpecimen,
   noteOverlapProblems,
   specimenNote,
@@ -633,6 +634,7 @@ export async function checkDesign(
       // Taste is judged against main's board, or the board this one came from.
       const baseline = { ...board, before: before ?? origin };
       problems.push(...notATokenProblems({ ...board, tokens, library: branchLibrary, origin }));
+      problems.push(...editedInstanceProblems({ ...board, library: branchLibrary }));
       const asked = questionFindings(board);
       problems.push(...asked.problems);
       notes.push(...asked.notes);

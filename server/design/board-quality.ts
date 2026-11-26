@@ -3,7 +3,7 @@
 // Each one looks only at what the branch changed: it runs on main's board too and drops what main
 // already had. Everything here is plain text and arithmetic, so the same code runs on deploy.local
 // and on the computer; what comes from a drawn page arrives as an Inspection.
-import { boardElements, layerIds, type Library } from './board-html.ts';
+import { boardElements, layerIds, syncInstances, type Library } from './board-html.ts';
 import type { CheckProblem } from '../../shared/v2/design-overflow.ts';
 import {
   contrast,
@@ -1033,6 +1033,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: 'a board on a canvas note or section title',
   },
   { code: 'source_action_missing', problem: true, means: 'an action its source board has, gone' },
+  {
+    code: 'edited_inside_component',
+    problem: true,
+    means: 'markup typed inside an instance; use data-props',
+  },
   { code: 'question_invented', problem: true, means: 'a layer asks a question and states a value' },
   { code: 'height_differs', problem: true, means: 'canvas.json and the head disagree; --fix' },
   {
@@ -1085,4 +1090,89 @@ export function removedLayersNote(input: { file: string; title: string; layers: 
     short: 'layers removed',
     fix: 'if any of these is still on the board under another ID, move the old ID onto it',
   } satisfies Finding;
+}
+
+// ── Instances edited by hand ─────────────────────────────────────────────────────────────────────
+
+const instanceSignature = (outer: string) =>
+  outer
+    .replace(/\sdata-layer="[^"]*"/g, '')
+    .replace(/>\s+</g, '><')
+    .replace(/\s+/g, ' ')
+    .trim();
+const textChunks = (outer: string) =>
+  outer
+    .replace(/<(svg|style|script)\b[\s\S]*?<\/\1>/gi, '<x>')
+    .split(/<[^>]+>/)
+    .map((chunk) => decode(chunk).replace(/\s+/g, ' ').trim())
+    .filter((chunk) => chunk && /\p{L}|\d/u.test(chunk));
+
+/** A board's outermost component instances, in order, with their markup. */
+function instancesOf(html: string | null | undefined) {
+  if (!html) return [];
+  const elements = boardElements(html);
+  const inInstance = (index: number) => {
+    for (let at = elements[index].parent; at >= 0; at = elements[at].parent)
+      if (/^<[^>]*\sdata-component="/.test(elements[at].outer)) return true;
+    return false;
+  };
+  return elements
+    .map((element, index) => ({
+      element,
+      component: /^<[^>]*\sdata-component="([a-z0-9-]+)"/.exec(element.outer)?.[1] ?? null,
+      index,
+    }))
+    .filter((entry) => entry.component && !inInstance(entry.index))
+    .map(({ element, component }) => ({
+      component: component!,
+      layer: element.layer,
+      outer: element.outer,
+    }));
+}
+
+/**
+ * Instances whose markup on the branch is not what their component draws from their props: the
+ * renderer draws them again from data-props, so whatever was typed inside them never shows. An
+ * instance the branch did not touch (as main had it) is left alone.
+ */
+export function editedInstanceProblems(input: {
+  file: string;
+  title: string;
+  before: string | null;
+  after: string | null;
+  library: Library | null;
+}): Finding[] {
+  if (!input.after || !input.library || !input.after.includes(' data-component="')) return [];
+  const written = instancesOf(input.after);
+  const drawn = instancesOf(syncInstances(input.after, input.library));
+  const old = new Set(instancesOf(input.before).map((entry) => instanceSignature(entry.outer)));
+  const findings: Finding[] = [];
+  written.forEach((entry, at) => {
+    const component = input.library!.components.find((item) => item.id === entry.component);
+    const rendered = drawn[at];
+    if (!component || !rendered || rendered.component !== entry.component) return;
+    const mine = instanceSignature(entry.outer);
+    if (mine === instanceSignature(rendered.outer) || old.has(mine)) return;
+    const shown = new Set(textChunks(rendered.outer));
+    const lost = textChunks(entry.outer).filter((chunk) => !shown.has(chunk));
+    const props = component.props.map((prop) => prop.id);
+    findings.push({
+      code: 'edited_inside_component',
+      file: input.file,
+      board: input.title,
+      ...(entry.layer ? { layer: entry.layer } : {}),
+      label: `${input.title} changes the inside of its ${component.name} instance${entry.layer ? ` ${entry.layer}` : ''}`,
+      detail: lost.length
+        ? `never drawn: ${lost
+            .slice(0, 3)
+            .map((chunk) => `"${chunk.length > 32 ? `${chunk.slice(0, 31)}…` : chunk}"`)
+            .join(', ')}${lost.length > 3 ? ` and ${lost.length - 3} more` : ''}`
+        : 'its markup is drawn again from data-props, so the change never shows',
+      short: `edited inside ${component.id}`,
+      fix: props.length
+        ? `set it with data-props (props: ${props.join(', ')}) or put it outside the instance`
+        : `${component.id} takes no props: put it outside the instance`,
+    });
+  });
+  return findings;
 }

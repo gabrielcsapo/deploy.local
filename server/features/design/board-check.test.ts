@@ -24,6 +24,7 @@ import {
   contentDifferences,
   contrastProblems,
   droppedActions,
+  editedInstanceProblems,
   drawnNotes,
   heightProblem,
   noteOverlapProblems,
@@ -1382,5 +1383,56 @@ test('--fix places a new phone board nearest its source on the real canvas, neve
       near: 'PipelineRun.html',
     }).x,
     2100,
+  );
+});
+
+test('what is typed inside a component instance is a problem naming its props', () => {
+  const library = {
+    components: [
+      {
+        id: 'design-editor',
+        name: 'Design editor',
+        props: [
+          { id: 'mode', default: 'Editing' },
+          { id: 'branch', default: 'design/x' },
+        ],
+        html: '<div class="ed"><span>{{mode}}</span><span>{{branch}}</span></div>',
+      },
+    ],
+  } as any;
+  const drawn = syncInstances(
+    '<main><div data-layer="editor" data-component="design-editor" data-props=\'{"mode":"Editing","branch":"design/x"}\'></div></main>',
+    library,
+  );
+  const typed = drawn.replace(
+    '</span></div>',
+    '</span><form><textarea>Leave a comment</textarea><button>Send</button></form></div>',
+  );
+  const found = editedInstanceProblems({
+    file: 'A.html',
+    title: 'A',
+    before: null,
+    after: typed,
+    library,
+  });
+  assert.deepEqual(
+    found.map((problem) => [problem.code, problem.layer, problem.detail, problem.fix]),
+    [
+      [
+        'edited_inside_component',
+        'editor',
+        'never drawn: "Leave a comment", "Send"',
+        'set it with data-props (props: mode, branch) or put it outside the instance',
+      ],
+    ],
+  );
+  // As the component draws it, or as main already had it, it is fine.
+  assert.deepEqual(
+    editedInstanceProblems({ file: 'A.html', title: 'A', before: null, after: drawn, library }),
+    [],
+  );
+  assert.deepEqual(
+    editedInstanceProblems({ file: 'A.html', title: 'A', before: typed, after: typed, library }),
+    [],
   );
 });
