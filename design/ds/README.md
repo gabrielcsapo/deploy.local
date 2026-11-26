@@ -163,3 +163,7 @@ Review is a mode of the editor, not a separate surface. Reviewing a proposal ope
 - **Right panel:** the same panel and tab row, with a Review tab before Edit and Comments, selected in review. It holds What changed (every changed screen with Changed or New, a seen tick and its pins, "3 of 13 seen") and Notes. Edit and Comments are one click away and never open on their own; selecting a board keeps Review selected. The top row's Propose becomes Ask for changes and Approve design (the one primary).
 - **Narrow (below 1180 px):** the left panel folds behind its show button in the review strip; the right panel stays a side panel on its Review tab. There is no bottom sheet.
 - **Loading:** the same frame; boards appear in place as blurred low-resolution stills and sharpen as their renders arrive.
+
+## The Design page's editor
+
+Boards of the Design page place the `design-editor` component instead of drawing the editor: load `deploy-local/components/editor.css` after the bundle, put the instance inside `.dz-ed`, and put only what is on the canvas (boards, selection, pins, the ask box) in `.dz-ed-stage` beside it. Its settings choose the mode (editing or reviewing), the selected page and layer, the layer rows, the tool, the right panel (Edit, a text layer, Comments with the app's “Comment on X…” form, review notes), the branch, the task working on it and the banner. DesignCanvas is the example to start from. Below 820 px the panels fold, the narrow bar shows and the canvas zooms out to fit.
