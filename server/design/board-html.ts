@@ -72,7 +72,7 @@ function attribute(tag: string, name: string) {
   return new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
 }
 
-/** The name a layer gets from its markup: its label, its text, its first class, or its tag. */
+/** The name a layer gets from its markup alone: its label, its text, its first class, or its tag. */
 function layerName(tag: string, name: string, text: string) {
   const label = attribute(tag, 'aria-label');
   if (label && slug(label)) return slug(label);
@@ -82,9 +82,46 @@ function layerName(tag: string, name: string, text: string) {
   return name;
 }
 
+/** A list row: its children are named after it. */
+const rowClass = /\b(dl-item|dl-ph-row|dl-setting|dl-log-row|dl-menu-item|dl-file|row|file)\b/;
+/** Names that say nothing on their own: a letter, a tag, a generic word. */
+const generic =
+  /^(?:[a-z]|t|c|v|x|on|off|end|start|layer|el|item|row|box|wrap|inner|outer|container|group|block|text|label|content|span|div|svg|path|g|p|a|i|b|em|strong|small|section|header|footer|main|nav|aside|button|img|ul|ol|li|figure|lead|meta|chev|glyph|grow)(?:-\d+)?$/;
+/** What a value is: 212 KB is a size, 2m 58s a time, 5 a count. */
+function valueKind(text: string) {
+  const plain = text.replace(/&[a-z]+;/g, ' ').trim();
+  if (
+    !/^[\d.,:·\s+-]+\s*[a-z%]{0,6}(\s+[\d.,]+\s*[a-z]{0,3})*\.?$/i.test(plain) ||
+    !/\d/.test(plain)
+  )
+    return null;
+  if (/\d\s*(b|kb|mb|gb|tb|bytes?)$/i.test(plain)) return 'size';
+  if (/\d\s*(ms|s|m|h|d|min|sec)\b/i.test(plain) || /\d:\d\d/.test(plain)) return 'time';
+  if (/%$/.test(plain)) return 'percent';
+  if (/^\d+$/.test(plain)) return 'count';
+  return 'value';
+}
+/** The first words of an element's markup that are not a value: what a row is about. */
+function mainText(outer: string) {
+  for (const chunk of outer
+    .replace(/<(svg|style|script)\b[\s\S]*?<\/\1>/gi, '<x>')
+    .split(/<[^>]+>/)) {
+    const text = chunk.replace(/\s+/g, ' ').trim();
+    if (text && slug(text) && !valueKind(text)) return text;
+  }
+  return '';
+}
+const joinName = (...parts: string[]) =>
+  parts.filter(Boolean).join('-').replace(/-+/g, '-').slice(0, 48).replace(/-+$/, '');
+
 /**
  * Give every element in the body a unique `data-layer` ID. IDs already present are kept, so running
  * this again after an edit only names the new elements. SVG internals are part of their icon.
+ *
+ * A name says what the element is: a row is named for what it is about (a file row "report.xml"
+ * is file-report-xml), what sits in it is named after it (file-report-xml-size,
+ * file-report-xml-download), and a value or a name that says nothing alone (212 KB, an icon, a
+ * letter) takes its nearest named ancestor's name with its role. Never a bare number.
  */
 export function assignLayerIds(html: string): string {
   // A fragment without a body is all body.
@@ -97,6 +134,10 @@ export function assignLayerIds(html: string): string {
     used.add(id);
     return id;
   };
+  // Each element's whole markup by where it starts, for a row's words.
+  const outers = new Map(scanElements(html).map((element) => [element.open, element.outer]));
+  // The open elements: their names, IDs and whether they are rows.
+  const open: { name: string; id: string | null; row: string | null; main: string }[] = [];
 
   let out = html.slice(0, bodyStart);
   let i = bodyStart;
@@ -130,18 +171,64 @@ export function assignLayerIds(html: string): string {
     }
     if (closing) {
       if (name === 'svg' && svgDepth > 0) svgDepth--;
+      const at = open.findLastIndex((entry) => entry.name === name);
+      if (at >= 0) open.splice(at);
       out += tag;
       continue;
     }
     const selfClosing = tag.endsWith('/>');
-    const isLayer = svgDepth === 0 && !NOT_LAYERS.has(name) && !tag.includes(' data-layer="');
+    const existing = /\sdata-layer="([^"]*)"/.exec(tag)?.[1] ?? null;
+    const isLayer = svgDepth === 0 && !NOT_LAYERS.has(name) && !existing;
+    const row = [...open].reverse().find((entry) => entry.row);
+    const context = [...open].reverse().find((entry) => entry.id && !generic.test(entry.id));
+    const isRow = rowClass.test(attribute(tag, 'class') ?? '') || name === 'li' || name === 'tr';
+    const outer = outers.get(lt) ?? tag;
+    const about = isRow ? mainText(outer) : '';
+    let id = existing;
     if (isLayer) {
       const next = html.indexOf('<', i);
       const text = html.slice(i, next < 0 ? undefined : next).trim();
-      const id = unique(layerName(tag, name, text));
+      const label = attribute(tag, 'aria-label') ?? '';
+      const kind = valueKind(label || text);
+      let base: string;
+      if (isRow && about) {
+        // A row: what it is about, and a file row says so.
+        base = joinName(/\.[a-z0-9]{1,5}$/i.test(about) ? 'file' : '', slug(about));
+      } else if (row?.id) {
+        // Inside a row: the row's name and the element's role in it.
+        // Its own words, without the row's (a "Download report.xml" label is the download).
+        const rowAbout = slug(row.main);
+        const own = slug(text || label)
+          .replace(new RegExp(`(^|-)${rowAbout}(-|$)`), '$1')
+          .replace(/^-+|-+$/g, '');
+        const firstClass = (attribute(tag, 'class') ?? '').split(/\s+/)[0] ?? '';
+        const classRole = slug(firstClass.replace(/^dl-/, ''));
+        const role =
+          kind ??
+          (slug(text || label) === rowAbout
+            ? 'name'
+            : own || (name === 'svg' ? 'icon' : classRole === 't' ? 'text' : classRole || name));
+        base = joinName(row.id, role);
+      } else {
+        const plain = layerName(tag, name, text);
+        const role = kind
+          ? kind
+          : name === 'svg'
+            ? 'icon'
+            : /^\d/.test(plain)
+              ? 'value'
+              : generic.test(plain)
+                ? plain
+                : null;
+        // A value, an icon or a name that says nothing alone takes its named ancestor's name.
+        base = role ? (context?.id ? joinName(context.id, role) : role) : plain;
+      }
+      id = unique(base);
       tag = tag.replace(/^(<[a-zA-Z][\w:-]*)/, `$1 data-layer="${id}"`);
     }
     out += tag;
+    if (!VOID.has(name) && !selfClosing && !RAW_TEXT.has(name))
+      open.push({ name, id, row: isRow ? id : null, main: about });
     if (name === 'svg' && !selfClosing) svgDepth++;
     if (RAW_TEXT.has(name)) {
       const close = html.toLowerCase().indexOf(`</${name}`, i);

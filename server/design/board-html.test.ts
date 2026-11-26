@@ -50,10 +50,10 @@ describe('design boards', () => {
     const html = assignLayerIds(convertCanvasBoard(exported).html);
     assert.deepEqual(layerIds(html), [
       'app',
-      'nav',
+      'app-nav',
       'new-task',
       'search',
-      'svg',
+      'search-icon',
       'welcome-to-deploy',
       'new-task-2',
     ]);
@@ -64,6 +64,31 @@ describe('design boards', () => {
     assert.deepEqual(layerIds(again).slice(0, 7), layerIds(html));
     assert.ok(again.includes('<p data-layer="added" class="dl-meta">Added</p>'));
     assert.equal(assignLayerIds(again), again);
+  });
+
+  it('names a row for what it is about and what sits in it after the row, never by a bare value', () => {
+    const html = assignLayerIds(
+      '<main data-layer="kept-files"><div class="dl-group"><div class="dl-item"><svg width="16"><path d="M1"/></svg>' +
+        '<span class="dl-t"><span>report.xml</span><span>212 KB</span></span>' +
+        '<a class="dl-btn" aria-label="Download report.xml">Download</a></div>' +
+        '<div class="dl-item"><span>typecheck</span><span>41 s</span></div></div><p>3</p><span>2m 58s</span></main>',
+    );
+    assert.deepEqual(layerIds(html), [
+      'kept-files',
+      'kept-files-group',
+      'file-report-xml',
+      'file-report-xml-icon',
+      'file-report-xml-text',
+      'file-report-xml-name',
+      'file-report-xml-size',
+      'file-report-xml-download',
+      'typecheck',
+      'typecheck-name',
+      'typecheck-time',
+      'kept-files-count',
+      'kept-files-time',
+    ]);
+    assert.ok(layerIds(html).every((layer) => !/^\d/.test(layer)));
   });
 
   it('finds one layer’s markup, including nested elements of the same tag', () => {

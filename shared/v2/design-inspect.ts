@@ -32,6 +32,11 @@ export type Inspection = {
   boxes: { layer: string; inside: string }[];
   /** Primary buttons that show. */
   primaries: string[];
+  /**
+   * Text partly hidden at the bottom of a fixed-height frame (or of a phone screen), or under a
+   * bar pinned to its bottom.
+   */
+  clipped?: { layer: string | null; text: string; by: 'frame' | 'bar'; frame: string | null }[];
 };
 
 /** Runs in the page: what the check measures there. */
@@ -88,6 +93,7 @@ export function inspectBoard(doc: Document = document): Inspection {
   };
 
   const texts: InspectedText[] = [];
+  const placed: { element: Element; rect: DOMRect; layer: string | null; text: string }[] = [];
   const blocks: { layer: string; left: number; top: number; bottom: number; element: Element }[] =
     [];
   for (const element of doc.body.querySelectorAll('*')) {
@@ -112,6 +118,9 @@ export function inspectBoard(doc: Document = document): Inspection {
       .replace(/\s+/g, ' ')
       .trim();
     const layer = layerOf(element);
+    const whole = doc.createRange();
+    whole.selectNodeContents(element);
+    placed.push({ element, rect: whole.getBoundingClientRect(), layer, text: text.slice(0, 40) });
     texts.push({
       layer,
       text: text.slice(0, 40),
@@ -186,8 +195,72 @@ export function inspectBoard(doc: Document = document): Inspection {
     .filter(shown)
     .map((element) => layerOf(element) ?? element.textContent!.trim().slice(0, 40));
 
+  // Frames: elements that clip what overflows them at a fixed height, and a phone screen itself.
+  const frames: { element: Element | null; bottom: number; left: number; right: number }[] = [];
+  if (view.innerWidth <= 500)
+    frames.push({ element: null, bottom: view.innerHeight, left: 0, right: view.innerWidth });
+  for (const element of doc.body.querySelectorAll('*')) {
+    const style = view.getComputedStyle(element);
+    if (!/(hidden|clip)/.test(style.overflowY) || !shown(element)) continue;
+    if (element.scrollHeight <= element.clientHeight + 1) continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.height < 120 || rect.width < 200) continue;
+    frames.push({ element, bottom: rect.bottom, left: rect.left, right: rect.right });
+  }
+  const clipped: NonNullable<Inspection['clipped']> = [];
+  const noted = new Set<Element>();
+  for (const frame of frames) {
+    const inside = placed.filter(
+      (entry) =>
+        !frame.element ||
+        (frame.element !== entry.element && frame.element.contains(entry.element)),
+    );
+    for (const entry of inside)
+      if (
+        entry.rect.top < frame.bottom - 1 &&
+        entry.rect.bottom > frame.bottom + 1 &&
+        !noted.has(entry.element)
+      ) {
+        noted.add(entry.element);
+        clipped.push({
+          layer: entry.layer,
+          text: entry.text,
+          by: 'frame',
+          frame: frame.element ? layerOf(frame.element) : null,
+        });
+      }
+    // Bars pinned to the frame's bottom: a tab bar, a composer, a toolbar.
+    const scope = frame.element ?? doc.body;
+    for (const bar of scope.querySelectorAll('*')) {
+      const style = view.getComputedStyle(bar);
+      if (!['fixed', 'sticky', 'absolute'].includes(style.position) || !shown(bar)) continue;
+      const rect = bar.getBoundingClientRect();
+      if (
+        Math.abs(rect.bottom - frame.bottom) > 2 ||
+        rect.height < 20 ||
+        rect.height > 120 ||
+        rect.width < (frame.right - frame.left) * 0.8 ||
+        rgba(style.backgroundColor)[3] === 0
+      )
+        continue;
+      for (const entry of inside) {
+        if (bar.contains(entry.element) || entry.element.contains(bar) || noted.has(entry.element))
+          continue;
+        const overlap =
+          Math.min(entry.rect.bottom, rect.bottom) - Math.max(entry.rect.top, rect.top);
+        const across =
+          Math.min(entry.rect.right, rect.right) - Math.max(entry.rect.left, rect.left);
+        if (overlap > 4 && across > 4) {
+          noted.add(entry.element);
+          clipped.push({ layer: entry.layer, text: entry.text, by: 'bar', frame: layerOf(bar) });
+        }
+      }
+    }
+  }
+
   return {
     height: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight),
+    clipped,
     texts,
     aligned,
     rows,

@@ -108,24 +108,24 @@ export function freeSpot(
       {
         side: 'right' as const,
         start: { x: near.x + near.w + gap, y: near.y },
-        next: (x: number, y: number, hit: Rect[]) => ({
+        next: (spot: { x: number; y: number }, hit: Rect[]) => ({
+          ...spot,
           x: Math.max(...hit.map((other) => other.x + other.w)) + gap,
-          y,
         }),
       },
       {
         side: 'left' as const,
         start: { x: near.x - gap - size.w, y: near.y },
-        next: (x: number, y: number, hit: Rect[]) => ({
+        next: (spot: { x: number; y: number }, hit: Rect[]) => ({
+          ...spot,
           x: Math.min(...hit.map((other) => other.x)) - gap - size.w,
-          y,
         }),
       },
       {
         side: 'below' as const,
         start: { x: near.x, y: near.y + near.h + gap },
-        next: (x: number, y: number, hit: Rect[]) => ({
-          x,
+        next: (spot: { x: number; y: number }, hit: Rect[]) => ({
+          ...spot,
           y: Math.max(...hit.map((other) => other.y + other.h)) + gap,
         }),
       },
@@ -138,7 +138,7 @@ export function freeSpot(
           if (travelled > reach) return null;
           const hit = blockers(x, y);
           if (!hit.length) return { x, y, side, travelled };
-          ({ x, y } = next(x, y, hit));
+          ({ x, y } = next({ x, y }, hit));
         }
         return null;
       })
