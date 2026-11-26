@@ -1692,8 +1692,32 @@ test('an instance asks about its inner layers on its root; sync keeps the questi
       ['draft-scheme', 'A asks: Which scheme?'],
     ],
   );
-  assert.deepEqual(
-    found.problems.map((problem) => [problem.code, problem.layer]),
-    [['question_invented', 'draft-size']],
-  );
+  // A question about which size the label means is not answered by the label showing one.
+  assert.deepEqual(found.problems, []);
+});
+
+test('question_invented flags only a value of the kind the question asks for', () => {
+  const flagged = (question: string, text: string) =>
+    questionFindings({
+      file: 'A.html',
+      title: 'A',
+      before: null,
+      after: board('', `<p data-layer="x" data-question="${question}">${text}</p>`),
+    }).problems.map((problem) => problem.detail);
+  assert.deepEqual(flagged('Is the size the frame or the window?', 'Web 1440'), []);
+  assert.deepEqual(flagged('What does this line mean?', 'Made at Web 1440 · Light'), []);
+  assert.deepEqual(flagged('How long are kept files kept?', 'Made at Web 1440'), []);
+  assert.deepEqual(flagged('How long are kept files kept?', 'Deleted after 30 days'), [
+    '"How long are kept files kept?" but it says "Deleted after 30 days"',
+  ]);
+  assert.deepEqual(flagged('When are they deleted?', 'Deleted on Dec 3'), [
+    '"When are they deleted?" but it says "Deleted on Dec 3"',
+  ]);
+  assert.deepEqual(flagged('How many versions are kept?', 'Keeps 5 versions'), [
+    '"How many versions are kept?" but it says "Keeps 5 versions"',
+  ]);
+  assert.deepEqual(flagged('How much can it hold?', 'Up to 500 MB'), [
+    '"How much can it hold?" but it says "Up to 500 MB"',
+  ]);
+  assert.deepEqual(flagged('How many versions are kept?', 'Up to 500 MB'), []);
 });

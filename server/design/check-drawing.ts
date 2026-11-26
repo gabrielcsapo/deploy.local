@@ -67,8 +67,9 @@ export type BoardQuestion = { n: number; layer: string; question: string };
 
 /**
  * Runs in the page, after measuring: each layer that asks a question gets a thin dashed line on
- * its own edge and a small numbered badge inside its top right corner, drawn above the page so
- * nothing moves. The questions themselves are listed beside the picture, never over the board.
+ * its own edge and a small numbered badge outside its box (after its right edge, else above),
+ * where it covers no text, drawn above the page so nothing moves. The questions themselves are
+ * listed beside the picture, never over the board.
  */
 export function markQuestions(doc: Document = document): BoardQuestion[] {
   const view = doc.defaultView!;
@@ -95,19 +96,52 @@ export function markQuestions(doc: Document = document): BoardQuestion[] {
       if (target && typeof text === 'string' && text.trim()) asked.push([target, text.trim()]);
     }
   }
+  // Where text is drawn: a badge never covers any, its own layer's or another's.
+  const textBoxes: DOMRect[] = [];
+  const walker = doc.createTreeWalker(doc.body, 4);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent?.trim()) continue;
+    const range = doc.createRange();
+    range.selectNodeContents(node);
+    for (const box of range.getClientRects()) if (box.width && box.height) textBoxes.push(box);
+  }
+  const placedBadges: { left: number; top: number; right: number; bottom: number }[] = [];
+  const size = 16;
+  const clear = (left: number, top: number) => {
+    const box = { left, top, right: left + size, bottom: top + size };
+    if (left < 0 || top < 0 || box.right > view.innerWidth || box.bottom > view.innerHeight)
+      return false;
+    const hits = (other: { left: number; top: number; right: number; bottom: number }) =>
+      box.left < other.right &&
+      other.left < box.right &&
+      box.top < other.bottom &&
+      other.top < box.bottom;
+    return !textBoxes.some(hits) && !placedBadges.some(hits);
+  };
   for (const [element, question] of asked) {
     const rect = element.getBoundingClientRect();
     if (!rect.width || !rect.height) continue;
     const n = found.length + 1;
     found.push({ n, layer: element.getAttribute('data-layer') ?? '', question });
-    const x = rect.left + view.scrollX;
-    const y = rect.top + view.scrollY;
     const outline = doc.createElement('div');
-    outline.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${rect.width}px;height:${rect.height}px;box-sizing:border-box;border:1px dashed #2f5bb7;border-radius:2px`;
+    outline.style.cssText = `position:absolute;left:${rect.left + view.scrollX}px;top:${rect.top + view.scrollY}px;width:${rect.width}px;height:${rect.height}px;box-sizing:border-box;border:1px dashed #2f5bb7;border-radius:2px`;
+    // Outside the layer's box: just after its right edge, else above it, else before its left
+    // edge, else below it; the first spot that covers no text.
+    const middle = rect.top + (rect.height - size) / 2;
+    const spots = [
+      [rect.right + 3, middle],
+      [rect.right + 3, rect.top],
+      [rect.right - size, rect.top - size - 3],
+      [rect.left, rect.top - size - 3],
+      [rect.left - size - 3, middle],
+      [rect.right - size, rect.bottom + 3],
+      [rect.left, rect.bottom + 3],
+    ];
+    const [left, top] = spots.find(([x, y]) => clear(x, y)) ?? spots[0];
+    placedBadges.push({ left, top, right: left + size, bottom: top + size });
     const badge = doc.createElement('div');
     badge.textContent = String(n);
-    const size = Math.min(16, rect.height, rect.width);
-    badge.style.cssText = `position:absolute;left:${x + rect.width - size}px;top:${y}px;width:${size}px;height:${size}px;border-radius:${size}px;background:#2f5bb7;color:#fff;font:600 ${Math.max(8, size - 6)}px/${size}px system-ui,sans-serif;text-align:center`;
+    badge.style.cssText = `position:absolute;left:${left + view.scrollX}px;top:${top + view.scrollY}px;width:${size}px;height:${size}px;border-radius:${size}px;background:#2f5bb7;color:#fff;font:600 10px/${size}px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff`;
     layer.append(outline, badge);
   }
   if (found.length) doc.body.append(layer);

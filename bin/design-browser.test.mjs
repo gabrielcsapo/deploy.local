@@ -3,8 +3,16 @@ import test from 'node:test';
 import { join } from 'node:path';
 import { chromiumCandidates, openChromium, playwrightCache } from './design-browser.mjs';
 import { pairPage, shootBoard } from '../server/design/check-drawing.ts';
+import { instanceQuestions, renderComponent, syncInstances } from '../server/design/board-html.ts';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { contrastProblems } from '../server/design/board-quality.ts';
 
@@ -242,6 +250,91 @@ test('a disabled control is no second primary and owes no contrast; inner questi
       );
       assert.deepEqual(shot.questions, [
         { n: 1, layer: 'draft-size', question: 'Is the size the frame or the window?' },
+      ]);
+    } finally {
+      await tab.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a question badge sits outside a short chip and covers no text', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    const page = `<!doctype html><html><body style="margin:0;font:12px system-ui;padding:40px">
+      <span data-layer="scheme" data-question="Which scheme is this comment about?" style="padding:2px 6px;border:1px solid #ccc">Light</span>
+      <span data-layer="size" style="margin-left:2px">Web 1440</span>
+      <p data-layer="at-edge" data-question="Is this the frame?" style="position:absolute;right:0;top:0;margin:0">Edge</p>
+    </body></html>`;
+    const tab = await browser.newTab({ width: 400, height: 200 });
+    try {
+      const shot = await shootBoard(tab, page, { scheme: 'light', measure: false, inspect: false });
+      assert.equal(shot.questions.length, 2);
+      const placed = await tab.evaluate(`(() => {
+        const marks = document.body.lastElementChild;
+        const badges = [...marks.children].filter((child) => child.textContent);
+        const texts = [];
+        for (const el of document.querySelectorAll('[data-layer]')) {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          for (const box of range.getClientRects()) texts.push(box);
+        }
+        return badges.map((badge) => {
+          const b = badge.getBoundingClientRect();
+          return texts.some((r) => b.left < r.right && r.left < b.right && b.top < r.bottom && r.top < b.bottom);
+        });
+      })()`);
+      assert.deepEqual(placed, [false, false], 'no badge covers any text');
+    } finally {
+      await tab.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a real design-editor instance keeps its data-questions through sync, and its badges draw', async (t) => {
+  const library = JSON.parse(
+    readFileSync(
+      join(import.meta.dirname, '../design/ds/deploy-local/components/library.json'),
+      'utf8',
+    ),
+  );
+  const questions = { 'draft-size': "Is the size the frame's or the window's?" };
+  // As an agent writes it: single quotes, an apostrophe inside, and a > in a hand-written prop.
+  const written = renderComponent(
+    library,
+    'design-editor',
+    { 'draft-size': 'Web 1440', draft: 'a -> b' },
+    { layer: 'editor' },
+  )
+    .replace(/^<div /, `<div data-questions='${JSON.stringify(questions)}' `)
+    .replace(/data-props="[^"]*"/, `data-props='{"draft-size":"Web 1440","draft":"a > b"}'`);
+  const board = `<!doctype html><html><body>${written}</body></html>`;
+  const once = syncInstances(board, library);
+  const twice = syncInstances(once, library);
+  for (const html of [once, twice]) {
+    const root = /<div[^>]*data-component="design-editor"[^>]*>/.exec(html)[0];
+    assert.deepEqual(instanceQuestions(root), questions);
+    assert.match(html, /data-layer="draft-size"[^>]*>Web 1440</);
+  }
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    const tab = await browser.newTab({ width: 1440, height: 900 });
+    try {
+      const css = readFileSync(
+        join(import.meta.dirname, '../design/ds/deploy-local/components/bundle.css'),
+        'utf8',
+      );
+      const shot = await shootBoard(tab, twice.replace('<body>', `<body><style>${css}</style>`), {
+        scheme: 'light',
+        measure: false,
+      });
+      assert.deepEqual(shot.questions, [
+        { n: 1, layer: 'draft-size', question: questions['draft-size'] },
       ]);
     } finally {
       await tab.close();

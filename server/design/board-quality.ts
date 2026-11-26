@@ -438,10 +438,55 @@ export function boardQuestions(html: string | null | undefined) {
   return found;
 }
 
-const numbers =
-  /\d|\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|sixty|ninety|hundred)\s+(seconds?|minutes?|hours?|days?|weeks?|months?|years?|times|runs|files)\b|\b(tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
-/** The specific date, number or duration a layer states, if any. */
-export const statedFact = (text: string) => numbers.exec(text)?.[0] ?? null;
+type ValueKind = 'duration' | 'date' | 'count' | 'amount';
+const spelled =
+  '(?:\\d+(?:[.,]\\d+)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|sixty|ninety|hundred)';
+/** Values of a kind as a layer would state them, in units. */
+const statedKinds: [ValueKind, RegExp][] = [
+  [
+    'duration',
+    new RegExp(
+      `\\b${spelled}\\s*(?:s|sec|secs|seconds?|min|mins|minutes?|h|hrs?|hours?|d|days?|w|weeks?|months?|years?)\\b`,
+      'i',
+    ),
+  ],
+  [
+    'date',
+    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b|\b\d{4}-\d{2}-\d{2}\b|\b(?:tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
+  ],
+  [
+    'count',
+    new RegExp(
+      `\\b${spelled}\\s+(?:files?|runs?|items?|times|versions?|releases?|builds?|copies|boards?|jobs?|tasks?|attempts?|retries|computers?|agents?|people|users?)\\b`,
+      'i',
+    ),
+  ],
+  ['amount', /\b\d+(?:[.,]\d+)?\s*(?:b|kb|mb|gb|tb|bytes?|%)\b|[$€£]\s*\d/i],
+];
+/** What kind of value a question asks for, by its words; null when it asks which or what it means. */
+export function askedKinds(question: string): ValueKind[] {
+  const q = question.toLowerCase();
+  if (/\bhow long\b|\bhow often\b|\bfor how\b|\bretention\b|\bexpire|\bkept for\b/.test(q))
+    return ['duration', 'date'];
+  if (/\bwhen\b|\bwhat date\b|\bwhich (?:day|date)\b|\bwhat day\b/.test(q))
+    return ['date', 'duration'];
+  if (/\bhow many\b|\bnumber of\b|\bhow often\b/.test(q)) return ['count'];
+  if (/\bhow much\b|\bhow big\b|\bhow large\b|\bsize limit\b|\bwhat limit\b|\bcost\b/.test(q))
+    return ['amount', 'count'];
+  return [];
+}
+/** The values of these kinds a layer states, first one found. */
+export function statedValue(text: string, kinds: ValueKind[]) {
+  for (const [kind, pattern] of statedKinds)
+    if (kinds.includes(kind)) {
+      const match = pattern.exec(text);
+      if (match) return { kind, value: match[0], at: match.index };
+    }
+  return null;
+}
+/** The specific date, duration, count or amount a layer states, if any. */
+export const statedFact = (text: string) =>
+  statedValue(text, ['duration', 'date', 'count', 'amount'])?.value ?? null;
 
 /**
  * Open questions the branch added, as notes, and a problem for each layer that asks a question
@@ -459,10 +504,12 @@ export function questionFindings(input: {
   const problems: Finding[] = [];
   const notes: Finding[] = [];
   for (const entry of boardQuestions(input.after)) {
-    const fact = statedFact(entry.text);
+    // Only a value of the kind the question asks for answers it: "How long are files kept?" over
+    // "Deleted after 30 days" does; "Which size is this?" over "Web 1440" does not.
+    const fact = statedValue(entry.text, askedKinds(entry.question));
     if (fact) {
       // Words around the fact, so the agent sees what it said.
-      const at = entry.text.search(numbers);
+      const { at } = fact;
       const words = entry.text.slice(Math.max(0, at - 20), at + 30).trim();
       problems.push({
         code: 'question_invented',

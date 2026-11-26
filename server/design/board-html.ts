@@ -672,24 +672,57 @@ function quotedAttribute(tag: string, name: string) {
   return match ? (match[1] ?? match[2]) : null;
 }
 
+/** Where a start tag ends: its first `>` outside a quoted attribute value. */
+function tagEnd(html: string, open: number) {
+  let inside = '';
+  for (let at = open + 1; at < html.length; at++) {
+    const char = html[at];
+    if (inside) {
+      if (char === inside) inside = '';
+    } else if (char === '"' || char === "'") {
+      // Only a quote that opens a value (after =) starts one; an apostrophe in text does not.
+      if (/=\s*$/.test(html.slice(Math.max(open, at - 3), at))) inside = char;
+    } else if (char === '>') return at;
+  }
+  return html.length - 1;
+}
+
+/**
+ * A JSON object an attribute holds, read the way people write it: in double quotes with &quot;,
+ * in single quotes, or broken by a quote inside a value (an apostrophe in a question): then the
+ * object runs from its { to the } its quote closes. Null when it cannot be read.
+ */
+function jsonAttribute(tag: string, name: string): Record<string, unknown> | null {
+  const start = new RegExp(`\\s${name}=(["'])`).exec(tag);
+  if (!start) return null;
+  const mark = start[1];
+  const from = start.index + start[0].length;
+  const candidates = [quotedAttribute(tag, name)];
+  const end = tag.indexOf(`}${mark}`, from);
+  if (end >= 0) candidates.push(tag.slice(from, end + 1));
+  for (const raw of candidates) {
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(unescapeAttr(raw));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // The next reading.
+    }
+  }
+  return null;
+}
+
 /**
  * The questions an instance root asks about its inner layers:
  * data-questions='{"draft-size":"Is the size the frame or the window?"}', by layer ID.
  */
 export function instanceQuestions(tag: string): Record<string, string> {
-  const raw = quotedAttribute(tag, 'data-questions');
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(unescapeAttr(raw));
-    return Object.fromEntries(
-      Object.entries(parsed ?? {}).filter(
-        (entry): entry is [string, string] =>
-          typeof entry[1] === 'string' && Boolean(entry[1].trim()),
-      ),
-    );
-  } catch {
-    return {};
-  }
+  return Object.fromEntries(
+    Object.entries(jsonAttribute(tag, 'data-questions') ?? {}).filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === 'string' && Boolean(entry[1].trim()),
+    ),
+  );
 }
 
 export function syncInstances(html: string, library: Library) {
@@ -697,19 +730,15 @@ export function syncInstances(html: string, library: Library) {
   const starts = [...out.matchAll(/\sdata-component="([a-z0-9-]+)"/g)].map((match) => match.index!);
   for (const at of starts.reverse()) {
     const open = out.lastIndexOf('<', at);
-    const close = out.indexOf('>', at);
-    const tag = out.slice(open, close + 1);
+    // The whole start tag, though a value in it holds a > (data-props written by hand may).
+    const tag = out.slice(open, tagEnd(out, open) + 1);
     const id = /\sdata-component="([^"]*)"/.exec(tag)![1];
     const layer = /\sdata-layer="([^"]*)"/.exec(tag)?.[1];
     if (!layer || !library.components.some((item) => item.id === id)) continue;
     const snippet = layerSnippet(out, layer);
     if (!snippet) continue;
-    let props: Record<string, string> = {};
-    try {
-      props = JSON.parse(unescapeAttr(quotedAttribute(tag, 'data-props') ?? '{}'));
-    } catch {
-      // An instance with unreadable values takes the component's defaults.
-    }
+    // An instance with unreadable values takes the component's defaults.
+    const props = (jsonAttribute(tag, 'data-props') ?? {}) as Record<string, string>;
     const style = /\sstyle="([^"]*)"/.exec(tag)?.[1];
     // Questions about the instance's inner layers live on its root, so they survive drawing; a
     // data-question someone put on an inner layer moves there rather than being lost.
@@ -720,6 +749,11 @@ export function syncInstances(html: string, library: Library) {
       if (element.layer && question && !asked[element.layer])
         asked[element.layer] = unescapeAttr(question).trim();
     }
+    // Questions that could not be read at all stay as they were written, never dropped.
+    const unread =
+      !Object.keys(asked).length && /\sdata-questions=/.test(tag)
+        ? /\sdata-questions=("[^"]*"|'[^']*')/.exec(tag)?.[1]
+        : null;
     const questions = Object.keys(asked).length ? JSON.stringify(asked) : null;
     // The instance keeps the layer IDs it had where it still draws the same elements, since
     // comments and pins on deploy.local point at them.
@@ -734,6 +768,9 @@ export function syncInstances(html: string, library: Library) {
       const end = next.indexOf('>');
       next =
         withAttribute(next.slice(0, end + 1), 'data-questions', questions) + next.slice(end + 1);
+    } else if (unread) {
+      const end = next.indexOf('>');
+      next = `${next.slice(0, end)} data-questions=${unread}${next.slice(end)}`;
     }
     out = out.slice(0, open) + next + out.slice(open + snippet.length);
   }
