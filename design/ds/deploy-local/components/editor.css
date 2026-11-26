@@ -1,0 +1,1259 @@
+/* deploy.local design system: the Design page's editor.
+ *
+ * Load after tokens.css and bundle.css on a board that draws the Design page. The chrome (narrow
+ * bar, left panel with Pages and Layers, the banner or review bar, the canvas and its tool bar,
+ * and the right panel with its tabs) is the `design-editor` component in library.json: place it
+ * as an instance inside `.dz-ed`, then put what is on the canvas in `.dz-ed-stage` beside it.
+ *
+ *   <div class="dz-ed">
+ *     <div data-component="design-editor" data-props="{…}"></div>
+ *     <div class="dz-ed-stage"> boards, selection, pins, the ask box… </div>
+ *   </div>
+ *
+ * Type is on the scale (12 meta, 13 ui, 15 body); spacing is 4, 8, 12, 16, 24, 32 or 48.
+ */
+
+.dz-ed {
+  --dz-agent: var(--success);
+  position: relative;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 264px;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 900px;
+  overflow: hidden;
+  font: 400 13px/20px var(--font-sans);
+  color: var(--ink);
+  background: var(--sidebar);
+}
+.dz-ed a {
+  color: inherit;
+  text-decoration: none;
+}
+.dz-ed-shell {
+  display: contents;
+}
+.dz-ed-shell svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dz-ed .ib {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--ink-soft);
+}
+.dz-ed .badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-1);
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  background: var(--danger);
+  color: var(--on-action);
+  font: 600 12px/16px var(--font-sans);
+  text-align: center;
+}
+.dz-ed .dl-grow {
+  flex: 1;
+}
+
+/* Narrow bar: only below 820 px */
+.dz-ed .nb {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  height: 48px;
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.dz-ed .nb-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.dz-ed .nb .t {
+  font: 600 15px/24px var(--font-sans);
+}
+.dz-ed .nb .dl-btn {
+  height: 32px;
+  padding: 0 var(--space-3);
+}
+
+/* Left: Design's own navigation */
+.dz-ed .lp {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+.dz-ed .lp-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.dz-ed .lp-back {
+  display: none;
+  align-items: center;
+  gap: var(--space-1);
+  height: 24px;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+.dz-ed .lp-back svg {
+  color: var(--muted);
+}
+.dz-ed .lp-menu {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dz-ed .lp-menu .m {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 24px;
+  padding: 0 var(--space-1) 0 0;
+  border-radius: var(--radius-control);
+  color: var(--ink-soft);
+}
+.dz-ed .lp-menu .dl-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.dz-ed .lp-file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.dz-ed .lp-file b {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 600;
+}
+.dz-ed .lp-file .branch,
+.dz-ed .lp-file .task {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.dz-ed .lp-file .task {
+  color: var(--ink-soft);
+}
+.dz-ed .lp-file .task svg {
+  flex: none;
+  color: var(--dz-agent);
+}
+.dz-ed .lp-file .task-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dz-ed .lp-file .task:has(.task-name:empty) {
+  display: none;
+}
+.dz-ed .tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.dz-ed .tb2 {
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  color: var(--muted);
+}
+.dz-ed .tb2.on {
+  background: var(--sidebar);
+  color: var(--ink);
+}
+.dz-ed .grp-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 32px;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  font-weight: 600;
+}
+.dz-ed .grp-h svg {
+  color: var(--muted);
+}
+.dz-ed .pages {
+  padding: 0 var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.dz-ed .layers {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 var(--space-2);
+}
+.dz-ed .lr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  white-space: nowrap;
+}
+.dz-ed .lr .t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dz-ed .lr .m {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dz-ed .lr svg {
+  flex: none;
+  color: var(--muted);
+}
+.dz-ed .lr .tw {
+  width: 12px;
+  flex: none;
+  display: inline-flex;
+}
+.dz-ed .lr:has(> .t:empty) {
+  display: none;
+}
+.dz-ed .lr.more .tw {
+  width: 34px;
+}
+.dz-ed .lr.more .t {
+  color: var(--muted);
+}
+.dz-ed .kinds {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.dz-ed .lr.k-component,
+.dz-ed .lr.k-component svg {
+  color: var(--accent);
+}
+.dz-ed .lr.d1 {
+  padding-left: var(--space-6);
+}
+.dz-ed .lr.d2 {
+  padding-left: 40px;
+}
+.dz-ed .lr.in {
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+/* A top-level layer shows whether it is open; a note and a nested layer show nothing. */
+.dz-ed .lr.open .tw svg {
+  transform: rotate(90deg);
+}
+.dz-ed .lr:not(.d0) .tw svg,
+.dz-ed .lr.k-note .tw svg {
+  visibility: hidden;
+}
+/* The marks a layer row can carry: a change, In review, an agent at work. */
+.dz-ed .lr .mk {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+.dz-ed .lr.mk-changed .mk,
+.dz-ed .lr.mk-review .mk,
+.dz-ed .lr.mk-agent .mk {
+  display: inline-flex;
+}
+.dz-ed .lr .mk .who {
+  display: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--dz-agent);
+  color: var(--on-action);
+  align-items: center;
+  justify-content: center;
+}
+.dz-ed .lr.mk-agent .mk .who {
+  display: inline-flex;
+}
+.dz-ed .lr .mk .who {
+  font-size: 12px;
+  line-height: 16px;
+}
+.dz-ed .lr.mk-changed .mk::after,
+.dz-ed .lr.mk-review .mk::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.dz-ed .lr.mk-review .mk::before {
+  content: "In review";
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--action);
+  color: var(--on-action);
+  font-size: 12px;
+  line-height: 16px;
+}
+.dz-ed .chg {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+/* Pages: the selected one */
+.dz-ed .pages .lr.pg1,
+.dz-ed .pages .lr.pg2,
+.dz-ed .pages .lr.pg3,
+.dz-ed .pages .lr.pg4,
+.dz-ed .pages .lr.pg5,
+.dz-ed .pages .lr.pg6 {
+  background: none;
+}
+.dz-ed-shell.page-1 .lr.pg1,
+.dz-ed-shell.page-2 .lr.pg2,
+.dz-ed-shell.page-3 .lr.pg3,
+.dz-ed-shell.page-4 .lr.pg4,
+.dz-ed-shell.page-5 .lr.pg5,
+.dz-ed-shell.page-6 .lr.pg6 {
+  background: var(--sidebar);
+  font-weight: 600;
+}
+/* Layers: the selected one */
+.dz-ed-shell.layer-1 .ly1,
+.dz-ed-shell.layer-2 .ly2,
+.dz-ed-shell.layer-3 .ly3,
+.dz-ed-shell.layer-4 .ly4,
+.dz-ed-shell.layer-5 .ly5,
+.dz-ed-shell.layer-6 .ly6,
+.dz-ed-shell.layer-7 .ly7,
+.dz-ed-shell.layer-8 .ly8,
+.dz-ed-shell.layer-9 .ly9,
+.dz-ed-shell.layer-10 .ly10,
+.dz-ed-shell.layer-11 .ly11,
+.dz-ed-shell.layer-12 .ly12,
+.dz-ed-shell.layer-13 .ly13 {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  font-weight: 500;
+}
+
+/* Center: the banner or review bar, then the canvas */
+.dz-ed .bar {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-4);
+  box-sizing: border-box;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.dz-ed .bar a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.dz-ed .bar.review,
+.dz-ed-shell.mode-reviewing .bar.waiting,
+.dz-ed .bar.waiting:has(.banner-text:empty) {
+  display: none;
+}
+.dz-ed-shell.mode-reviewing .bar.review {
+  display: flex;
+}
+.dz-ed .review-what {
+  min-width: 0;
+}
+.dz-ed .review-what b {
+  font-weight: 600;
+}
+.dz-ed .review-what .dl-meta {
+  white-space: nowrap;
+}
+.dz-ed .rv-bar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+.dz-ed .rv-bar-end .dl-seg a {
+  min-height: 0;
+  color: var(--muted);
+}
+.dz-ed .rv-bar-end .dl-seg a.on {
+  color: var(--ink);
+}
+.dz-ed .cv {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--sidebar);
+}
+.dz-ed-stage {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The tool bar, floating at the foot of the canvas */
+.dz-ed .tool {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-4);
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-lg);
+}
+.dz-ed .tool span {
+  height: 32px;
+  min-width: 32px;
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+}
+.dz-ed .tool span.dd {
+  min-width: 0;
+  width: 12px;
+  margin-left: -4px;
+  color: var(--muted);
+}
+.dz-ed .tool i {
+  width: 1px;
+  height: 24px;
+  margin: 0 var(--space-1);
+  background: var(--line);
+}
+.dz-ed .tool .step {
+  min-width: 0;
+  padding: 0 var(--space-2);
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink);
+}
+.dz-ed .tool .stepper {
+  display: none;
+}
+.dz-ed-shell.mode-reviewing .tool .stepper {
+  display: inline-flex;
+}
+.dz-ed-shell.tool-move .t-move,
+.dz-ed-shell.tool-frame .t-frame,
+.dz-ed-shell.tool-shape .t-shape,
+.dz-ed-shell.tool-pen .t-pen,
+.dz-ed-shell.tool-text .t-text,
+.dz-ed-shell.tool-sticky .t-sticky,
+.dz-ed-shell.tool-comment .t-comment,
+.dz-ed-shell.tool-ask .t-ask {
+  background: var(--accent);
+  color: var(--on-action);
+}
+
+/* Right: properties, comments and the review */
+.dz-ed .rp {
+  grid-column: 3;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+.dz-ed .sheet-grab {
+  display: none;
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  margin: var(--space-2) auto 0;
+}
+.dz-ed .rp-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+}
+.dz-ed .av {
+  display: flex;
+}
+.dz-ed .av .dl-avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.dz-ed .av .dl-avatar + .dl-avatar {
+  margin-left: -4px;
+}
+.dz-ed .av .agent {
+  background: var(--dz-agent);
+  color: var(--on-action);
+}
+.dz-ed .rp-top .dl-btn {
+  height: 28px;
+  padding: 0 var(--space-3);
+  font-size: 13px;
+}
+.dz-ed .rp-top .review-only,
+.dz-ed-shell.mode-reviewing .rp-top .edit-only {
+  display: none;
+}
+.dz-ed-shell.mode-reviewing .rp-top .review-only {
+  display: inline-flex;
+}
+.dz-ed .rp-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3) var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--line);
+}
+.dz-ed .rp-tabs .zoom {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-soft);
+}
+.dz-ed .rp-tabs .tab-review {
+  display: none;
+}
+.dz-ed-shell.mode-reviewing .rp-tabs .tab-review {
+  display: inline-flex;
+}
+.dz-ed-shell.panel-edit .tab-edit,
+.dz-ed-shell.panel-text .tab-edit,
+.dz-ed-shell.panel-comments .tab-comments,
+.dz-ed-shell.panel-notes .tab-comments,
+.dz-ed-shell.panel-review .tab-review {
+  background: var(--sidebar);
+  color: var(--ink);
+}
+.dz-ed .rp-b {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.dz-ed .pane {
+  display: none;
+}
+.dz-ed-shell.panel-edit .pane-edit,
+.dz-ed-shell.panel-text .pane-text,
+.dz-ed-shell.panel-comments .pane-comments,
+.dz-ed-shell.panel-notes .pane-notes,
+.dz-ed-shell.panel-review .pane-review {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* A section of the right panel */
+.dz-ed .ps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.dz-ed .ps-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 24px;
+  font-weight: 600;
+}
+.dz-ed .ps-h .t {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dz-ed .ps.empty .ps-h {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+.dz-ed .ps-h .count,
+.dz-ed .ps .note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+.dz-ed .ps-h .count {
+  padding-right: var(--space-2);
+}
+.dz-ed .selh {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 40px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.dz-ed .selh b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-right: auto;
+  font-weight: 600;
+}
+.dz-ed .crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3) 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.dz-ed .crumb svg {
+  color: var(--line-strong);
+}
+.dz-ed .row2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 24px;
+  gap: var(--space-2);
+  align-items: center;
+}
+.dz-ed .row1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  gap: var(--space-2);
+  align-items: center;
+}
+.dz-ed .row6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+}
+.dz-ed .row6 span {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--space-1);
+  color: var(--ink-soft);
+}
+.dz-ed .fld {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dz-ed .fld .l {
+  display: inline-flex;
+  min-width: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.dz-ed .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: var(--space-1);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: color-mix(in srgb, var(--accent) 80%, var(--ink));
+  font-weight: 500;
+}
+.dz-ed .sw {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  flex: none;
+}
+.dz-ed .seg3 {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+}
+.dz-ed .seg3 span {
+  flex: 1;
+  height: 24px;
+  border-radius: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.dz-ed .seg3 span.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.dz-ed .was {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--muted);
+}
+.dz-ed .cl {
+  display: flex;
+  flex-direction: column;
+}
+.dz-ed .cl a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+}
+.dz-ed .cl a .m {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dz-ed .sws {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-2);
+}
+.dz-ed .sws div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 24px;
+}
+
+/* Comments, as the app draws them: the open comments, then the form */
+.dz-ed .comments-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+.dz-ed .comment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--sidebar);
+}
+.dz-ed .comment:has(.comment-text:empty) {
+  display: none;
+}
+.dz-ed .comment header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dz-ed .comment header .dl-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+}
+.dz-ed .comment .when {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dz-ed .comment .resolve {
+  margin-left: auto;
+  color: var(--accent);
+}
+.dz-ed .comment p {
+  margin: 0;
+}
+.dz-ed .comment .on-layer {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-ed .comments-empty {
+  margin: 0;
+  color: var(--muted);
+}
+.dz-ed .comments-list:has(.comment-text:not(:empty)) .comments-empty {
+  display: none;
+}
+.dz-ed .comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.dz-ed .comment-form .field {
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--muted);
+}
+.dz-ed .comment-form .dl-btn {
+  align-self: flex-end;
+}
+
+/* A review's notes: numbered, with their screen and whether they are sent */
+.dz-ed .pn-row {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+}
+.dz-ed .pn-row:has(.pn-text:empty) {
+  display: none;
+}
+.dz-ed .pn-row .pn-n {
+  width: 12px;
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.dz-ed .pn-row .pn-t {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+.dz-ed .pn-row .pn-m {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.dz-ed .pn-row .pn-m > :last-child {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ── What a board puts on the canvas ─────────────────────────────────────────────────────────── */
+
+/* A board on the canvas: its name, a tag, its frame */
+.dz-ed-stage .bd {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.dz-ed-stage .nm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.dz-ed-stage .fr {
+  position: relative;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-sm);
+}
+.dz-ed-stage .bd.on .nm {
+  color: var(--accent);
+}
+.dz-ed-stage .bd.on .fr {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.dz-ed-stage .bd.rest,
+.dz-ed-stage .rest {
+  opacity: 0.4;
+}
+.dz-ed-stage .tag {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--line);
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 16px;
+}
+.dz-ed-stage .tag.chgd {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
+}
+.dz-ed-stage .tag.dark {
+  background: var(--action);
+  color: var(--on-action);
+}
+.dz-ed-stage .ck {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-radius: var(--space-1);
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--surface);
+}
+.dz-ed-stage .ck.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+/* A board drawn as a placeholder: a sidebar strip and three bars */
+.dz-ed-stage .ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  background: var(--paper);
+}
+.dz-ed-stage .ph .s {
+  width: 22%;
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+}
+.dz-ed-stage .ph .c {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 16% 14%;
+}
+.dz-ed-stage .ph i {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-strong);
+}
+/* A sticky note: a note on the canvas, never a task */
+.dz-ed-stage .stk {
+  position: absolute;
+  width: 170px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--space-1);
+  background: var(--kind-proposal-tint);
+  box-shadow: var(--shadow-sm);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink);
+}
+.dz-ed-stage .flow,
+.dz-ed-stage .vec {
+  position: absolute;
+  pointer-events: none;
+  overflow: visible;
+}
+/* What is selected, and what an agent is changing */
+.dz-ed-stage .sel-box {
+  position: absolute;
+  outline: 1.5px solid var(--accent);
+  outline-offset: 2px;
+}
+.dz-ed-stage .sel-box i {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.dz-ed-stage .ag-box {
+  position: absolute;
+  outline: 1.5px solid var(--dz-agent);
+  outline-offset: 2px;
+}
+.dz-ed-stage .ag-box b {
+  position: absolute;
+  left: -3px;
+  top: -24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--space-1) var(--space-1) var(--space-1) 0;
+  background: var(--dz-agent);
+  color: var(--on-action);
+  font: 600 12px/20px var(--font-sans);
+  white-space: nowrap;
+}
+.dz-ed-stage .cur {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  pointer-events: none;
+}
+.dz-ed-stage .cur b {
+  margin-top: var(--space-3);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  color: var(--on-action);
+  font: 600 12px/20px var(--font-sans);
+  white-space: nowrap;
+}
+/* Review marks: a changed area, a pin, the box a pin is written in */
+.dz-ed-stage .rvm {
+  position: absolute;
+  z-index: 2;
+  border-radius: 3px;
+  outline: 1.5px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.dz-ed-stage .pn {
+  position: absolute;
+  z-index: 4;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px 999px 999px 2px;
+  background: var(--accent);
+  color: var(--on-action);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 1.5px var(--surface), var(--shadow-sm);
+}
+.dz-ed-stage .pn-area {
+  position: absolute;
+  z-index: 3;
+  border: 1.5px dashed var(--accent);
+  border-radius: 3px;
+}
+.dz-ed-stage .pn-box {
+  position: absolute;
+  z-index: 7;
+  width: 260px;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.dz-ed-stage .pn-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.dz-ed-stage .pn-field {
+  min-height: 60px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.dz-ed-stage .pn-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.dz-ed-stage .pn-box .dl-btn {
+  height: 28px;
+}
+/* Ask an agent about a selection */
+.dz-ed-stage .ask {
+  position: absolute;
+  z-index: 9;
+  width: 380px;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-xl);
+}
+.dz-ed-stage .ask-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) 0;
+  font-weight: 600;
+}
+.dz-ed-stage .ask-h .m {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--muted);
+}
+.dz-ed-stage .ask-ta {
+  margin: var(--space-2) var(--space-3) 0;
+  min-height: 60px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.dz-ed-stage .ask-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) 0;
+}
+.dz-ed-stage .ask-ctx span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.dz-ed-stage .ask-f {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.dz-ed-stage .ask-f .pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+}
+.dz-ed-stage .ask-f .send {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--action);
+  color: var(--on-action);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.dz-ed-stage .ask-note {
+  padding: 0 var(--space-3) var(--space-3);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ── Below 820 px: the narrow bar on top, panels away, the canvas fits ────────────────────────── */
+@media (max-width: 820px) {
+  .dz-ed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  .dz-ed .nb {
+    display: flex;
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .dz-ed .lp {
+    display: none;
+  }
+  .dz-ed .bar {
+    grid-column: 1;
+    grid-row: 2;
+    padding: var(--space-2) var(--space-3);
+  }
+  .dz-ed .bar.review .dl-seg {
+    display: none;
+  }
+  .dz-ed .cv,
+  .dz-ed-stage {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .dz-ed .tool {
+    top: var(--space-3);
+    bottom: auto;
+  }
+  .dz-ed-shell.mode-reviewing .tool .wide {
+    display: none;
+  }
+  /* The right panel is a sheet when it holds a selection, and away otherwise. */
+  .dz-ed .rp {
+    display: none;
+  }
+  .dz-ed-shell.sheet-on .rp {
+    display: flex;
+    position: absolute;
+    left: var(--space-2);
+    right: var(--space-2);
+    bottom: var(--space-2);
+    height: 46%;
+    z-index: 8;
+    border: 0;
+    border-radius: var(--radius-dialog);
+    box-shadow: 0 0 0 1px var(--line), var(--shadow-xl);
+  }
+  .dz-ed-shell.sheet-on .sheet-grab {
+    display: block;
+  }
+  .dz-ed-shell.sheet-on .rp-top {
+    display: none;
+  }
+  /* The canvas zooms out so every board stays in view, as the editor does at this width. */
+  .dz-ed-stage > :is(.bd, .stk, .ag-box, .cur, .sel-box, .flow, .vec, .rvm) {
+    zoom: 0.7;
+    margin-top: var(--space-8);
+  }
+  .dz-ed-stage .ask,
+  .dz-ed-stage .pn-box {
+    left: var(--space-3) !important;
+    right: var(--space-3);
+    top: auto !important;
+    bottom: var(--space-3);
+    width: auto;
+  }
+}
