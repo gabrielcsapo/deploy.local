@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { join } from 'node:path';
 import { chromiumCandidates, openChromium, playwrightCache } from './design-browser.mjs';
-import { shootBoard } from '../server/design/check-drawing.ts';
+import { pairPage, shootBoard } from '../server/design/check-drawing.ts';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { contrastProblems } from '../server/design/board-quality.ts';
 
 test("Playwright's newest headless shell comes first, then its Chromium, then the computer's Chrome", () => {
@@ -81,5 +84,89 @@ test('a board drawn here is measured as the check measures it: white on white in
     );
   } finally {
     await browser.close();
+  }
+});
+
+test('a question is a numbered badge on its layer, listed beside the picture, and moves nothing', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    const page = `<!doctype html><html><body style="margin:0;font:13px system-ui">
+      <header style="display:flex;height:44px"><button data-layer="back" style="width:44px">Back</button>
+      <span data-layer="title" data-question="What is this screen called on the phone?">Run</span></header>
+      <p data-layer="kept" data-question="How long are kept files kept?" style="width:300px">Kept files</p>
+      <div style="width:700px;height:10px"></div></body></html>`;
+    const tab = await browser.newTab({ width: 390, height: 200 });
+    try {
+      const shot = await shootBoard(tab, page, { scheme: 'light', measure: true, inspect: true });
+      assert.deepEqual(shot.questions, [
+        { n: 1, layer: 'title', question: 'What is this screen called on the phone?' },
+        { n: 2, layer: 'kept', question: 'How long are kept files kept?' },
+      ]);
+      // Measured before marking: only the board's own 700 px block leaves the page.
+      assert.deepEqual(shot.measured, { scrolls: true, cut: null });
+      // The marks sit in one layer over the page; the back button is where it was.
+      const placed = await tab.evaluate(
+        `(() => { const back = document.querySelector('[data-layer="back"]').getBoundingClientRect(); const marks = document.body.lastElementChild; return { back: [back.left, back.top, back.width], marks: marks.children.length, overBack: [...marks.children].some((mark) => { const r = mark.getBoundingClientRect(); return r.left < back.right && r.right > back.left && r.top < back.bottom && r.bottom > back.top; }) }; })()`,
+      );
+      assert.deepEqual(placed, { back: [0, 0, 44], marks: 4, overBack: false });
+    } finally {
+      await tab.close();
+    }
+    const html = pairPage({
+      before: null,
+      after: Buffer.from('png'),
+      width: 390,
+      scheme: 'light',
+      questions: [{ n: 1, layer: 'kept', question: 'How long are <kept> files kept?' }],
+    });
+    assert.match(
+      html,
+      /<ol class="q"><li value="1">How long are &lt;kept&gt; files kept\? <span>kept<\/span><\/li><\/ol>/,
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test('in a sandbox that forbids the network and Mach services, Chromium starts as one process', async (t) => {
+  if (process.platform !== 'darwin' || !existsSync('/usr/bin/sandbox-exec'))
+    return t.skip('needs macOS sandbox-exec');
+  if (!chromiumCandidates().length) return t.skip('no browser here');
+  const work = realpathSync(mkdtempSync(join(tmpdir(), 'design-sandbox-')));
+  try {
+    // Like Codex's: read anywhere, write only in the work folder, no network, few Mach services.
+    const profile = join(work, 'sandbox.sb');
+    writeFileSync(
+      profile,
+      `(version 1)(deny default)(allow process-exec)(allow process-fork)(allow signal (target same-sandbox))
+(allow process-info* (target same-sandbox))(allow user-preference-read)(allow file-read*)
+(allow file-write-data (require-all (path "/dev/null") (vnode-type CHARACTER-DEVICE)))
+(allow file-write* (subpath "${work}"))(allow sysctl-read)(allow ipc-posix-sem)(allow pseudo-tty)(allow file-ioctl)
+(allow mach-lookup (global-name "com.apple.system.opendirectoryd.libinfo"))`,
+    );
+    const script = join(work, 'open.mjs');
+    writeFileSync(
+      script,
+      `import { openChromium } from ${JSON.stringify(join(import.meta.dirname, 'design-browser.mjs'))};
+const opened = await openChromium({ workDir: ${JSON.stringify(join(work, 'chromium'))} });
+if (!opened.browser) { console.log(JSON.stringify({ reason: opened.reason })); process.exit(0); }
+const tab = await opened.browser.newTab({ width: 200, height: 100 });
+await tab.setContent('<p>hi</p>');
+const png = await tab.screenshot();
+await tab.close();
+await opened.browser.close();
+console.log(JSON.stringify({ sandboxed: opened.sandboxed, png: png.subarray(1, 4).toString() }));`,
+    );
+    const result = spawnSync('/usr/bin/sandbox-exec', ['-f', profile, process.execPath, script], {
+      encoding: 'utf8',
+      timeout: 90000,
+    });
+    assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').at(-1)), {
+      sandboxed: true,
+      png: 'PNG',
+    });
+  } finally {
+    rmSync(work, { recursive: true, force: true });
   }
 });

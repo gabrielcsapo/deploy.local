@@ -301,42 +301,7 @@ export function spacingNotes(input: {
 
 // ── The canvas ──────────────────────────────────────────────────────────────────────────────────
 
-type Placed = { x?: number; y?: number; w?: number; h?: number };
-const overlaps = (a: Placed, b: Placed) => {
-  const [ax, ay, aw, ah] = [Number(a.x), Number(a.y), Number(a.w), Number(a.h)];
-  const [bx, by, bw, bh] = [Number(b.x), Number(b.y), Number(b.w), Number(b.h)];
-  if (![ax, ay, aw, ah, bx, by, bw, bh].every(Number.isFinite)) return false;
-  return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
-};
-
-/** Boards placed on top of each other on the branch's canvas that were apart (or absent) on main. */
-export function overlapProblems(
-  branch: Record<string, Placed> | undefined,
-  main: Record<string, Placed> | undefined = {},
-): Finding[] {
-  const entries = Object.entries(branch ?? {});
-  const findings: Finding[] = [];
-  for (let at = 0; at < entries.length; at++)
-    for (let next = at + 1; next < entries.length; next++) {
-      const [[a, placedA], [b, placedB]] = [entries[at], entries[next]];
-      if (!overlaps(placedA, placedB)) continue;
-      if (main[a] && main[b] && overlaps(main[a], main[b])) continue;
-      // The board that moved or is new is the one to move.
-      const moved = !main[b] || JSON.stringify(main[b]) !== JSON.stringify(placedB) ? b : a;
-      const other = moved === a ? b : a;
-      const place = (branch ?? {})[moved];
-      findings.push({
-        code: 'boards_overlap',
-        file: moved,
-        board: moved.replace(/\.html$/, ''),
-        label: `${moved} sits on top of ${other} on the canvas`,
-        detail: `x ${place.x}, y ${place.y}, ${place.w} × ${place.h}`,
-        short: `on top of ${other}`,
-        fix: `move it in canvas.json to an empty place, clear of ${other}`,
-      });
-    }
-  return findings;
-}
+export { noteOverlapProblems, overlapProblems } from './board-placement.ts';
 
 /** A board's height in canvas.json and in its own meta disagreeing, when main's agreed. */
 export function heightProblem(input: {
@@ -494,19 +459,106 @@ export function boardContent(html: string | null | undefined) {
   return { words: [...words], links: [...links] };
 }
 
-/** What one board shows and the other does not, in both directions. */
+/** Status words a phone shows as a glyph: "Passed · 41 s" on the web is the glyph and "41 s". */
+const statusWords =
+  /\b(passed|failed|failing|running|queued|waiting|skipped|cancell?ed|succeeded|success|errored|error|done|ready|pending|published|live|stopped|offline|online)\b/gi;
+/** A line of words as the comparison sees it: lower case, status words and separators gone. */
+export const comparable = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(statusWords, ' ')
+    .replace(/[·•|,:;–—-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const rowClass = /\b(dl-setting|dl-item|dl-ph-row|dl-log-row|dl-menu-item|dl-asks-row|row)\b/;
+
+/**
+ * The actions a board offers: buttons and button-styled links, with their words, where they lead
+ * and whether they sit in a list row (a phone usually makes those the row's own tap).
+ */
+export function boardActions(html: string | null | undefined) {
+  if (!html) return [];
+  const elements = boardElements(/<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html);
+  const tag = (outer: string) => /^<[^>]*>/.exec(outer)?.[0] ?? '';
+  const hidden = (index: number) => {
+    for (let at = index; at >= 0; at = elements[at].parent) {
+      const start = tag(elements[at].outer);
+      if (
+        /^<nav\b/i.test(start) ||
+        /data-component="(sidebar|phone-title)"/.test(start) ||
+        /\bclass="[^"]*\bdl-side\b/.test(start)
+      )
+        return true;
+    }
+    return false;
+  };
+  const inRow = (index: number) => {
+    for (let at = elements[index].parent; at >= 0; at = elements[at].parent)
+      if (rowClass.test(attribute(tag(elements[at].outer), 'class') ?? '')) return true;
+    return false;
+  };
+  return elements
+    .map((element, index) => ({ element, index, start: tag(element.outer) }))
+    .filter(
+      ({ start }) =>
+        /^<button\b/i.test(start) ||
+        /\brole="button"/.test(start) ||
+        /\bclass="[^"]*\bdl-btn\b/.test(start),
+    )
+    .filter(({ index }) => !hidden(index))
+    .map(({ element, index, start }) => ({
+      layer: element.layer,
+      text: plain(element.outer) || attribute(start, 'aria-label') || '',
+      href: attribute(start, 'href') ?? attribute(start, 'data-link'),
+      inRow: inRow(index),
+    }))
+    .filter((action) => action.text);
+}
+
+/** What one board shows and the other does not, in both directions, as a person would read it. */
 export function contentDifferences(board: string | null, source: string | null) {
   const a = boardContent(board);
   const b = boardContent(source);
-  const fold = (text: string) => text.toLowerCase();
-  const has = (list: string[]) => new Set(list.map(fold));
+  // Words of actions inside rows: a phone makes the row itself the way there.
+  const rowWords = new Set(
+    [...boardActions(board), ...boardActions(source)]
+      .filter((action) => action.inRow)
+      .map((action) => comparable(action.text)),
+  );
+  const keep = (word: string) => comparable(word) && !rowWords.has(comparable(word));
+  const has = (list: string[]) => new Set(list.map(comparable));
   const inBoard = has(a.words);
   const inSource = has(b.words);
   return {
-    onlySource: b.words.filter((word) => !inBoard.has(fold(word))),
-    onlyBoard: a.words.filter((word) => !inSource.has(fold(word))),
+    onlySource: b.words.filter((word) => keep(word) && !inBoard.has(comparable(word))),
+    onlyBoard: a.words.filter((word) => keep(word) && !inSource.has(comparable(word))),
     linksOnlySource: b.links.filter((link) => !a.links.includes(link)),
   };
+}
+
+/**
+ * Page actions the source offers that the board drops entirely: no action or row with the same
+ * words, and no way to where it leads. A data-question that names it says why, and is enough.
+ */
+export function droppedActions(board: string | null, source: string | null) {
+  if (!board || !source) return [];
+  const words = new Set(boardContent(board).words.map(comparable));
+  const links = new Set(boardContent(board).links);
+  const questions = boardQuestions(board).map((entry) => entry.question.toLowerCase());
+  return boardActions(source)
+    .filter((action) => !action.inRow)
+    .filter((action) => !words.has(comparable(action.text)))
+    .filter(
+      (action) =>
+        !(action.href && /\.html/.test(action.href) && links.has(action.href.split('#')[0])),
+    )
+    .filter((action) => {
+      const named = comparable(action.text)
+        .split(' ')
+        .filter((word) => word.length >= 3);
+      return !questions.some((question) => named.every((word) => question.includes(word)));
+    });
 }
 
 const quoteList = (words: string[], limit = 4) =>
@@ -516,9 +568,9 @@ const quoteList = (words: string[], limit = 4) =>
     .join(', ')}${words.length > limit ? ` and ${words.length - limit} more` : ''}`;
 
 /**
- * A board drawn from another (source= in its meta) against that board: what the source shows or
- * reaches that this one does not, and the reverse. Differences main's board already had are left
- * out.
+ * A board drawn from another (source= in its meta) against that board: an action the source has
+ * and the board drops is a problem; other words and ways out on one and not the other are notes.
+ * Differences main's board already had are left out.
  */
 export function sourceNotes(input: {
   file: string;
@@ -538,9 +590,27 @@ export function sourceNotes(input: {
   const fresh = (list: string[], old: string[]) => list.filter((item) => !old.includes(item));
   const sourceName = input.source.replace(/\.html$/, '');
   const name = input.file.replace(/\.html$/, '');
-  const notes: Finding[] = [];
+  const findings: Finding[] = [];
+  const oldDropped = new Set(
+    droppedActions(input.before, input.sourceBefore).map((action) => comparable(action.text)),
+  );
+  const dropped = droppedActions(input.after, input.sourceAfter).filter(
+    (action) => !oldDropped.has(comparable(action.text)),
+  );
+  for (const action of dropped)
+    findings.push({
+      code: 'source_action_missing',
+      file: input.file,
+      board: input.title,
+      ...(action.layer ? { layer: action.layer } : {}),
+      label: `${name} has no "${action.text}"; ${sourceName} does`,
+      detail: `${sourceName} ${action.layer ?? ''}`.trim(),
+      short: `no "${action.text}"`,
+      fix: `offer "${action.text}" on ${name}, or put data-question on the board saying why it has no "${action.text}"`,
+    });
+  const droppedWords = new Set(dropped.map((action) => comparable(action.text)));
   const note = (label: string, detail: string, short: string, fix: string) =>
-    notes.push({
+    findings.push({
       code: 'differs_from_source',
       file: input.file,
       board: input.title,
@@ -560,7 +630,9 @@ export function sourceNotes(input: {
       'cannot reach what its source reaches',
       `add the way there on ${name}, or say on the board why it is left out`,
     );
-  const missing = fresh(now.onlySource, then.onlySource);
+  const missing = fresh(now.onlySource, then.onlySource).filter(
+    (word) => !droppedWords.has(comparable(word)),
+  );
   if (missing.length)
     note(
       `${sourceName} shows ${quoteList(missing)}; ${name} does not`,
@@ -576,7 +648,74 @@ export function sourceNotes(input: {
       'shows what its source does not',
       `check the product does this; if it doesn't, mark it with data-question`,
     );
-  return notes;
+  return findings;
+}
+
+// ── Boards copied from others, and specimen words ────────────────────────────────────────────────
+
+/** The lines of a board's own <style>, trimmed: what a copy keeps of the board it came from. */
+export function styleLines(html: string | null | undefined) {
+  return [...(html ?? '').matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)]
+    .flatMap((style) => style[1].split('\n'))
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 12);
+}
+
+/** A board without its sidebar and window chrome: what is its own. */
+function ownPart(html: string | null | undefined) {
+  if (!html) return '';
+  let body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
+  for (const element of boardElements(body)) {
+    const tag = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
+    if (/data-component="sidebar"/.test(tag) || /\bclass="[^"]*\b(dl-side|mac-lights)\b/.test(tag))
+      body = body.replace(element.outer, ' ');
+  }
+  return body;
+}
+
+/** How alike two boards are, 0 to 1: shared style lines and the classes of their own part. */
+export function boardSimilarity(a: string | null | undefined, b: string | null | undefined) {
+  const classes = (html: string | null | undefined) =>
+    new Set(
+      [...ownPart(html).matchAll(/\sclass="([^"]*)"/g)].flatMap((match) =>
+        match[1].split(/\s+/).filter(Boolean),
+      ),
+    );
+  const jaccard = (x: Set<string>, y: Set<string>) => {
+    if (!x.size && !y.size) return 0;
+    let shared = 0;
+    for (const item of x) if (y.has(item)) shared++;
+    return shared / (x.size + y.size - shared);
+  };
+  return (
+    (jaccard(new Set(styleLines(a)), new Set(styleLines(b))) + jaccard(classes(a), classes(b))) / 2
+  );
+}
+
+/** Boards that are the design system's own specimens, not product screens. */
+export const isSpecimen = (file: string) => /^DesignSystem/.test(file);
+
+/** Distinctive words on a board: text longer than 12 characters, as written. */
+export const distinctiveWords = (html: string | null | undefined) =>
+  boardContent(html).words.filter((word) => word.length > 12);
+
+/** A product board's words that come from a design-system specimen and nowhere else. */
+export function specimenNote(input: {
+  file: string;
+  title: string;
+  words: string[];
+  specimen: string;
+}): Finding | null {
+  if (!input.words.length) return null;
+  return {
+    code: 'specimen_text',
+    file: input.file,
+    board: input.title,
+    label: `${input.title} shows sample words from ${input.specimen.replace(/\.html$/, '')}`,
+    detail: quoteList(input.words, 3),
+    short: 'specimen words',
+    fix: "use this product's own data (deploy design guide lists the fixtures), not the design system's samples",
+  };
 }
 
 // ── What the drawn page shows ────────────────────────────────────────────────────────────────────
@@ -876,12 +1015,23 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'low_contrast', problem: true, means: 'text under 4.5:1 (3:1 large) in light or dark' },
   { code: 'not_a_token', problem: true, means: 'a colour written out instead of a token' },
   { code: 'boards_overlap', problem: true, means: 'two boards on top of each other on the canvas' },
+  {
+    code: 'board_overlaps_note',
+    problem: true,
+    means: 'a board on a canvas note or section title',
+  },
+  { code: 'source_action_missing', problem: true, means: 'an action its source board has, gone' },
   { code: 'question_invented', problem: true, means: 'a layer asks a question and states a value' },
   { code: 'height_differs', problem: true, means: 'canvas.json and the head disagree; --fix' },
   {
     code: 'lost_layer',
     problem: true,
-    means: 'a layer ID something refers to is gone from the element',
+    means: 'a layer ID main has, gone from an element still drawn',
+  },
+  {
+    code: 'layer_renamed',
+    problem: true,
+    means: 'an element still drawn under a new ID; keep the old',
   },
   { code: 'broken_link', problem: true, means: 'a link to a board that does not exist' },
   { code: 'not_on_canvas', problem: true, means: 'a board file canvas.json does not place' },
@@ -900,7 +1050,8 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'second_primary', problem: false, means: 'more than one primary button shows' },
   { code: 'layer_name_says_nothing', problem: false, means: 'new layer IDs like a, t-2, svg-3' },
   { code: 'local_copy_of_component', problem: false, means: 'board CSS copying a dl-* class' },
-  { code: 'layer_renamed', problem: false, means: 'layer IDs changed that nothing refers to' },
+  { code: 'layer_removed', problem: false, means: 'layer IDs whose elements the branch removed' },
+  { code: 'specimen_text', problem: false, means: 'sample words from a DesignSystem board' },
   { code: 'open_question', problem: false, means: 'a data-question the owner has not answered' },
   {
     code: 'differs_from_source',
@@ -909,28 +1060,17 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   },
 ];
 
-/**
- * Whether anything in these lines points at a layer ID: a link to it (#id, Board.html#id), a note,
- * a decision, the library, any mention as a whole name. Elements' own data-layer attributes do
- * not count: another board having a layer of the same name is not a reference.
- */
-export function layerReferenced(layer: string, lines: string[]) {
-  const escaped = layer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`(^|[^A-Za-z0-9_-])${escaped}($|[^A-Za-z0-9_-])`);
-  return lines.some((line) => pattern.test(line.replace(/\sdata-layer="[^"]*"/g, ' ')));
-}
-
-/** Layer IDs the branch changed that nothing refers to: fine, and listed once per board. */
-export function renamedLayersNote(input: { file: string; title: string; layers: string[] }) {
+/** Layer IDs whose elements the branch removed: fine, and listed once per board. */
+export function removedLayersNote(input: { file: string; title: string; layers: string[] }) {
   if (!input.layers.length) return null;
   const { layers } = input;
   return {
-    code: 'layer_renamed',
+    code: 'layer_removed',
     file: input.file,
     board: input.title,
-    label: `${input.title} renamed ${layers.length} layer${layers.length === 1 ? '' : 's'} nothing refers to`,
+    label: `${input.title} removed ${layers.length} layer${layers.length === 1 ? '' : 's'}`,
     detail: `${layers.slice(0, 6).join(', ')}${layers.length > 6 ? ` and ${layers.length - 6} more` : ''}`,
-    short: 'layers renamed',
-    fix: 'nothing to do; comments made on the old names will not find them',
+    short: 'layers removed',
+    fix: 'if any of these is still on the board under another ID, move the old ID onto it',
   } satisfies Finding;
 }

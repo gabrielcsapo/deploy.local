@@ -7,6 +7,7 @@ import { boardPlatform, parseBoardMeta, platformWidths } from '../shared/v2/desi
 import { reviewWidths } from '../shared/v2/design-review.ts';
 import {
   boardQuestions,
+  boardSimilarity,
   checkCodes,
   readTokens,
   screenBase,
@@ -61,8 +62,8 @@ export function readDesign(top, designSystem) {
   // A board is replaced when another's head says replaces=<it>.
   const replacedBy = new Map();
   for (const board of boards.values())
-    if (board.meta.replaces && board.meta.replaces !== board.file)
-      replacedBy.set(board.meta.replaces, board.file);
+    for (const old of board.meta.replacesAll ?? [])
+      if (old !== board.file) replacedBy.set(old, board.file);
   let library = null;
   try {
     library = JSON.parse(
@@ -184,6 +185,78 @@ const ago = (ms) => {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
 };
 
+const camelWords = (name) =>
+  (name.replace(/\.html$/, '').match(/[A-Z0-9][a-z0-9]*|[a-z0-9]+/g) ?? []).map((word) =>
+    word.toLowerCase(),
+  );
+
+/**
+ * The board a name that is no board's means: "DesignPage" is the Design boards' section, and its
+ * first current board on that platform (DesignCanvas). Boards starting with the name's first
+ * word are grouped by the section title above them; the section with most of them wins, or the
+ * one whose title has the name's other words.
+ */
+export function resolveScreen(file, design, current = () => true) {
+  const words = camelWords(file).filter((word) => word !== 'phone');
+  if (!words.length) return null;
+  const platform = platformOfName(file);
+  const prefix = file.replace(/\.html$/, '').match(/^[A-Z0-9][a-z0-9]*/)?.[0];
+  const titles = Object.values(design.canvas?.notes ?? {})
+    .filter((note) => /^title/.test(note.kind ?? '') && Number.isFinite(Number(note.y)))
+    .sort((a, b) => Number(b.y) - Number(a.y));
+  const sectionOf = (board) =>
+    titles.find(
+      (note) =>
+        Number(note.y) <= Number(board.placed?.y) && Number(note.x) <= Number(board.placed?.x) + 1,
+    )?.text ?? '';
+  const candidates = [...design.boards.values()].filter(
+    (board) =>
+      prefix &&
+      board.file.startsWith(prefix) &&
+      board.platform === platform &&
+      current(board.file) &&
+      board.placed,
+  );
+  if (!candidates.length) return null;
+  const sections = new Map();
+  for (const board of candidates) {
+    const section = sectionOf(board);
+    sections.set(section, [...(sections.get(section) ?? []), board]);
+  }
+  const rest = words.slice(1);
+  const score = ([title, boards]) =>
+    rest.filter((word) => title.toLowerCase().includes(word)).length * 1000 + boards.length;
+  const [, boards] = [...sections].sort((a, b) => score(b) - score(a))[0];
+  boards.sort(
+    (a, b) => Number(a.placed.y) - Number(b.placed.y) || Number(a.placed.x) - Number(b.placed.x),
+  );
+  return boards[0].file;
+}
+
+/**
+ * The board to copy for a new one on a platform: the current board there of the same kind
+ * (detail or list) whose own counterpart on the source's platform is most like the source (for
+ * a phone run screen drawn from the web PipelineRun, the phone detail board of the web screen
+ * most like PipelineRun).
+ */
+export function closestStructure(platform, source, design, current = () => true) {
+  const sourceBoard = source ? design.boards.get(source) : null;
+  if (!sourceBoard) return null;
+  // A detail screen (a way back) is copied from a detail screen, a list from a list.
+  const detail = (html) => /\bdl-crumbs\b|aria-label="Back"/.test(html);
+  const kind = detail(sourceBoard.html);
+  let best = null;
+  for (const board of design.boards.values()) {
+    if (board.platform !== platform || !current(board.file) || board.file === source) continue;
+    if (detail(board.html) !== kind) continue;
+    const counterpart = design.boards.get(`${screenBase(board.file)}.html`);
+    if (!counterpart || counterpart.platform !== sourceBoard.platform) continue;
+    const score = boardSimilarity(counterpart.html, sourceBoard.html);
+    if (!best || score > best.score) best = { file: board.file, score };
+  }
+  return best?.file ?? null;
+}
+
 /**
  * What status says about each board: its platform and sizes, whether it is current, its source,
  * its siblings, open questions and other branches changing it; for a name with no board, the
@@ -222,6 +295,9 @@ export function designStatus({
       const other = family.filter((entry) => !same.includes(entry));
       const base = `${screenBase(file)}.html`;
       const source = other.includes(base) ? base : (other[0] ?? null);
+      // A name that is no board's: the board its words point at, by section and title.
+      const means = family.length ? null : resolveScreen(file, design, current);
+      const copyFrom = means ?? same[0] ?? closestStructure(platform, source, design, current);
       const templates = components.filter(
         (component) =>
           component.group === 'Page templates' &&
@@ -233,6 +309,8 @@ export function designStatus({
         platform,
         sizes: reviewWidths(platformWidths[platform] ?? 1440),
         startFrom: same.slice(0, 5),
+        ...(means ? { means } : {}),
+        copyFrom,
         source,
         sourceOn: source ? design.boards.get(source)?.platform : null,
         templates: templates.map((component) => component.id),
@@ -276,15 +354,21 @@ export function statusLines(status) {
   for (const board of status.boards) {
     if (!board.exists) {
       lines.push(`${board.file}  no board yet · ${board.platform} · ${board.sizes.join(' and ')}`);
+      if (board.means)
+        lines.push(`  ${label('Means')}${board.means}: work on that board, it is this screen`);
+      else if (board.copyFrom)
+        lines.push(
+          `  ${label('Copy from')}${board.copyFrom}, and put copied_from=${board.copyFrom} in its head`,
+        );
       if (board.source)
         lines.push(
           `  ${label('Source')}${board.source} (${board.sourceOn}): draw this one from it and put source=${board.source} in its head`,
         );
       if (board.startFrom.length)
         lines.push(`  ${label('Start from')}${board.startFrom.join(', ')}`);
-      if (board.templates.length)
+      if (board.templates.length && !board.means)
         lines.push(`  ${label('Templates')}${board.templates.join(', ')}`);
-      if (!board.source && !board.startFrom.length)
+      if (!board.source && !board.startFrom.length && !board.means && !board.copyFrom)
         lines.push(`  ${label('Start from')}no board of this screen; use a page template`);
       for (const other of board.otherBranches)
         lines.push(
@@ -323,15 +407,32 @@ export function statusLines(status) {
       `${label('Components')}${shown.map((component) => component.id).join(', ')}${icons ? `, and ${icons} icons` : ''}`,
     );
   const first = status.boards[0];
+  if (!first.exists && first.means) {
+    lines.push(`Next  deploy design status ${first.means.replace(/\.html$/, '')}`);
+    return lines;
+  }
   const target = first.exists && !first.current ? first.replacedBy : first.file;
   lines.push(
     first.exists && !first.current
       ? `Next  edit design/boards/${target} instead (${first.file} was replaced), then deploy design check --fix`
       : first.exists
         ? `Next  edit design/boards/${target}, then deploy design check --fix`
-        : `Next  create design/boards/${target}${first.source ? ` from ${first.source}` : ''}, add it to canvas.json, then deploy design check --fix`,
+        : `Next  copy design/boards/${first.copyFrom ?? '<Board>.html'} to design/boards/${target}${first.source ? `, draw it from ${first.source}` : ''}, then deploy design check --fix (it places it on the canvas)`,
   );
   return lines;
+}
+
+/**
+ * Where to copy each icon's SVG from: a current board that draws it (the same path), else the
+ * library itself.
+ */
+export function iconSources(design, icons) {
+  const boards = [...design.boards.values()].filter((board) => !design.replacedBy.has(board.file));
+  return icons.map((component) => {
+    const path = /<path d="([^"]+)"/.exec(component.html ?? '')?.[1];
+    const board = path ? boards.find((entry) => entry.html.includes(`d="${path}"`))?.file : null;
+    return { name: component.id.replace(/^icon-/, ''), id: component.id, board: board ?? null };
+  });
 }
 
 /** `deploy design guide`: how to work on this project's design, from its own files. */
@@ -357,10 +458,13 @@ export function guideLines({ top, designSystem }) {
     );
   }
   lines.push(
-    '  A board says what it is in its head: <meta name="design-board" content="width=390,height=844; platform=phone; source=Inbox.html">',
+    '  A board says what it is in its head: <meta name="design-board" content="width=390,height=844,platform=phone,source=Inbox.html">',
   );
   lines.push(
-    '  Also schemes=light dark, title=…, replaces=<Old>.html. Its height in the head and in canvas.json must agree.',
+    '  Also schemes=light dark, title=…, replaces=<Old>.html, copied_from=<Board>.html (commas between keys; semicolons work too).',
+  );
+  lines.push(
+    '  Its height in the head and in canvas.json must agree; deploy design check --fix writes both.',
   );
 
   const groups = design.tokensJson?.type?.groups ?? [];
@@ -391,13 +495,19 @@ export function guideLines({ top, designSystem }) {
       lines.push(
         `  ${component.id.padEnd(width)}${(component.description ?? component.name).split('. ')[0].replace(/\.$/, '')}`,
       );
-    if (icons.length)
-      lines.push(
-        `  ${'icons'.padEnd(width)}${icons.map((component) => component.id.replace(/^icon-/, '')).join(', ')}`,
-      );
+    if (icons.length) {
+      section("Icons (copy the <svg> from the board named, or from library.json's icon-<name>)");
+      const shown = iconSources(design, icons);
+      const iconWidth = Math.max(...shown.map((entry) => entry.name.length)) + 2;
+      for (const entry of shown)
+        lines.push(
+          `  ${entry.name.padEnd(iconWidth)}${entry.board ?? 'design/ds/deploy-local/components/library.json'}`,
+        );
+    }
   }
   const readme = designText(top, 'README.md') ?? '';
-  const fixtures = /fixture names[^:]*:\s*([^\n]+)/i.exec(readme)?.[1];
+  // The README's own sentence that lists them: "Use the fixture names from the boards: a, b, c."
+  const fixtures = /use the fixture names[^:\n]*:\s*([^\n]+)/i.exec(readme)?.[1];
   if (fixtures) {
     section('Fixtures (use these names, never invented ones)');
     lines.push(`  ${fixtures.trim().replace(/\.$/, '')}`);

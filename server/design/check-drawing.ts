@@ -63,21 +63,53 @@ export async function buildBoardPage(html: string, sources: BoardSources) {
   return inlineBoardCaptures(page, sources.capture);
 }
 
+export type BoardQuestion = { n: number; layer: string; question: string };
+
 /**
- * A layer that asks a question is drawn with a dashed outline and the question under it. Added
- * after measuring, so the question never counts as the board's own content.
+ * Runs in the page, after measuring: each layer that asks a question gets a thin dashed line on
+ * its own edge and a small numbered badge inside its top right corner, drawn above the page so
+ * nothing moves. The questions themselves are listed beside the picture, never over the board.
  */
-export const questionStyle = `[data-question]{outline:2px dashed #2f5bb7!important;outline-offset:2px}
-[data-question]::after{content:"? " attr(data-question);display:block;width:max-content;max-width:min(320px,90vw);margin-top:6px;padding:4px 8px;border-radius:6px;background:#e6eefc;color:#1f3a7a;font:500 12px/16px system-ui,sans-serif;white-space:normal;text-align:left}`;
+export function markQuestions(doc: Document = document): BoardQuestion[] {
+  const view = doc.defaultView!;
+  const found: BoardQuestion[] = [];
+  const layer = doc.createElement('div');
+  layer.setAttribute('aria-hidden', 'true');
+  layer.style.cssText =
+    'position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:2147483647;pointer-events:none';
+  for (const element of doc.querySelectorAll('[data-question]')) {
+    const rect = element.getBoundingClientRect();
+    const question = (element.getAttribute('data-question') ?? '').trim();
+    if (!question || !rect.width || !rect.height) continue;
+    const n = found.length + 1;
+    found.push({ n, layer: element.getAttribute('data-layer') ?? '', question });
+    const x = rect.left + view.scrollX;
+    const y = rect.top + view.scrollY;
+    const outline = doc.createElement('div');
+    outline.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${rect.width}px;height:${rect.height}px;box-sizing:border-box;border:1px dashed #2f5bb7;border-radius:2px`;
+    const badge = doc.createElement('div');
+    badge.textContent = String(n);
+    const size = Math.min(16, rect.height, rect.width);
+    badge.style.cssText = `position:absolute;left:${x + rect.width - size}px;top:${y}px;width:${size}px;height:${size}px;border-radius:${size}px;background:#2f5bb7;color:#fff;font:600 ${Math.max(8, size - 6)}px/${size}px system-ui,sans-serif;text-align:center`;
+    layer.append(outline, badge);
+  }
+  if (found.length) doc.body.append(layer);
+  return found;
+}
 
 const run = (fn: (...args: any[]) => unknown) => `(${fn.toString()})()`;
 
-export type BoardShot = { png: Buffer; measured: Overflow | null; inspected: Inspection | null };
+export type BoardShot = {
+  png: Buffer;
+  measured: Overflow | null;
+  inspected: Inspection | null;
+  questions?: BoardQuestion[];
+};
 
 /**
  * One drawing: the page in a scheme (dark as the design system and the page's own colour scheme
  * both see it), measured for what leaves the page when `measure`, inspected for the other checks
- * when `inspect`, then pictured with any questions shown.
+ * when `inspect`, then pictured with its questions marked.
  */
 export async function shootBoard(
   tab: DrawingTab,
@@ -90,12 +122,17 @@ export async function shootBoard(
   await tab.evaluate('document.fonts.ready.then(() => true)');
   const measured = options.measure ? await tab.evaluate<Overflow>(run(measureOverflow)) : null;
   const inspected = options.inspect ? await tab.evaluate<Inspection>(run(inspectBoard)) : null;
-  if (page.includes('data-question='))
-    await tab.evaluate(
-      `(() => { const style = document.createElement('style'); style.textContent = ${JSON.stringify(questionStyle)}; document.head.append(style); return true; })()`,
-    );
-  return { png: await tab.screenshot(), measured, inspected };
+  const questions = page.includes('data-question=')
+    ? await tab.evaluate<BoardQuestion[]>(run(markQuestions))
+    : [];
+  return { png: await tab.screenshot(), measured, inspected, questions };
 }
+
+const escapeHtml = (text: string) =>
+  text.replace(
+    /[&<>"]/g,
+    (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!,
+  );
 
 /** Before beside After, captioned, as one page to picture in full. */
 export function pairPage(input: {
@@ -103,16 +140,21 @@ export function pairPage(input: {
   after: Buffer;
   width: number;
   scheme: 'light' | 'dark';
+  /** The After's questions, listed under it by their badges' numbers. */
+  questions?: BoardQuestion[];
 }) {
   const { before, after, width, scheme } = input;
+  const questions = input.questions?.length
+    ? `<ol class="q">${input.questions.map((entry) => `<li value="${entry.n}">${escapeHtml(entry.question)}${entry.layer ? ` <span>${escapeHtml(entry.layer)}</span>` : ''}</li>`).join('')}</ol>`
+    : '';
   const image = (png: Buffer | null) =>
     png
       ? `<img src="data:image/png;base64,${png.toString('base64')}">`
       : '<p>New board · no Before</p>';
   return (
-    `<style>body{margin:0;display:flex;gap:16px;padding:16px;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}</style>` +
+    `<style>body{margin:0;display:flex;gap:16px;padding:16px;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${width - 24}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}</style>` +
     `<figure><figcaption>Before · main · ${width} · ${scheme}</figcaption>${image(before)}</figure>` +
-    `<figure><figcaption>After · this branch · ${width} · ${scheme}</figcaption>${image(after)}</figure>`
+    `<figure><figcaption>After · this branch · ${width} · ${scheme}</figcaption>${image(after)}${questions}</figure>`
   );
 }
 

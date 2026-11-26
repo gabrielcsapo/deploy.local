@@ -23,8 +23,10 @@ import {
 import {
   contentDifferences,
   contrastProblems,
+  droppedActions,
   drawnNotes,
   heightProblem,
+  noteOverlapProblems,
   layerNameNote,
   localCopyNotes,
   notATokenProblems,
@@ -37,6 +39,8 @@ import {
   type DesignTokens,
 } from '../../design/board-quality.ts';
 import { parseBoardMeta, setBoardMetaHeight } from '../../../shared/v2/design-board-meta.ts';
+import { noteRect, placeBoard, rowGap } from '../../design/board-placement.ts';
+import { layerFates } from '../../design/board-layers.ts';
 import type { Inspection, InspectedText } from '../../../shared/v2/design-inspect.ts';
 
 test('only board files in the design folder count as changed boards', () => {
@@ -580,7 +584,9 @@ test("a board's head may say its platform, schemes, source and what it replaces;
     platform: null,
     schemes: null,
     replaces: null,
+    replacesAll: [],
     source: null,
+    copiedFrom: null,
     title: null,
     other: {},
   });
@@ -635,23 +641,65 @@ test("a colour the branch hard-codes is a problem that names the token; main's a
   );
 });
 
-test('boards placed on top of each other are a problem only when the branch did it', () => {
-  const main = {
+test('boards placed on top of each other are a problem only when the branch did it, with a free place', () => {
+  const boards = {
     'A.html': { x: 0, y: 0, w: 1440, h: 900 },
-    'B.html': { x: 2000, y: 0, w: 1440, h: 900 },
+    'B.html': { x: 1600, y: 0, w: 1440, h: 900 },
   };
+  const main = { boards };
   assert.deepEqual(overlapProblems(main, main), []);
-  const moved = { ...main, 'B.html': { x: 1000, y: 100, w: 1440, h: 900 } };
+  const moved = { boards: { ...boards, 'C.html': { x: 1000, y: 100, w: 1440, h: 900 } } };
   const [problem] = overlapProblems(moved, main);
   assert.equal(problem!.code, 'boards_overlap');
-  assert.equal(problem!.file, 'B.html');
-  assert.match(problem!.fix!, /clear of A\.html/);
+  assert.equal(problem!.file, 'C.html');
+  // The row's gap is 160: the free place is after B, at the row's y.
+  assert.match(problem!.fix!, /^move it to x 3200, y 0 in canvas\.json/);
   // Two boards that already overlapped on main are not this branch's problem.
   assert.deepEqual(overlapProblems(moved, moved), []);
-  assert.equal(
-    overlapProblems({ ...main, 'C.html': { x: 100, y: 100, w: 390, h: 844 } }, main)[0]!.file,
-    'C.html',
+});
+
+test('a board on a canvas note or section title is a problem; --fix places new boards beside their source', () => {
+  const canvas = {
+    boards: {
+      'Run.html': { x: 0, y: 400, w: 1440, h: 900 },
+      'Runs.html': { x: 1640, y: 400, w: 1440, h: 900 },
+      'RunPhone.html': { x: 200, y: 0, w: 390, h: 844 },
+    },
+    notes: {
+      section: { x: 0, y: 0, text: 'Pipelines', kind: 'title1', size: 'xxl', maxW: 4000 },
+      how: { x: 3300, y: 400, w: 420, text: 'How runs work' },
+    },
+  };
+  const main = {
+    boards: { 'Run.html': canvas.boards['Run.html'], 'Runs.html': canvas.boards['Runs.html'] },
+    notes: canvas.notes,
+  };
+  const found = noteOverlapProblems(canvas, main);
+  assert.deepEqual(
+    found.map((problem) => [problem.code, problem.file, problem.label]),
+    [
+      [
+        'board_overlaps_note',
+        'RunPhone.html',
+        'RunPhone.html covers the section title "Pipelines"',
+      ],
+    ],
   );
+  // Beside Run, past Runs and the note, with the row's 200 px gap.
+  const spot = placeBoard({
+    canvas,
+    file: 'RunPhone.html',
+    size: { w: 390, h: 844 },
+    near: 'Run.html',
+  });
+  assert.deepEqual(spot, { x: 3920, y: 400 });
+  assert.equal(rowGap(canvas, 400), 200);
+  assert.deepEqual(noteRect({ x: 0, y: 0, w: 420, text: 'one line' }), {
+    x: 0,
+    y: 0,
+    w: 420,
+    h: 54,
+  });
 });
 
 test('a height the canvas and the head disagree on is a problem with a fix', () => {
@@ -748,12 +796,16 @@ test('a board drawn from a source lists what the source shows or reaches that it
   assert.deepEqual(
     notes.map((note) => note.label),
     [
+      'PipelineRunPhone has no "Download"; PipelineRun does',
       'PipelineRun leads to PipelineRuns; PipelineRunPhone has no way to reach it',
-      'PipelineRun shows "5 runs", "Download"; PipelineRunPhone does not',
+      'PipelineRun shows "5 runs"; PipelineRunPhone does not',
       'PipelineRunPhone shows "Swipe to retry"; PipelineRun does not',
     ],
   );
-  assert.ok(notes.every((note) => note.code === 'differs_from_source'));
+  assert.deepEqual(
+    notes.map((note) => note.code),
+    ['source_action_missing', 'differs_from_source', 'differs_from_source', 'differs_from_source'],
+  );
 });
 
 const text = (layer: string, extra: Partial<InspectedText> = {}): InspectedText => ({
@@ -1037,26 +1089,44 @@ test('a board-local copy of a component is noted once, and only for a rule the b
   assert.equal(notes('', `${rule}${rule}@media(max-width:800px){${rule}}`).length, 1);
 });
 
-test('a lost layer is a problem only when something refers to it; renames nothing uses are noted', async () => {
+test('an ID main has must survive its element: renamed and lost are problems, removed is a note', () => {
+  const main = [
+    '<main data-layer="page">',
+    '<div data-layer="setting" class="dl-setting"><span data-layer="typecheck">typecheck</span>',
+    '<span data-layer="passed-41-s">Passed · 41 s</span><a data-layer="log" class="dl-btn">Log</a></div>',
+    '<p data-layer="old-hint">Gone</p>',
+    '<svg data-layer="svg-5" class="dl-run"></svg>',
+    '</main>',
+  ].join('');
+  // Rows rebuilt: typecheck under a new ID, the log link with no ID, the svg in its place under
+  // another name, the hint removed.
+  const branch = [
+    '<main data-layer="page">',
+    '<div data-layer="job" class="dl-setting"><span data-layer="job-name">typecheck</span>',
+    '<span data-layer="passed-41-s">Passed · 41 s</span><a class="dl-btn">Log</a></div>',
+    '<svg data-layer="run-icon" class="dl-run"></svg>',
+    '</main>',
+  ].join('');
+  assert.deepEqual(layerFates(main, branch), [
+    { layer: 'setting', fate: 'renamed', to: 'job' },
+    { layer: 'typecheck', fate: 'renamed', to: 'job-name' },
+    { layer: 'log', fate: 'lost' },
+    { layer: 'old-hint', fate: 'removed' },
+    { layer: 'svg-5', fate: 'renamed', to: 'run-icon' },
+  ]);
+  assert.deepEqual(layerFates(main, main), []);
+});
+
+test('the check reports renamed, lost and removed layers against what the board was written as', async () => {
   const repo = repository();
   try {
     repo.write(
       'design/canvas.json',
-      JSON.stringify({
-        boards: {
-          'A.html': { x: 0, y: 0, w: 1440, h: 900 },
-          'B.html': { x: 2000, y: 0, w: 1440, h: 900 },
-        },
-      }),
+      JSON.stringify({ boards: { 'A.html': { x: 0, y: 0, w: 1440, h: 900 } } }),
     );
     repo.write(
       'design/boards/A.html',
-      '<main data-layer="page"><p data-layer="t-2">Hi</p><p data-layer="menu">Menu</p></main>',
-    );
-    // B links to A's menu, and has a t-2 of its own, which is no reference.
-    repo.write(
-      'design/boards/B.html',
-      '<main><a href="A.html#menu" data-layer="t-2">Open</a></main>',
+      '<main data-layer="page"><p data-layer="t-2">Hi</p><p data-layer="menu">Menu</p><p data-layer="gone">Bye</p></main>',
     );
     repo.run(['add', '.']);
     repo.run(['commit', '-qm', 'Main']);
@@ -1064,20 +1134,145 @@ test('a lost layer is a problem only when something refers to it; renames nothin
     repo.run(['checkout', '-qb', 'rename']);
     repo.write(
       'design/boards/A.html',
-      '<main data-layer="page"><p data-layer="greeting">Hi</p><p data-layer="nav">Menu</p></main>',
+      '<main data-layer="page"><p data-layer="greeting">Hi</p><p>Menu</p></main>',
     );
     repo.run(['commit', '-qam', 'Rename']);
     const commit = repo.run(['rev-parse', 'HEAD']);
     const { drawer } = drawing();
     const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
     assert.deepEqual(
-      result.problems.filter((p) => p.code === 'lost_layer').map((p) => p.layer),
-      ['menu'],
+      result.problems
+        .filter((p) => /layer/.test(p.code ?? ''))
+        .map((p) => [p.code, p.layer, p.fix]),
+      [
+        [
+          'layer_renamed',
+          't-2',
+          'keep the ID t-2 on greeting: move data-layer="t-2" onto the new element',
+        ],
+        ['lost_layer', 'menu', 'put data-layer="menu" back on the element'],
+      ],
     );
     assert.deepEqual(
-      result.notes.filter((n) => n.code === 'layer_renamed').map((n) => n.detail),
-      ['t-2'],
+      result.notes.filter((n) => n.code === 'layer_removed').map((n) => n.detail),
+      ['gone'],
     );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('a phone board drawn from a web one: status glyphs and row taps are fine, a dropped action is a problem', () => {
+  const web = board(
+    '',
+    '<main><h1>Run 4f2e9a1</h1><button class="dl-btn secondary" data-layer="run-pipeline">Run pipeline</button>' +
+      '<div class="dl-setting"><span>typecheck</span><span>Passed · 41 s</span><a href="#" class="dl-btn quiet">Log</a></div></main>',
+  );
+  const phone = board(
+    '',
+    '<main><h1>Run 4f2e9a1</h1><a class="dl-ph-row" href="#"><svg aria-label="Passed"></svg><span>typecheck</span><span>41 s</span></a></main>',
+  );
+  const found = sourceNotes({
+    file: 'RunPhone.html',
+    title: 'Run on iPhone',
+    source: 'Run.html',
+    before: null,
+    after: phone,
+    sourceBefore: null,
+    sourceAfter: web,
+  });
+  assert.deepEqual(
+    found.map((finding) => [finding.code, finding.label]),
+    [['source_action_missing', 'RunPhone has no "Run pipeline"; Run does']],
+  );
+  assert.deepEqual(
+    droppedActions(phone, web).map((action) => action.layer),
+    ['run-pipeline'],
+  );
+  // A question on the board saying why is enough.
+  const asked = phone.replace(
+    '<main>',
+    '<main data-question="Should the phone run a pipeline, or only show runs?">',
+  );
+  assert.deepEqual(droppedActions(asked, web), []);
+});
+
+test('a new board copied from another is judged against it, named or found', async () => {
+  const repo = repository();
+  try {
+    const original = board(
+      '.chrome{background:#fafafb}\n.side-row{padding:6px 10px;color:#55525b}\n.side-head{font-size:11px}\n.pane{border:1px solid #e6e5ea}',
+      '<main class="chrome pane"><nav class="side-row">Projects</nav><h1 class="side-head">Run</h1></main>',
+    );
+    repo.write(
+      'design/ds/deploy-local/tokens.json',
+      readFileSync(
+        join(import.meta.dirname, '../../../design/ds/deploy-local/tokens.json'),
+        'utf8',
+      ),
+    );
+    repo.write('design/boards/Run.html', original);
+    repo.write(
+      'design/boards/DesignSystemRows.html',
+      board('', '<main><p>reports/junit.xml 86 KB</p><p>Row specimen title</p></main>'),
+    );
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        boards: {
+          'Run.html': { x: 0, y: 0, w: 1440, h: 900 },
+          'DesignSystemRows.html': { x: 0, y: 2000, w: 1440, h: 900 },
+        },
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'copy']);
+    // A copy with no head saying so, one new colour, and a specimen's file name.
+    repo.write(
+      'design/boards/RunKept.html',
+      original
+        .replace('.pane{', '.kept{color:#123456}\n.pane{')
+        .replace(
+          '<h1 class="side-head">Run</h1>',
+          '<h1 class="side-head">Run</h1><p>reports/junit.xml 86 KB</p>',
+        ),
+    );
+    // A copy that says where it came from.
+    repo.write(
+      'design/boards/RunOther.html',
+      original.replace('width=1440,height=900', 'width=1440,height=900,copied_from=Run.html'),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Copies']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const { drawer } = drawing();
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.deepEqual(
+      result.problems.filter((p) => p.code === 'not_a_token').map((p) => [p.file, p.label]),
+      [['RunKept.html', 'Run Kept hard-codes #123456']],
+    );
+    const kept = result.boards.find((row) => row.file === 'RunKept.html')!;
+    assert.equal(kept.comparedWith, 'Run.html');
+    assert.match(kept.words, /judged against Run$/);
+    assert.equal(
+      result.boards.find((row) => row.file === 'RunOther.html')!.comparedWith,
+      undefined,
+    );
+    assert.deepEqual(
+      result.notes
+        .filter((n) => n.code === 'specimen_text')
+        .map((n) => [n.file, n.label, n.detail]),
+      [
+        [
+          'RunKept.html',
+          'Run Kept shows sample words from DesignSystemRows',
+          '"reports/junit.xml 86 KB"',
+        ],
+      ],
+    );
+    assert.equal(result.notes.filter((n) => n.code === 'type_off_scale').length, 0);
   } finally {
     repo.cleanup();
   }

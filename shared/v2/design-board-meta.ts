@@ -1,6 +1,6 @@
 // A board's head says what it is: <meta name="design-board" content="…">. Old boards give only
-// their size (width=1440,height=900); newer ones may add platform=, schemes=, replaces=, source=
-// and title=, separated by commas or semicolons. A part with no "=" belongs to the value before
+// their size (width=1440,height=900); newer ones may add platform=, schemes=, replaces=, source=,
+// copied_from= and title=, separated by commas or semicolons. A part with no "=" belongs to the value before
 // it, so a title can read "Inbox, phone".
 
 export type BoardPlatform = 'web' | 'phone' | 'tablet' | 'mac' | 'tv' | 'slide' | string;
@@ -10,8 +10,12 @@ export type BoardMeta = {
   height: number | null;
   platform: BoardPlatform | null;
   schemes: ('light' | 'dark')[] | null;
+  /** The first board this one replaced; `replacesAll` has every one (space-separated). */
   replaces: string | null;
+  replacesAll: string[];
   source: string | null;
+  /** The board this one was copied from, when it is not drawn from it as a source. */
+  copiedFrom: string | null;
   title: string | null;
   /** Keys this reader does not know, kept as written. */
   other: Record<string, string>;
@@ -50,7 +54,9 @@ export function parseBoardMeta(html: string | null | undefined): BoardMeta {
     platform: null,
     schemes: null,
     replaces: null,
+    replacesAll: [],
     source: null,
+    copiedFrom: null,
     title: null,
     other: {},
   };
@@ -67,8 +73,14 @@ export function parseBoardMeta(html: string | null | undefined): BoardMeta {
         .split(/[\s,+]+/)
         .filter((scheme): scheme is 'light' | 'dark' => scheme === 'light' || scheme === 'dark');
       meta.schemes = schemes.length ? [...new Set(schemes)] : null;
-    } else if (key === 'replaces') meta.replaces = boardFile(value);
-    else if (key === 'source') meta.source = boardFile(value);
+    } else if (key === 'replaces') {
+      meta.replacesAll = value
+        .split(/\s+/)
+        .map(boardFile)
+        .filter((file): file is string => Boolean(file));
+      meta.replaces = meta.replacesAll[0] ?? null;
+    } else if (key === 'source') meta.source = boardFile(value);
+    else if (key === 'copied_from' || key === 'copied-from') meta.copiedFrom = boardFile(value);
     else if (key === 'title') meta.title = value || null;
     else meta.other[key] = value;
   }

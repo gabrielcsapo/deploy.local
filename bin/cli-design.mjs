@@ -31,7 +31,7 @@ Legacy review flow
   resolve <n> "<reply>"    Answer a note when it is done
 
 Flags
-  --fix                    check: write what has one answer (measured heights)
+  --fix                    check: write what has one answer (heights, places)
   --json                   Print the result as JSON
   --project <name>         The project, when origin is elsewhere
   --wait                   feedback: stay until there is an answer
@@ -343,11 +343,42 @@ export async function runDesign(sub, args, options, deps) {
         result.problems = result.problems.filter(
           (problem) => !(problem.code === 'height_differs' && done.has(problem.file)),
         );
-        for (const board of result.boards)
-          board.problems = result.problems
-            .filter((problem) => problem.file === board.file)
-            .map((problem) => problem.short);
       }
+      // Boards with no place on the canvas or a bad one: put in the free place beside the board
+      // they came from, with fix.
+      const places = Object.entries(result.places ?? {});
+      if (fix && places.length) {
+        const canvasPath = join(top, 'design', 'canvas.json');
+        const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
+        canvas.boards ??= {};
+        for (const [file, place] of places) {
+          const html = readFileSync(join(top, 'design', 'boards', file), 'utf8');
+          const title =
+            parseBoardMeta(html).title ??
+            /<title>([^<]*)<\/title>/.exec(html)?.[1] ??
+            screenName(file);
+          canvas.boards[file] = {
+            ...canvas.boards[file],
+            ...place,
+            title: canvas.boards[file]?.title ?? title,
+          };
+          if (Array.isArray(canvas.order) && !canvas.order.includes(file)) canvas.order.push(file);
+          fixed.push(`${screenName(file)} placed at x ${place.x}, y ${place.y} in canvas.json`);
+        }
+        writeFileSync(canvasPath, `${JSON.stringify(canvas, null, 2)}\n`);
+        const done = new Set(places.map(([file]) => file));
+        result.problems = result.problems.filter(
+          (problem) =>
+            !(
+              ['boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(problem.code) &&
+              done.has(problem.file)
+            ),
+        );
+      }
+      for (const board of result.boards)
+        board.problems = result.problems
+          .filter((problem) => problem.file === board.file)
+          .map((problem) => problem.short);
       const pairs = join(top, 'output', 'design', 'pairs');
       mkdirSync(pairs, { recursive: true });
       for (const picture of result.pictures ?? [])
@@ -361,6 +392,7 @@ export async function runDesign(sub, args, options, deps) {
       layers: _layers,
       restore: _restore,
       heights: _heights,
+      places: _places,
       ...shown
     } = result;
     const branch = tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], top) ?? 'HEAD';
@@ -369,6 +401,8 @@ export async function runDesign(sub, args, options, deps) {
       notes: shown.notes ?? [],
       fixed,
       where: run.where,
+      ...(run.sandboxed ? { sandboxed: true } : {}),
+      ...(run.reason ? { fellBackBecause: run.reason } : {}),
       legacy: /^(design|artifact)\//.test(branch),
     };
     if (!quiet) printCheck(outcome, run);
@@ -406,6 +440,7 @@ export async function runDesign(sub, args, options, deps) {
       where: 'computer',
       base: { ref: `origin/${main}`, commit: base },
       browser: opened.executable,
+      sandboxed: Boolean(opened.sandboxed),
       missingFonts: [...(opened.missingFonts ?? [])],
       sent: (file) => reader.sent.get(`design/boards/${file}`) ?? null,
     };
@@ -478,7 +513,7 @@ export async function runDesign(sub, args, options, deps) {
       }
       const shown = new Map();
       return {
-        result: { notes: [], heights: {}, ...result },
+        result: { notes: [], heights: {}, places: {}, ...result },
         where: 'deploy.local',
         reason,
         sent: (file) => {
@@ -523,7 +558,11 @@ export async function runDesign(sub, args, options, deps) {
     );
     // A part's carried boards are fixed by the check itself, and so are heights.
     const carried = result.problems.some((problem) => problem.file?.startsWith('part:'));
-    const heights = result.problems.some((problem) => problem.code === 'height_differs');
+    const heights = result.problems.some((problem) =>
+      ['height_differs', 'boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(
+        problem.code,
+      ),
+    );
     out(`  deploy design check${carried ? ' --drop-instances' : ''}${heights ? ' --fix' : ''}`);
   };
   const printCheck = (result, run) => {
@@ -531,7 +570,7 @@ export async function runDesign(sub, args, options, deps) {
       step(
         '✓',
         'Checked on this computer',
-        `against ${run.base.ref} ${run.base.commit.slice(0, 7)}`,
+        `against ${run.base.ref} ${run.base.commit.slice(0, 7)}${run.sandboxed ? ' · Chromium as one process, for this sandbox' : ''}`,
       );
     else step('!', 'Drawn by deploy.local', `no browser here: ${run.reason}`);
     if (run.missingFonts?.length)
@@ -587,7 +626,11 @@ export async function runDesign(sub, args, options, deps) {
   /** The --json envelope every check prints. */
   const envelope = (result) => {
     const ok = result.problems.length === 0;
-    const heights = result.problems.some((problem) => problem.code === 'height_differs');
+    const heights = result.problems.some((problem) =>
+      ['height_differs', 'boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(
+        problem.code,
+      ),
+    );
     return {
       ok,
       code: ok ? 'clean' : 'problems',

@@ -27,18 +27,26 @@ import {
 import { layerLabel } from '../../../shared/v2/design.ts';
 import { boardPlatform, parseBoardMeta } from '../../../shared/v2/design-board-meta.ts';
 import type { Inspection } from '../../../shared/v2/design-inspect.ts';
+import { layerFates } from '../../design/board-layers.ts';
+import { placeBoard } from '../../design/board-placement.ts';
+import type { BoardQuestion } from '../../design/check-drawing.ts';
 import {
   contrastProblems,
   drawnNotes,
   heightProblem,
   layerNameNote,
-  layerReferenced,
   localCopyNotes,
   notATokenProblems,
   overlapProblems,
   questionFindings,
   readTokens,
-  renamedLayersNote,
+  removedLayersNote,
+  boardSimilarity,
+  distinctiveWords,
+  isSpecimen,
+  noteOverlapProblems,
+  specimenNote,
+  styleLines,
   screenFamily,
   sourceNotes,
   spacingNotes,
@@ -61,6 +69,8 @@ export type CheckBoardRow = {
   words: string;
   part?: string;
   problems?: string[];
+  /** For a new board that names no source: the board on main it was judged against. */
+  comparedWith?: string;
 };
 
 /** The boards a list of changed paths names, as file names in <folder>/boards. */
@@ -272,7 +282,13 @@ export function partRow(part: { id: string; name: string }, shown: number, carri
 export const checkWidths = (width: number | undefined) => reviewWidths(width ?? 1440);
 
 /** One side of a pair: a board drawn at a commit, with what the check measured there. */
-export type CheckShot = { png: Buffer; measured: Overflow | null; inspected?: Inspection | null };
+export type CheckShot = {
+  png: Buffer;
+  measured: Overflow | null;
+  inspected?: Inspection | null;
+  /** The questions marked on the picture, by their badges' numbers. */
+  questions?: BoardQuestion[];
+};
 export type CheckDrawing = {
   /**
    * A board at a commit and width, in a scheme; measured for what leaves the page only when
@@ -294,6 +310,8 @@ export type CheckDrawing = {
     width: number;
     height: number;
     scheme: 'light' | 'dark';
+    /** The After's questions, listed beside it, never over the board. */
+    questions?: BoardQuestion[];
   }): Promise<Buffer>;
 };
 
@@ -322,6 +340,8 @@ export type CheckResult = {
   restore: { commit: string; files: string[] }[];
   /** Boards whose canvas and meta heights disagree, with the height drawn: what --fix writes. */
   heights: Record<string, number>;
+  /** Boards with no place on the canvas or a bad one, and the free place --fix puts them. */
+  places: Record<string, { x: number; y: number; w: number; h: number }>;
   /** Before and after, named <Board>-<width>-<scheme>.png, as base64. */
   pictures: { name: string; png: string }[];
 };
@@ -466,11 +486,14 @@ export async function checkDesign(
   // The boards that are changes of the branch's own.
   const own = files.filter((file) => !carried.has(file));
 
-  // New elements get layer IDs; existing IDs are kept.
+  // New elements get layer IDs; existing IDs are kept. What became of main's IDs is judged on
+  // the board as written, before naming, so an element left with no ID shows as such.
   let named = 0;
   const layers: Record<string, string> = {};
+  const written = new Map<string, string | null>();
   for (const file of own) {
     const html = await after(file);
+    written.set(file, html);
     if (html === null) continue;
     const next = assignLayerIds(html);
     if (next !== html) {
@@ -482,6 +505,53 @@ export async function checkDesign(
 
   const problems: CheckProblem[] = [];
   const notes: CheckProblem[] = [];
+  const comparedWith = new Map<string, string>();
+  const originOf = new Map<string, string>();
+  /**
+   * The board on main a new one is most like: most of its own style lines, by one git grep, then
+   * the closest of the best few by styles and classes. Null when nothing is close.
+   */
+  const similarOnMain = async (file: string, text: string) => {
+    const lines = [...new Set(styleLines(text))].sort((a, b) => b.length - a.length).slice(0, 40);
+    if (lines.length < 3) return null;
+    const counts = (
+      (await git.read([
+        'grep',
+        '-c',
+        '-F',
+        ...lines.flatMap((line) => ['-e', line]),
+        base,
+        '--',
+        `${folder}/boards`,
+      ])) ?? ''
+    )
+      .split('\n')
+      .map((line) => /\/([^/:]+\.html):(\d+)$/.exec(line))
+      .filter((match): match is RegExpExecArray => Boolean(match) && match![1] !== file)
+      .map((match) => ({ file: match[1], count: Number(match[2]) }))
+      .filter((entry) => entry.count >= Math.max(3, lines.length * 0.3))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+    let best: { file: string; score: number } | null = null;
+    for (const entry of counts) {
+      const score = boardSimilarity(text, await onMain(entry.file));
+      if (!best || score > best.score) best = { file: entry.file, score };
+    }
+    return best && best.score >= 0.3 ? best.file : null;
+  };
+  // Distinctive words on the design system's specimen boards, read once.
+  let specimens: Map<string, string> | null = null;
+  const specimenTexts = new Map<string, string | null>();
+  for (const file of mainDisk.filter(isSpecimen)) specimenTexts.set(file, await onMain(file));
+  const specimenWords = () => {
+    if (!specimens) {
+      specimens = new Map();
+      for (const [file, html] of specimenTexts)
+        for (const word of distinctiveWords(html))
+          if (!specimens.has(word)) specimens.set(word, file);
+    }
+    return specimens;
+  };
   const partRows = parts.map((entry) => {
     const { row, problems: carriedProblems } = partRow(entry.part, entry.shown, entry.carried);
     problems.push(...carriedProblems);
@@ -495,29 +565,35 @@ export async function checkDesign(
     const before = await onMain(file);
     // The board's name, as the boards and the review's list name it; a canvas title is a sentence.
     const title = screenName(file);
-    // A lost layer matters when something refers to it on main: a link, a note, a decision, the
-    // library or another board. Renaming one nothing refers to is fine, and only noted.
-    const renamed: string[] = [];
-    const referenced: string[] = [];
-    for (const layer of lostLayers(before, text)) {
-      const lines = (
-        (await git.read(['grep', '-h', '-F', '-e', layer, base, '--', `${folder}/`])) ?? ''
-      ).split('\n');
-      (layerReferenced(layer, lines) ? referenced : renamed).push(layer);
+    // Comments and pins point at layer IDs, so one main has must survive while its element does.
+    const removed: string[] = [];
+    for (const entry of layerFates(before, written.get(file) ?? text)) {
+      if (entry.fate === 'removed') removed.push(entry.layer);
+      else if (entry.fate === 'renamed')
+        problems.push({
+          code: 'layer_renamed',
+          file,
+          board: title,
+          layer: entry.layer,
+          label: `${title} renamed layer ${entry.layer} to ${entry.to}`,
+          detail: 'comments and pins on deploy.local point at the old ID',
+          short: `renamed ${entry.layer}`,
+          fix: `keep the ID ${entry.layer} on ${entry.to}: move data-layer="${entry.layer}" onto the new element`,
+        });
+      else
+        problems.push({
+          code: 'lost_layer',
+          file,
+          board: title,
+          layer: entry.layer,
+          label: `${title} lost layer ${entry.layer}`,
+          detail: 'the element is still drawn, with no ID',
+          short: `lost layer ${entry.layer}`,
+          fix: `put data-layer="${entry.layer}" back on the element`,
+        });
     }
-    const renamedNote = renamedLayersNote({ file, title, layers: renamed });
-    if (renamedNote) notes.push(renamedNote);
-    for (const layer of referenced)
-      problems.push({
-        code: 'lost_layer',
-        file,
-        board: title,
-        layer,
-        label: `${title} lost layer ${layer}`,
-        detail: 'something on main refers to it; keep its ID',
-        short: `lost layer ${layer}`,
-        fix: `put data-layer="${layer}" back on the element`,
-      });
+    const removedNote = removedLayersNote({ file, title, layers: removed });
+    if (removedNote) notes.push(removedNote);
     for (const to of text ? brokenLinks(text, disk) : [])
       problems.push({
         code: 'broken_link',
@@ -529,28 +605,59 @@ export async function checkDesign(
         fix: `link to a board that exists, or add ${to}`,
       });
     if (text) {
-      const board = { file, title, before, after: text };
       const meta = parseBoardMeta(text);
-      // A new board is judged against the board it says it came from, when it says.
-      const from = !before ? (meta.source ?? meta.replaces) : null;
-      const origin = from && from !== file ? ((await after(from)) ?? (await onMain(from))) : null;
+      // A new board is judged against the board it came from: the one its head names, else the
+      // board on main it is most like (a copy keeps its chrome and styles).
+      let from = !before ? (meta.source ?? meta.copiedFrom ?? meta.replaces) : null;
+      if (!before && !from) {
+        from = await similarOnMain(file, text);
+        if (from) comparedWith.set(file, from);
+      }
+      if (from === file) from = null;
+      if (from) originOf.set(file, from);
+      const origin = from ? ((await after(from)) ?? (await onMain(from))) : null;
+      const board = { file, title, before, after: text };
+      // Taste is judged against main's board, or the board this one came from.
+      const baseline = { ...board, before: before ?? origin };
       problems.push(...notATokenProblems({ ...board, tokens, library: branchLibrary, origin }));
       const asked = questionFindings(board);
       problems.push(...asked.problems);
       notes.push(...asked.notes);
-      const nameNote = layerNameNote(board);
+      const nameNote = layerNameNote(baseline);
       if (nameNote) notes.push(nameNote);
-      notes.push(...spacingNotes({ ...board, tokens }));
+      notes.push(...spacingNotes({ ...baseline, tokens }));
       notes.push(...localCopyNotes({ ...board, bundle, library: branchLibrary, origin }));
-      if (meta.source && meta.source !== file)
-        notes.push(
-          ...sourceNotes({
-            ...board,
-            source: meta.source,
-            sourceAfter: await after(meta.source),
-            sourceBefore: await onMain(meta.source),
-          }),
-        );
+      if (!isSpecimen(file)) {
+        const old = new Set(distinctiveWords(before ?? origin));
+        const borrowed = new Map<string, string[]>();
+        for (const word of distinctiveWords(text)) {
+          const specimen = specimenWords().get(word);
+          if (!specimen || old.has(word)) continue;
+          const elsewhere = (
+            (await git.read(['grep', '-l', '-F', '-e', word, base, '--', `${folder}/boards`])) ?? ''
+          )
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => line.slice(line.lastIndexOf('/') + 1))
+            .filter((other) => !isSpecimen(other) && other !== file);
+          if (elsewhere.length) continue;
+          borrowed.set(specimen, [...(borrowed.get(specimen) ?? []), word]);
+        }
+        for (const [specimen, words] of borrowed) {
+          const note = specimenNote({ file, title, words, specimen });
+          if (note) notes.push(note);
+        }
+      }
+      if (meta.source && meta.source !== file) {
+        const compared = sourceNotes({
+          ...board,
+          source: meta.source,
+          sourceAfter: await after(meta.source),
+          sourceBefore: await onMain(meta.source),
+        });
+        problems.push(...compared.filter((finding) => finding.code === 'source_action_missing'));
+        notes.push(...compared.filter((finding) => finding.code !== 'source_action_missing'));
+      }
       const height = heightProblem({
         file,
         title,
@@ -568,7 +675,10 @@ export async function checkDesign(
       file,
       title,
       status: !before ? 'new' : !text ? 'removed' : 'changed',
-      words: boardWords(before, text),
+      words: comparedWith.has(file)
+        ? `${boardWords(before, text)}, judged against ${screenName(comparedWith.get(file)!)}`
+        : boardWords(before, text),
+      ...(comparedWith.has(file) ? { comparedWith: comparedWith.get(file) } : {}),
     });
   }
   // Parts first: one change, however many screens show it.
@@ -578,7 +688,34 @@ export async function checkDesign(
     { disk: mainDisk, canvas: Object.keys(mainCanvas?.boards ?? {}) },
   ))
     problems.push({ ...problem, short: problem.label.slice(problem.file.length + 1) });
-  problems.push(...overlapProblems(canvas?.boards, mainCanvas?.boards));
+  problems.push(...overlapProblems(canvas, mainCanvas));
+  problems.push(...noteOverlapProblems(canvas, mainCanvas));
+
+  // Where --fix puts a board with no place or a bad one: beside the board it came from. Each place
+  // is taken before the next is found, so two new boards never land on one spot.
+  const places: CheckResult['places'] = {};
+  const placing = { ...canvas, boards: { ...canvas?.boards } };
+  for (const file of own) {
+    const text = await after(file);
+    if (text === null) continue;
+    const misplaced = problems.some(
+      (problem) =>
+        problem.file === file &&
+        ['boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(problem.code ?? ''),
+    );
+    if (!misplaced) continue;
+    const meta = parseBoardMeta(text);
+    const size = {
+      w: Number(placing.boards[file]?.w) || meta.width || 1440,
+      h: Number(placing.boards[file]?.h) || meta.height || 900,
+    };
+    const spot = placeBoard({ canvas: placing, file, size, near: originOf.get(file) ?? null });
+    places[file] = { ...spot, ...size };
+    placing.boards[file] = { ...placing.boards[file], ...places[file] };
+    for (const problem of problems)
+      if (problem.file === file && problem.code === 'not_on_canvas')
+        problem.fix = `deploy design check --fix places it at x ${spot.x}, y ${spot.y}`;
+  }
 
   // The platform of a board, from its head or its width, for sizes and siblings.
   const platformOf = async (at: 'branch' | 'main', file: string) =>
@@ -614,9 +751,23 @@ export async function checkDesign(
         const inspect = width === widths[0];
         const shot = (at: string) =>
           drawing.shoot({ commit: at, file, width, height, scheme, measure, inspect });
+        // A new board's taste is judged against the board it came from, drawn from main.
+        const origin = originOf.get(file);
         const [afterShot, beforeShot] = await Promise.all([
           shot(commit),
-          mainHas ? shot(base) : null,
+          mainHas
+            ? shot(base)
+            : inspect && origin && mainDisk.includes(origin)
+              ? drawing.shoot({
+                  commit: base,
+                  file: origin,
+                  width,
+                  height,
+                  scheme,
+                  measure,
+                  inspect,
+                })
+              : null,
         ]);
         if (!afterShot) continue;
         if (afterShot.measured)
@@ -651,11 +802,12 @@ export async function checkDesign(
           }
         }
         const png = await drawing.pair({
-          before: beforeShot?.png ?? null,
+          before: mainHas ? (beforeShot?.png ?? null) : null,
           after: afterShot.png,
           width,
           height,
           scheme,
+          questions: afterShot.questions ?? [],
         });
         shots.push({ name: `${name}-${width}-${scheme}.png`, png: png.toString('base64') });
       }
@@ -728,6 +880,7 @@ export async function checkDesign(
     layers,
     restore,
     heights,
+    places,
     pictures,
   };
 }

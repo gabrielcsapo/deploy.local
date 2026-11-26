@@ -3388,7 +3388,7 @@ export function checkDrawing(repo: string): CheckDrawing {
         }
       });
     },
-    pair: async ({ before, after, width, height, scheme }) =>
+    pair: async ({ before, after, width, height, scheme, questions }) =>
       withBoardChromium(await drawingChromium(), async (browser) => {
         const context = await browser.newContext({
           viewport: { width: width * 2 + 48, height: height + 64 },
@@ -3396,7 +3396,7 @@ export function checkDrawing(repo: string): CheckDrawing {
         });
         try {
           const tab = await context.newPage();
-          await tab.setContent(pairPage({ before, after, width, scheme }), {
+          await tab.setContent(pairPage({ before, after, width, scheme, questions }), {
             waitUntil: 'load',
             timeout: 15000,
           });

@@ -1313,6 +1313,7 @@ test('status says where to start: platform, sizes, current or replaced, source, 
     assert.equal(phone.platform, 'phone');
     assert.equal(phone.source, 'Run.html');
     assert.deepEqual(phone.templates, ['template-detail-phone']);
+    assert.equal(phone.copyFrom, 'InboxPhone.html', 'the phone board of the closest web screen');
     const text = run.text();
     assert.match(text, /^Run\.html {2}web · 1440 and 700 · light, dark · current\n/);
     assert.match(text, /\n {2}Open question {3}kept: "How long are files kept\?"\n/);
@@ -1320,7 +1321,7 @@ test('status says where to start: platform, sizes, current or replaced, source, 
     assert.match(text, /\nRunOld\.html .* replaced by RunNew\.html\n/);
     assert.match(
       text,
-      /\nRunPhone\.html {2}no board yet · phone · 390\n {2}Source {10}Run\.html \(web\)/,
+      /\nRunPhone\.html {2}no board yet · phone · 390\n {2}Copy from {7}InboxPhone\.html, and put copied_from=InboxPhone\.html in its head\n {2}Source {10}Run\.html \(web\)/,
     );
     assert.match(
       text,
@@ -1376,4 +1377,156 @@ test('guide lists every code the check can report', async () => {
     [...listed].filter((code) => !used.has(code)),
     [],
   );
+});
+
+test('guide reads the fixtures sentence, writes meta with commas and says where each icon comes from', async () => {
+  const repo = repository();
+  try {
+    writeFileSync(
+      join(repo.clone, 'design/README.md'),
+      [
+        '1. `deploy design guide` once: platforms, components, fixture names and the check codes.',
+        '2. `deploy design status <Board>`: where to start.',
+        '',
+        'Use the fixture names from the boards: home-gym, tally, SER.',
+      ].join('\n'),
+    );
+    mkdirSync(join(repo.clone, 'design/ds/deploy-local/components'), { recursive: true });
+    writeFileSync(
+      join(repo.clone, 'design/ds/deploy-local/components/library.json'),
+      JSON.stringify({
+        components: [
+          {
+            id: 'icon-check',
+            name: 'Check',
+            group: 'Icons and art',
+            html: '<svg><path d="M5 12l5 5L20 7"/></svg>',
+          },
+          {
+            id: 'icon-clock',
+            name: 'Clock',
+            group: 'Icons and art',
+            html: '<svg><path d="M12 7v5l3 2"/></svg>',
+          },
+        ],
+      }),
+    );
+    writeFileSync(
+      join(repo.clone, 'design/boards/Run.html'),
+      '<main><svg><path d="M5 12l5 5L20 7"/></svg></main>',
+    );
+    const run = terminal(repo.clone, coordinator().api);
+    await runDesign('guide', [], {}, run.deps);
+    const text = run.text();
+    assert.match(
+      text,
+      /\nFixtures \(use these names, never invented ones\)\n {2}home-gym, tally, SER\n/,
+    );
+    assert.match(text, /content="width=390,height=844,platform=phone,source=Inbox\.html"/);
+    assert.doesNotMatch(text, /content="[^"]*;/);
+    assert.match(
+      text,
+      /\n {2}check {2}Run\.html\n {2}clock {2}design\/ds\/deploy-local\/components\/library\.json\n/,
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('status resolves a screen named in words to its board by section', async () => {
+  const repo = repository();
+  try {
+    const board = (body = '') =>
+      `<meta name="design-board" content="width=1440,height=900">\n<main>${body}</main>\n`;
+    for (const file of [
+      'DesignCanvas.html',
+      'DesignBoard.html',
+      'DesignReviewCanvas.html',
+      'DesignReviewPin.html',
+      'DesignReviewGrid.html',
+    ])
+      writeFileSync(join(repo.clone, 'design/boards', file), board());
+    writeFileSync(
+      join(repo.clone, 'design/canvas.json'),
+      JSON.stringify({
+        boards: {
+          'DesignCanvas.html': { x: 0, y: 200, w: 1440, h: 900 },
+          'DesignBoard.html': { x: 1600, y: 200, w: 1440, h: 900 },
+          'DesignReviewCanvas.html': { x: 0, y: 2200, w: 1440, h: 900 },
+          'DesignReviewPin.html': { x: 1600, y: 2200, w: 1440, h: 900 },
+          'DesignReviewGrid.html': { x: 3200, y: 2200, w: 1440, h: 900 },
+        },
+        notes: {
+          page: { x: 0, y: 0, text: 'The Design page', kind: 'title1' },
+          review: { x: 0, y: 2000, text: 'Design review', kind: 'title1' },
+        },
+      }),
+    );
+    const run = terminal(repo.clone, coordinator().api);
+    const result = await runDesign('status', ['DesignPage'], {}, run.deps);
+    assert.equal(result.json.boards[0].means, 'DesignCanvas.html');
+    assert.match(run.text(), /\n {2}Means {11}DesignCanvas\.html: work on that board/);
+    assert.match(run.text(), /\nNext {2}deploy design status DesignCanvas\n$/);
+    const review = await runDesign(
+      'status',
+      ['DesignReviewThing'],
+      { json: true },
+      terminal(repo.clone, coordinator().api).deps,
+    );
+    assert.equal(
+      review.json.boards[0].means ?? review.json.boards[0].copyFrom,
+      'DesignReviewCanvas.html',
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('check --fix places a new board beside the one it came from', async () => {
+  const repo = repository();
+  try {
+    writeFileSync(
+      join(repo.clone, 'design/boards/SidebarPhone.html'),
+      '<meta name="design-board" content="width=390,height=844,source=Sidebar.html">\n<main><p data-layer="name">Name</p></main>\n',
+    );
+    const openLocalDrawing = async () => ({
+      drawing: {
+        shoot: async ({ inspect }) => ({
+          png: Buffer.from('png'),
+          measured: null,
+          inspected: inspect
+            ? { height: 844, texts: [], aligned: [], rows: {}, boxes: [], primaries: [] }
+            : null,
+        }),
+        pair: async () => Buffer.from('pair'),
+      },
+      close: async () => {},
+    });
+    const first = await runDesign(
+      'check',
+      [],
+      { json: true },
+      terminal(repo.clone, coordinator().api, { openLocalDrawing }).deps,
+    );
+    const missing = first.json.problems.find((problem) => problem.code === 'not_on_canvas');
+    assert.match(missing.fix, /^deploy design check --fix places it at x 1600, y 0$/);
+    const fixed = await runDesign(
+      'check',
+      [],
+      { json: true, fix: true },
+      terminal(repo.clone, coordinator().api, { openLocalDrawing }).deps,
+    );
+    assert.equal(fixed.exitCode, 0);
+    assert.deepEqual(fixed.json.fixed, ['SidebarPhone placed at x 1600, y 0 in canvas.json']);
+    const canvas = JSON.parse(readFileSync(join(repo.clone, 'design/canvas.json'), 'utf8'));
+    assert.deepEqual(canvas.boards['SidebarPhone.html'], {
+      x: 1600,
+      y: 0,
+      w: 390,
+      h: 844,
+      title: 'SidebarPhone',
+    });
+  } finally {
+    repo.cleanup();
+  }
 });
