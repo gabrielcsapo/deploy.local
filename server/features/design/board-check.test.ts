@@ -597,8 +597,25 @@ test("a board's head may say its platform, schemes, source and what it replaces;
     source: null,
     copiedFrom: null,
     title: null,
+    page: null,
+    size: null,
+    bleed: null,
+    safe: null,
+    device: null,
     other: {},
   });
+  const print = parseBoardMeta(
+    '<meta name="design-board" content="platform=print,size=85x55mm,bleed=3mm,safe=4mm">',
+  );
+  assert.deepEqual([print.platform, print.size, print.bleed, print.safe], ['print', '85x55mm', '3mm', '4mm']);
+  assert.equal(
+    parseBoardMeta('<meta name="design-board" content="platform=doc,page=letter">').page,
+    'letter',
+  );
+  assert.equal(
+    parseBoardMeta('<meta name="design-board" content="platform=game,device=phone">').device,
+    'phone',
+  );
   const phone = parseBoardMeta(
     '<meta name="design-board" content="platform=phone; schemes=light dark; title=Inbox, phone; source=PipelineRun; replaces=OldInbox.html; height=844">',
   );
@@ -1033,6 +1050,8 @@ test('the check reports drawn problems and notes, measures heights for --fix, an
     assert.deepEqual(asked, [
       'branch 1440 dark inspect',
       'main 1440 dark inspect',
+      // The height is measured in a window too short to hand the canvas's height back.
+      'branch 1440 dark inspect',
       'branch 700 dark',
       'main 700 dark',
     ]);

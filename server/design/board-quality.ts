@@ -12,6 +12,7 @@ import {
   type Library,
 } from './board-html.ts';
 import type { CheckProblem } from '../../shared/v2/design-overflow.ts';
+import { platformInfo } from '../../shared/v2/design-platforms.ts';
 import {
   contrast,
   hex,
@@ -29,6 +30,10 @@ export type DesignTokens = {
   type: number[];
   /** The phone's own type scale, when the design system has one; phone boards are judged by it. */
   phoneType?: number[];
+  /** The type scale of a platform with one of its own (mac, slide, doc, print, game), in px. */
+  platformType?: Record<string, number[]>;
+  /** Those scales' tokens as written ("--text-print-body: 8pt"), for what guide says. */
+  typeTokens?: Record<string, { name: string; value: string }[]>;
   space: number[];
 };
 
@@ -73,11 +78,14 @@ export function readTokens(json: string | null, css: string | null): DesignToken
   return tokensFromCss(css);
 }
 
-/** px from "16px" or "1rem" (16 px a rem). */
+/** px from "16px", "1rem" (16 px a rem) or "9pt" (a point is 96/72 px). */
 const cssPx = (value: string) => {
-  const match = /^(-?\d*\.?\d+)(px|rem)$/.exec(value.trim());
-  return match ? Number(match[1]) * (match[2] === 'rem' ? 16 : 1) : null;
+  const match = /^(-?\d*\.?\d+)(px|rem|pt)$/.exec(value.trim());
+  return match ? Number(match[1]) * (match[2] === 'rem' ? 16 : match[2] === 'pt' ? 96 / 72 : 1) : null;
 };
+
+/** The platforms whose type scale is their own: --text-mac-*, --text-slide-*, --text-doc-* … */
+const kindScales = ['mac', 'slide', 'doc', 'print', 'game'];
 
 /**
  * Tokens from a stylesheet's custom properties: colours from :root (or [data-theme="light"]) for
@@ -142,10 +150,22 @@ export function tokensFromCss(css: string): DesignTokens {
     ].sort((a, b) => a - b);
   // Phone (iOS) sizes, named so, are the phone's own scale.
   const phoneType = sizes(/^(text|font-size|type|fs)-.*\b(phone|ios)\b/);
+  const platformType: Record<string, number[]> = {};
+  const typeTokens: Record<string, { name: string; value: string }[]> = {};
+  for (const kind of kindScales) {
+    const own = new RegExp(`^(text|font-size|type|fs)-.*\\b${kind}\\b`);
+    const found = sizes(own);
+    if (!found.length) continue;
+    platformType[kind] = found;
+    typeTokens[kind] = Object.entries(all)
+      .filter(([name, value]) => own.test(name) && cssPx(value) !== null)
+      .map(([name, value]) => ({ name: `--${name}`, value: value.trim() }));
+  }
   return {
     colors,
-    type: sizes(/^(text|font-size|type|fs)-(?!.*\b(phone|ios)\b)/),
+    type: sizes(/^(text|font-size|type|fs)-(?!.*\b(phone|ios|mac|slide|doc|print|game)\b)/),
     ...(phoneType.length ? { phoneType } : {}),
+    ...(Object.keys(platformType).length ? { platformType, typeTokens } : {}),
     space: sizes(/^(space|spacing)-/),
   };
 }
@@ -1044,6 +1064,31 @@ export function contrastProblems(input: {
 }
 
 /** Taste, from the drawing at the board's first width in light: notes main's board did not have. */
+/** The type sizes (px) a platform's boards are judged by; none when it has no scale to hold them to. */
+export function typeScaleFor(tokens: DesignTokens | null, platform: string): number[] {
+  if (!tokens) return [];
+  const info = platformInfo(platform);
+  if (!info.typed) return [];
+  if (!info.scale) return tokens.type;
+  if (info.scale === 'phone') return tokens.phoneType?.length ? tokens.phoneType : tokens.type;
+  const own = tokens.platformType?.[info.scale];
+  if (own?.length) return own;
+  if (info.scaleFallback === 'phone')
+    return tokens.phoneType?.length ? tokens.phoneType : tokens.type;
+  return [];
+}
+
+const typeScaleName = (platform: string) =>
+  ['web', 'tablet', 'tv'].includes(platform) ? '' : `${platform} `;
+
+/** A scale as the design system writes it: pt for a print piece, else px. */
+function typeScaleWords(tokens: DesignTokens | null, platform: string, scale: number[]) {
+  const written = tokens?.typeTokens?.[platformInfo(platform).scale ?? '']?.map((token) => token.value);
+  if (written?.length && platformInfo(platform).scale === platform)
+    return [...new Set(written)].join(', ');
+  return `${scale.map((size) => Math.round(size * 10) / 10).join(', ')} px`;
+}
+
 export function drawnNotes(input: {
   file: string;
   title: string;
@@ -1061,15 +1106,17 @@ export function drawnNotes(input: {
   const notes: Finding[] = [];
   const at = { file, board: title, width, scheme: 'light' as const };
 
-  // Type sizes off the scale, one note per size.
-  const phone = input.platform ? input.platform === 'phone' : width < 600;
-  const typeScale = (phone && input.tokens?.phoneType) || input.tokens?.type || [];
+  // Type sizes off the scale, one note per size. Each platform is judged by its own scale: a
+  // slide or a printed card is never held to the web's.
+  const platform = input.platform ?? (width < 600 ? 'phone' : 'web');
+  const typeScale = typeScaleFor(input.tokens, platform);
   if (typeScale.length) {
-    const scale = new Set(typeScale);
+    const round = (value: number) => Math.round(value * 10) / 10;
+    const scale = new Set(typeScale.map(round));
     const old = new Set((before?.texts ?? []).map((text) => `${text.layer} ${text.size}`));
     const off = new Map<number, string[]>();
     for (const text of after.texts) {
-      const size = Math.round(text.size * 10) / 10;
+      const size = round(text.size);
       if (scale.has(size) || old.has(`${text.layer} ${text.size}`)) continue;
       const layers = off.get(size) ?? [];
       const where = text.layer ?? `"${text.text}"`;
@@ -1084,9 +1131,11 @@ export function drawnNotes(input: {
         label: `${title} sets ${size} px type`,
         detail: `${layers.slice(0, 4).join(', ')}${layers.length > 4 ? ` and ${layers.length - 4} more` : ''}`,
         short: `${size} px type`,
-        fix: `use a size on the ${phone ? 'phone ' : ''}type scale: ${typeScale.join(', ')} px`,
+        fix: `use a size on the ${typeScaleName(platform)}type scale: ${typeScaleWords(input.tokens, platform, typeScale)}`,
       });
   }
+  // The rest of the notes are about app screens: lists, cards, aligned chrome, one primary action.
+  if (!platformInfo(platform).appChecks) return notes;
 
   // Edges that nearly line up.
   const oldPairs = new Set((before?.aligned ?? []).map((pair) => `${pair.a} ${pair.b}`));
@@ -1269,8 +1318,8 @@ export function screenFamily(
 
 /** Every code the check reports, whether it blocks, and what it means: what guide prints. */
 export const checkCodes: { code: string; problem: boolean; means: string }[] = [
-  { code: 'text_cut_off', problem: true, means: 'text leaves the page at 700 px' },
-  { code: 'overflows_sideways', problem: true, means: 'the page scrolls sideways at 700 px' },
+  { code: 'text_cut_off', problem: true, means: 'text leaves the page (at 700 px; at its size for the rest)' },
+  { code: 'overflows_sideways', problem: true, means: 'the page scrolls sideways' },
   { code: 'low_contrast', problem: true, means: 'text under 4.5:1 (3:1 large) in light or dark' },
   { code: 'not_a_token', problem: true, means: 'a colour written out instead of a token' },
   { code: 'boards_overlap', problem: true, means: 'two boards on top of each other on the canvas' },
@@ -1293,7 +1342,7 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   {
     code: 'missing_scheme',
     problem: true,
-    means: "fewer schemes than the project's (light and dark)",
+    means: "fewer schemes than the project's (by default light and dark; a slide or print is light)",
   },
   {
     code: 'scheme_dropped',
@@ -1322,7 +1371,23 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'canvas_only', problem: true, means: 'canvas.json places a board with no file' },
   { code: 'part_carried', problem: true, means: 'boards carried only for a component change' },
   { code: 'not_drawn', problem: true, means: 'the boards could not be drawn' },
-  { code: 'type_off_scale', problem: false, means: 'a font size not on the type scale' },
+  {
+    code: 'outside_safe_area',
+    problem: true,
+    means: 'print: text or a mark closer to the trim than the safe margin',
+  },
+  {
+    code: 'taller_than_frame',
+    problem: true,
+    means: 'slide, card, window or screen: more content than its frame holds',
+  },
+  { code: 'type_off_scale', problem: false, means: "a font size not on its platform's type scale" },
+  { code: 'page_break_inside', problem: false, means: 'doc: a printed page ends on a heading' },
+  {
+    code: 'logo_small_unreadable',
+    problem: false,
+    means: 'logo: contrast under 3:1 at 16 px on a ground',
+  },
   { code: 'spacing_off_scale', problem: false, means: 'a margin, padding or gap off the scale' },
   { code: 'nearly_aligned', problem: false, means: 'left edges 1 to 4 px apart' },
   {
@@ -1491,8 +1556,10 @@ const schemeFix =
   'draw it in every scheme its siblings draw; to keep a preview light, pin the inner preview, not the page';
 
 /** The schemes a board is drawn in: what its head says, else light and dark. */
-export const boardSchemes = (meta: { schemes: ('light' | 'dark')[] | null }) =>
-  meta.schemes ?? (['light', 'dark'] as ('light' | 'dark')[]);
+export const boardSchemes = (
+  meta: { schemes: ('light' | 'dark')[] | null },
+  fallback: ('light' | 'dark')[] = ['light', 'dark'],
+) => meta.schemes ?? fallback;
 
 /**
  * A board drawn in fewer schemes than the board it comes from or its siblings: its dark pairs

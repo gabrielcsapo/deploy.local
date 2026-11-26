@@ -3363,7 +3363,18 @@ async function drawingChromium() {
  */
 export function checkDrawing(repo: string): CheckDrawing {
   return {
-    shoot: async ({ commit, file, width, height, scheme, measure, inspect }) => {
+    shoot: async ({
+      commit,
+      file,
+      width,
+      height,
+      scheme,
+      measure,
+      inspect,
+      scale,
+      media,
+      fullPage,
+    }) => {
       const html = await readFile(repo, commit, `${designFolder()}/boards/${file}`);
       if (!html) return null;
       const page = await boardPage(repo, commit, html.toString());
@@ -3371,6 +3382,7 @@ export function checkDrawing(repo: string): CheckDrawing {
         const context = await browser.newContext({
           viewport: { width, height },
           colorScheme: scheme,
+          deviceScaleFactor: scale ?? 1,
           javaScriptEnabled: false,
         });
         try {
@@ -3379,17 +3391,20 @@ export function checkDrawing(repo: string): CheckDrawing {
               ? fontResponse(route)
               : route.abort(),
           );
-          return await shootBoard(playwrightTab(await context.newPage()), page, {
+          const tab = await context.newPage();
+          if (media) await tab.emulateMedia({ media });
+          return await shootBoard(playwrightTab(tab), page, {
             scheme,
             measure,
             inspect,
+            fullPage,
           });
         } finally {
           await context.close();
         }
       });
     },
-    pair: async ({ before, after, width, height, scheme, questions }) =>
+    pair: async ({ before, after, width, height, scheme, questions, layout }) =>
       withBoardChromium(await drawingChromium(), async (browser) => {
         const context = await browser.newContext({
           viewport: { width: width * 2 + 48, height: height + 64 },
@@ -3397,7 +3412,7 @@ export function checkDrawing(repo: string): CheckDrawing {
         });
         try {
           const tab = await context.newPage();
-          await tab.setContent(pairPage({ before, after, width, scheme, questions }), {
+          await tab.setContent(pairPage({ before, after, width, scheme, questions, layout }), {
             waitUntil: 'load',
             timeout: 15000,
           });

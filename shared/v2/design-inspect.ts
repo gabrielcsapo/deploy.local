@@ -39,7 +39,12 @@ export type Inspection = {
    * bar pinned to its bottom.
    */
   clipped?: { layer: string | null; text: string; by: 'frame' | 'bar'; frame: string | null }[];
+  /** Pictures and drawings that show (img, svg, canvas, video) and where, for a print piece's safe area. */
+  figures?: Box[];
+  /** Headings and where they end, for a document's page breaks. */
+  headings?: (Box & { text: string })[];
 };
+export type Box = { layer: string | null; left: number; top: number; width: number; height: number };
 
 /** Runs in the page: what the check measures there. */
 export function inspectBoard(doc: Document = document): Inspection {
@@ -302,8 +307,30 @@ export function inspectBoard(doc: Document = document): Inspection {
     }
   }
 
+  const boxOf = (element: Element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      layer: layerOf(element),
+      left: Math.round(rect.left * 10) / 10,
+      top: Math.round(rect.top * 10) / 10,
+      width: Math.round(rect.width * 10) / 10,
+      height: Math.round(rect.height * 10) / 10,
+    };
+  };
+  const figures = [...doc.body.querySelectorAll('img, svg, canvas, video')]
+    .filter((element) => shown(element) && !element.parentElement?.closest('svg'))
+    .map(boxOf);
+  const headings = [...doc.body.querySelectorAll('h1, h2, h3, h4, h5, h6')]
+    .filter(shown)
+    .map((element) => ({
+      ...boxOf(element),
+      text: (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40),
+    }));
+
   return {
     height: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight),
+    figures,
+    headings,
     clipped,
     texts,
     aligned,

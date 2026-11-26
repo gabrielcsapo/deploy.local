@@ -103,7 +103,19 @@ export function readDesign(top, designSystem) {
     library = null;
   }
   const tokensJsonText = systemText(top, paths?.tokensJson, designSystem);
-  const tokensCss = systemText(top, paths?.tokensCss, designSystem);
+  let tokensCss = systemText(top, paths?.tokensCss, designSystem);
+  // A kind's type scale lives in its own stylesheet beside tokens.css.
+  try {
+    const kindCss = ds
+      ? readdirSync(join(top, 'design', ds))
+          .filter((name) => /\.css$/.test(name) && !/^(tokens|components)\.css$/.test(name))
+          .map((name) => readFileSync(join(top, 'design', ds, name), 'utf8'))
+          .join('\n')
+      : '';
+    if (kindCss) tokensCss = `${tokensCss ?? ''}\n${kindCss}`;
+  } catch {
+    // No such folder.
+  }
   const tokens = readTokens(tokensJsonText, tokensCss);
   let tokensJson = null;
   try {

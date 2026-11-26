@@ -3,7 +3,18 @@
 // copied_from= and title=, separated by commas or semicolons. A part with no "=" belongs to the value before
 // it, so a title can read "Inbox, phone".
 
-export type BoardPlatform = 'web' | 'phone' | 'tablet' | 'mac' | 'tv' | 'slide' | string;
+export type BoardPlatform =
+  | 'web'
+  | 'phone'
+  | 'tablet'
+  | 'mac'
+  | 'tv'
+  | 'slide'
+  | 'doc'
+  | 'print'
+  | 'game'
+  | 'logo'
+  | string;
 
 export type BoardMeta = {
   width: number | null;
@@ -17,6 +28,15 @@ export type BoardMeta = {
   /** The board this one was copied from, when it is not drawn from it as a source. */
   copiedFrom: string | null;
   title: string | null;
+  /** A document's page size ("a4", "letter"). */
+  page: string | null;
+  /** A print piece's trim size as written ("85x55mm"). */
+  size: string | null;
+  /** A print piece's bleed and safe margin as written ("3mm"). */
+  bleed: string | null;
+  safe: string | null;
+  /** A game's device ("phone"). */
+  device: string | null;
   /** Keys this reader does not know, kept as written. */
   other: Record<string, string>;
 };
@@ -58,6 +78,11 @@ export function parseBoardMeta(html: string | null | undefined): BoardMeta {
     source: null,
     copiedFrom: null,
     title: null,
+    page: null,
+    size: null,
+    bleed: null,
+    safe: null,
+    device: null,
     other: {},
   };
   const content = html ? metaPattern.exec(html)?.[1] : undefined;
@@ -82,6 +107,8 @@ export function parseBoardMeta(html: string | null | undefined): BoardMeta {
     } else if (key === 'source') meta.source = boardFile(value);
     else if (key === 'copied_from' || key === 'copied-from') meta.copiedFrom = boardFile(value);
     else if (key === 'title') meta.title = value || null;
+    else if (key === 'page' || key === 'size' || key === 'bleed' || key === 'safe' || key === 'device')
+      meta[key] = value.toLowerCase() || null;
     else meta.other[key] = value;
   }
   return meta;
@@ -95,6 +122,10 @@ export const platformWidths: Record<string, number> = {
   mac: 1280,
   tv: 1920,
   slide: 1920,
+  doc: 700,
+  print: 344,
+  game: 390,
+  logo: 1024,
 };
 
 /** The platform a board is drawn for: what it says, else what its width suggests. */
@@ -105,10 +136,15 @@ export function boardPlatform(meta: BoardMeta, canvasWidth?: number): string {
 }
 
 /** The board's html with its meta's height set, adding a meta when it had none. */
-export function setBoardMetaHeight(html: string, height: number, width = 1440) {
+export function setBoardMetaHeight(
+  html: string,
+  height: number,
+  width = 1440,
+  platform: string | null = null,
+) {
   const match = metaPattern.exec(html);
   if (!match) {
-    const tag = `<meta name="design-board" content="width=${width},height=${height}">`;
+    const tag = `<meta name="design-board" content="width=${width},height=${height}${platform ? `,platform=${platform}` : ''}">`;
     return /<meta charset[^>]*>/i.test(html)
       ? html.replace(/(<meta charset[^>]*>)/i, `$1\n${tag}`)
       : html.replace(/<head>/i, `<head>\n${tag}`);

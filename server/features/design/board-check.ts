@@ -67,6 +67,23 @@ import {
 } from '../../design/board-quality.ts';
 import { reviewWidths, screenName } from '../../../shared/v2/design-review.ts';
 import {
+  drawSteps,
+  platformInfo,
+  platformSchemes,
+  printGeometry,
+  type DrawStep,
+  type PairLayout,
+  type Scheme,
+} from '../../../shared/v2/design-platforms.ts';
+import {
+  logoSmallNote,
+  measuredHeightProblem,
+  pageBreakNotes,
+  safeAreaProblems,
+  smallContrast,
+  tallerThanFrameProblem,
+} from '../../design/kind-checks.ts';
+import {
   measureOverflow,
   overflowProblems,
   type CheckProblem,
@@ -316,6 +333,12 @@ export type CheckDrawing = {
     scheme: 'light' | 'dark';
     measure: boolean;
     inspect?: boolean;
+    /** Device pixels per CSS pixel (a print piece is drawn at 8 px/mm). */
+    scale?: number;
+    /** Draw with the page's print styles (a document's printed pages). */
+    media?: 'print';
+    /** Picture the whole page, however tall (a document), not just the window. */
+    fullPage?: boolean;
   }): Promise<CheckShot | null>;
   /** Before and after side by side, captioned, as one PNG. */
   pair(input: {
@@ -326,6 +349,8 @@ export type CheckDrawing = {
     scheme: 'light' | 'dark';
     /** The After's questions, listed beside it, never over the board. */
     questions?: BoardQuestion[];
+    /** Pages, a print piece's guides or a sheet of sizes, when the picture is more than a screen. */
+    layout?: PairLayout;
   }): Promise<Buffer>;
 };
 
@@ -455,10 +480,16 @@ export async function checkDesign(
     .filter((name) => name && !/\.[a-z]+$/i.test(name));
   const dsFolder = designSystemFolder(canvas, dsFolders);
   const dsPaths = dsFolder ? designSystemPaths(dsFolder) : null;
-  // The schemes every board of this project draws: canvas.json's, else light and dark.
-  const projectSchemes: ('light' | 'dark')[] = Array.isArray(canvas?.schemes)
+  // The schemes the project says every board draws (canvas.json "schemes"); each platform has
+  // its own default otherwise: light and dark, light for a slide or a printed piece.
+  const canvasSchemes: Scheme[] | null = Array.isArray(canvas?.schemes)
     ? canvas.schemes.filter((scheme: unknown) => scheme === 'light' || scheme === 'dark')
-    : ['light', 'dark'];
+    : null;
+  const placedWidth = (file: string, at: 'branch' | 'main' = 'branch') =>
+    Number((at === 'branch' ? canvas : mainCanvas)?.boards?.[file]?.w) || undefined;
+  /** The schemes a board of this text draws unless its head says: its platform's. */
+  const requiredSchemes = (html: string | null, file: string, at: 'branch' | 'main' = 'branch') =>
+    platformSchemes(boardPlatform(parseBoardMeta(html), placedWidth(file, at)), null);
   const systemFile = async (candidates: string[] | undefined) =>
     candidates
       ? ((
@@ -469,9 +500,23 @@ export async function checkDesign(
           })
         )?.text ?? null)
       : null;
+  // A kind's type scale lives in its own stylesheet (doc.css, slides.css …) beside tokens.css.
+  const kindCss = dsFolder
+    ? (
+        await Promise.all(
+          ((await git.read(['ls-tree', '--name-only', `${commit}:${folder}/${dsFolder}`])) ?? '')
+            .split('\n')
+            .filter((name) => /\.css$/.test(name) && !/^(tokens|components)\.css$/.test(name))
+            .map((name) => show(commit, `${folder}/${dsFolder}/${name}`)),
+        )
+      )
+        .filter(Boolean)
+        .join('\n')
+    : '';
+  const baseCss = await systemFile(dsPaths?.tokensCss);
   const tokens = readTokens(
     await systemFile(dsPaths?.tokensJson),
-    await systemFile(dsPaths?.tokensCss),
+    kindCss ? `${baseCss ?? ''}\n${kindCss}` : baseCss,
   );
   const bundle = await systemFile(dsPaths?.bundle);
   const branchLibrary = parseLibrary(await systemFile(dsPaths?.library));
@@ -727,10 +772,18 @@ export async function checkDesign(
       problems.push(...notATokenProblems({ ...board, tokens, library: branchLibrary, origin }));
       problems.push(...editedInstanceProblems({ ...board, library: branchLibrary }));
       // Every scheme its source or siblings draw, and no page pinned to one.
-      const schemes = boardSchemes(meta);
-      const mainSchemes = before ? boardSchemes(parseBoardMeta(before)).join(' ') : null;
-      // Every board draws the project's schemes (canvas.json "schemes", light and dark unless it
-      // says otherwise); a board that leaves one out is a problem of its own.
+      const platformDefault = requiredSchemes(text, file);
+      // What the project asks of every board: canvas.json's schemes, else the platform's own.
+      const projectSchemes = platformSchemes(
+        boardPlatform(meta, placedWidth(file)),
+        canvasSchemes,
+      );
+      const schemes = boardSchemes(meta, platformDefault);
+      const mainSchemes = before
+        ? boardSchemes(parseBoardMeta(before), requiredSchemes(before, file, 'main')).join(' ')
+        : null;
+      // Every board draws its platform's schemes (canvas.json "schemes" overrides them; light and
+      // dark unless the platform says otherwise); a board that leaves one out is a problem of its own.
       const missing = projectSchemes.filter((scheme) => !schemes.includes(scheme));
       if (missing.length && schemes.join(' ') !== mainSchemes)
         problems.push({
@@ -756,14 +809,23 @@ export async function checkDesign(
               boardPlatform(siblingMeta, Number(canvas?.boards?.[sibling]?.w) || undefined) ===
                 platform
             )
-              siblings.push({ file: sibling, schemes: boardSchemes(siblingMeta) });
+              siblings.push({
+                file: sibling,
+                schemes: boardSchemes(siblingMeta, requiredSchemes(html, sibling)),
+              });
           }
         const narrower = schemeDroppedProblem({
           file,
           title,
           schemes,
           from: fromText
-            ? { file: drawnFrom!, schemes: boardSchemes(parseBoardMeta(fromText)) }
+            ? {
+                file: drawnFrom!,
+                schemes: boardSchemes(
+                  parseBoardMeta(fromText),
+                  requiredSchemes(fromText, drawnFrom!),
+                ),
+              }
             : null,
           siblings,
         });
@@ -780,7 +842,8 @@ export async function checkDesign(
         renames[file] = renameMeaninglessLayers(baseline.before, text);
       }
       notes.push(...spacingNotes({ ...baseline, tokens }));
-      notes.push(...localCopyNotes({ ...board, bundle, library: branchLibrary, origin }));
+      if (platformInfo(boardPlatform(meta, placedWidth(file))).appChecks)
+        notes.push(...localCopyNotes({ ...board, bundle, library: branchLibrary, origin }));
       if (!isSpecimen(file)) {
         const old = new Set(distinctiveWords(before ?? origin));
         const borrowed = new Map<string, string[]>();
@@ -929,30 +992,53 @@ export async function checkDesign(
   // Each of the branch's own boards beside main's, at its widths in its schemes. Several boards
   // are drawn at once (the drawing queue decides how many reach Chromium); results keep the
   // boards' order, and the first failure stops the boards not yet started.
-  const overflow: Record<string, { after: Overflow; before: Overflow | null }> = {};
+  const overflow: Record<string, { after: Overflow; before: Overflow | null; width: number }> =
+    {};
   const drawnFindings: Record<string, { problems: Finding[]; notes: Finding[] }> = {};
   const heights: Record<string, number> = {};
   const usedSchemes = new Set<string>();
+  const drawnWidths = new Map<string, number[]>();
+  // Platforms whose bottom edge is no phone screen: a document scrolls, a card and a mark have no
+  // bars to hide text under.
+  const noBottomFrame = new Set(['doc', 'print', 'logo']);
   const drawBoard = async (file: string) => {
     const placed = canvas?.boards?.[file];
     const text = await after(file);
     if (text === null) return null;
     const meta = parseBoardMeta(text);
-    const height = Number(placed?.h ?? meta.height ?? 900);
+    const platform = boardPlatform(meta, Number(placed?.w) || undefined);
+    const info = platformInfo(platform);
+    const steps: DrawStep[] = drawSteps(platform, meta, placed ?? {});
+    drawnWidths.set(file, [...new Set(steps.map((step) => step.width))]);
     const mainHas = (await onMain(file)) !== null;
     const name = file.replace(/\.html$/, '');
     const title = screenName(file);
-    const widths = checkWidths(Number(placed?.w) || meta.width || undefined);
-    const schemes = meta.schemes ?? (['light', 'dark'] as const);
+    const schemes: Scheme[] = meta.schemes ?? platformSchemes(platform, null);
     const shots: CheckResult['pictures'] = [];
     const found = { problems: [] as Finding[], notes: [] as Finding[] };
-    for (const width of widths) {
-      for (const scheme of schemes) {
+    // A logo's pictures, whose pixels say whether the mark shows at 16 px.
+    const logoPictures: { scheme: Scheme; png: Buffer }[] = [];
+    let inspectedOnce = false;
+    for (const step of steps) {
+      const { width } = step;
+      // A page as tall as its content is drawn in a short window and pictured whole.
+      const height = step.height ?? 100;
+      const stepSchemes: Scheme[] = step.schemes ?? schemes;
+      for (const scheme of stepSchemes) {
         usedSchemes.add(scheme);
-        const measure = width === 700 && scheme === 'light';
-        const inspect = width === widths[0];
-        const shot = (at: string) =>
-          drawing.shoot({ commit: at, file, width, height, scheme, measure, inspect });
+        const measure = step.measure && scheme === 'light';
+        const inspect = step.inspect;
+        const draw = {
+          width,
+          height,
+          scheme,
+          measure,
+          inspect,
+          ...(step.scale !== 1 ? { scale: step.scale } : {}),
+          ...(step.media ? { media: step.media } : {}),
+          ...(step.height === null ? { fullPage: true } : {}),
+        };
+        const shot = (at: string) => drawing.shoot({ commit: at, file, ...draw });
         // A new board's taste is judged against the board it came from, drawn from main.
         const origin = originOf.get(file);
         const [afterShot, beforeShot] = await Promise.all([
@@ -960,31 +1046,81 @@ export async function checkDesign(
           mainHas
             ? shot(base)
             : inspect && origin && mainDisk.includes(origin)
-              ? drawing.shoot({
-                  commit: base,
-                  file: origin,
-                  width,
-                  height,
-                  scheme,
-                  measure,
-                  inspect,
-                })
+              ? drawing.shoot({ commit: base, file: origin, ...draw })
               : null,
         ]);
         if (!afterShot) continue;
-        if (afterShot.measured)
-          overflow[file] = { after: afterShot.measured, before: beforeShot?.measured ?? null };
-        if (inspect && afterShot.inspected) {
+        if (afterShot.measured) {
+          overflow[file] = {
+            after: afterShot.measured,
+            before: beforeShot?.measured ?? null,
+            width,
+          };
+        }
+        if (platform === 'logo') logoPictures.push({ scheme, png: afterShot.png });
+        if (inspect && afterShot.inspected && step.mode === 'pages') {
+          // Printed pages: where the sheets break, nothing else read twice.
+          if (scheme === stepSchemes[0] && step.layout?.kind === 'pages')
+            found.notes.push(
+              ...pageBreakNotes({
+                file,
+                title,
+                inspection: afterShot.inspected,
+                pageHeight: step.layout.pageHeight,
+              }),
+            );
+        } else if (inspect && afterShot.inspected) {
           const inspected = { after: afterShot.inspected, before: beforeShot?.inspected ?? null };
           found.problems.push(
             ...contrastProblems({ file, title, width, scheme, tokens, ...inspected }),
           );
-          if (scheme === schemes[0]) {
-            if (measureHeight.has(file)) heights[file] = afterShot.inspected.height;
+          if (scheme === stepSchemes[0] && !inspectedOnce) {
+            inspectedOnce = true;
+            const content = afterShot.inspected.height;
+            if (platform === 'doc') {
+              // A document is as tall as it reads: measured, never the frame it was given.
+              const declared = [meta.height, Number(placed?.h) || null];
+              if (declared.some((value) => value !== content)) heights[file] = content;
+              const differs = measuredHeightProblem({
+                file,
+                title,
+                measured: content,
+                canvasHeight: Number(placed?.h) || undefined,
+                metaHeight: meta.height,
+              });
+              if (differs) found.problems.push(differs);
+            } else if (measureHeight.has(file)) {
+              // The canvas and the head disagree: what is right is what the board needs, in a
+              // window too short to give its height back.
+              const natural = await drawing.shoot({
+                commit,
+                file,
+                ...draw,
+                height: 100,
+                measure: false,
+                inspect: true,
+                fullPage: false,
+              });
+              heights[file] = natural?.inspected?.height ?? content;
+            }
+            if (info.fixedFrame && platform !== 'doc') {
+              const tall = tallerThanFrameProblem({ file, title, content, frame: height });
+              if (tall) found.problems.push(tall);
+            }
+            if (platform === 'print') {
+              const geometry = printGeometry(meta);
+              found.problems.push(
+                ...safeAreaProblems({
+                  file,
+                  title,
+                  inspection: afterShot.inspected,
+                  geometry: { ...geometry, width, height },
+                }),
+              );
+            }
             // Rows are compared with the same lists on sibling boards of this platform, on main.
             const siblings: { file: string; rows: Record<string, number[]> }[] = [];
-            const platform = await platformOf('branch', file);
-            if (Object.keys(afterShot.inspected.rows).length) {
+            if (info.appChecks && Object.keys(afterShot.inspected.rows).length) {
               for (const sibling of screenFamily(file, mainDisk)) {
                 if (siblings.length >= siblingLimit) break;
                 if ((await platformOf('main', sibling)) !== platform) continue;
@@ -1011,19 +1147,35 @@ export async function checkDesign(
               ...inspected,
             }))
               (finding.code === 'second_primary' ? found.problems : found.notes).push(finding);
-            found.problems.push(...cutOffBottomProblems({ file, title, width, ...inspected }));
+            if (!noBottomFrame.has(platform))
+              found.problems.push(...cutOffBottomProblems({ file, title, width, ...inspected }));
           }
         }
         const png = await drawing.pair({
           before: mainHas ? (beforeShot?.png ?? null) : null,
           after: afterShot.png,
-          width,
+          width: step.shown,
           height,
           scheme,
           questions: afterShot.questions ?? [],
+          ...(step.layout ? { layout: step.layout } : {}),
         });
-        shots.push({ name: `${name}-${width}-${scheme}.png`, png: png.toString('base64') });
+        shots.push({ name: `${name}-${step.key}-${scheme}.png`, png: png.toString('base64') });
       }
+    }
+    if (platform === 'logo' && logoPictures.length) {
+      const note = logoSmallNote({
+        file,
+        title,
+        results: logoPictures.flatMap(({ scheme, png }) => {
+          try {
+            return [{ scheme, contrast: smallContrast(png, 16).contrast }];
+          } catch {
+            return [];
+          }
+        }),
+      });
+      if (note) found.notes.push(note);
     }
     drawnFindings[file] = found;
     return shots;
@@ -1069,11 +1221,18 @@ export async function checkDesign(
     pictures.push(...results[at]!);
   });
   for (const board of boardRows) {
-    problems.push(...overflowProblems(board.file, board.title, overflow[board.file]));
+    problems.push(
+      ...overflowProblems(
+        board.file,
+        board.title,
+        overflow[board.file],
+        overflow[board.file]?.width,
+      ),
+    );
     problems.push(...(drawnFindings[board.file]?.problems ?? []));
     notes.push(...(drawnFindings[board.file]?.notes ?? []));
   }
-  const widths = [...new Set(drawn.flatMap((file) => checkWidths(canvas?.boards?.[file]?.w)))].sort(
+  const widths = [...new Set(drawn.flatMap((file) => drawnWidths.get(file) ?? []))].sort(
     (a, b) => b - a,
   );
   for (const board of boards)

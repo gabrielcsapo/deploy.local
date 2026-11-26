@@ -181,21 +181,21 @@ export async function openLocalDrawing({
     return inlined.page;
   };
   const drawing = {
-    async shoot({ commit, file, width, height, scheme, measure, inspect }) {
+    async shoot({ commit, file, width, height, scheme, measure, inspect, scale, media, fullPage }) {
       const html = read(commit, `boards/${file}`);
       if (!html) return null;
       const built = await page(commit, html.toString());
-      const tab = await browser.newTab({ width, height, scheme });
+      const tab = await browser.newTab({ width, height, scheme, scale, media });
       try {
-        return await shootBoard(tab, built, { scheme, measure, inspect });
+        return await shootBoard(tab, built, { scheme, measure, inspect, fullPage });
       } finally {
         await tab.close();
       }
     },
-    async pair({ before, after, width, height, scheme, questions }) {
+    async pair({ before, after, width, height, scheme, questions, layout }) {
       const tab = await browser.newTab({ width: width * 2 + 48, height: height + 64 });
       try {
-        await tab.setContent(pairPage({ before, after, width, scheme, questions }));
+        await tab.setContent(pairPage({ before, after, width, scheme, questions, layout }));
         return await tab.screenshot({ fullPage: true });
       } finally {
         await tab.close();

@@ -191,9 +191,10 @@ export const sandboxFlags = [
 ];
 
 /**
- * Starts a headless browser. Resolves to { executable, newTab({ width, height, scheme }), close },
- * where a tab can setContent(html), goto(url), evaluate(expression), screenshot({ fullPage })
- * and close(). Pages load from files in `workDir` (else the system's temporary folder) and reach
+ * Starts a headless browser. Resolves to { executable, newTab({ width, height, scheme, scale,
+ * media }), close }, where a tab can setContent(html), goto(url), evaluate(expression),
+ * screenshot({ fullPage }) and close(); `scale` is device pixels per CSS pixel and `media` may be
+ * "print" to draw with the page's print styles. Pages load from files in `workDir` (else the system's temporary folder) and reach
  * nothing on the network. With `sandboxed`, the profile and temporary files also live in
  * `workDir` and Chromium runs with sandboxFlags.
  */
@@ -271,7 +272,7 @@ export async function launchChromium(
   const pages = mkdtempSync(join(root, 'pages-'));
   let pageCount = 0;
 
-  async function newTab({ width, height, scheme = 'light' }) {
+  async function newTab({ width, height, scheme = 'light', scale = 1, media = null }) {
     // A context of its own per tab; one process (in a sandbox) has only the default one.
     const { browserContextId } = sandboxed
       ? { browserContextId: undefined }
@@ -288,10 +289,11 @@ export async function launchChromium(
     await send('Emulation.setDeviceMetricsOverride', {
       width,
       height,
-      deviceScaleFactor: 1,
+      deviceScaleFactor: scale,
       mobile: false,
     });
     await send('Emulation.setEmulatedMedia', {
+      ...(media ? { media } : {}),
       features: [{ name: 'prefers-color-scheme', value: scheme }],
     });
     await send('Emulation.setScriptExecutionDisabled', { value: true });

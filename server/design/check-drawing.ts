@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { syncInstances, type Library } from './board-html.ts';
 import { measureOverflow, type Overflow } from '../../shared/v2/design-overflow.ts';
 import { inspectBoard, type Inspection } from '../../shared/v2/design-inspect.ts';
+import type { PairLayout } from '../../shared/v2/design-platforms.ts';
+import { pngSize } from './kind-checks.ts';
 
 /** A browser tab, as either driver gives it. */
 export type DrawingTab = {
@@ -169,7 +171,7 @@ export type BoardShot = {
 export async function shootBoard(
   tab: DrawingTab,
   page: string,
-  options: { scheme: 'light' | 'dark'; measure: boolean; inspect?: boolean },
+  options: { scheme: 'light' | 'dark'; measure: boolean; inspect?: boolean; fullPage?: boolean },
 ): Promise<BoardShot> {
   await tab.setContent(page);
   if (options.scheme === 'dark')
@@ -180,7 +182,12 @@ export async function shootBoard(
   const questions = /data-questions?=/.test(page)
     ? await tab.evaluate<BoardQuestion[]>(run(markQuestions))
     : [];
-  return { png: await tab.screenshot(), measured, inspected, questions };
+  return {
+    png: await tab.screenshot(options.fullPage ? { fullPage: true } : undefined),
+    measured,
+    inspected,
+    questions,
+  };
 }
 
 const escapeHtml = (text: string) =>
@@ -189,7 +196,67 @@ const escapeHtml = (text: string) =>
     (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!,
   );
 
-/** Before beside After, captioned, as one page to picture in full. */
+const dataUri = (png: Buffer) => `data:image/png;base64,${png.toString('base64')}`;
+
+/** A tall render as the pages it prints on, side by side, three to a row. */
+function pagesFigure(png: Buffer, layout: { pageWidth: number; pageHeight: number }, id: string) {
+  const { height } = pngSize(png);
+  const count = Math.max(1, Math.ceil(height / layout.pageHeight));
+  const tiles = Array.from(
+    { length: count },
+    (_, at) =>
+      `<div class="pg"><div class="${id}" style="width:${layout.pageWidth}px;height:${Math.min(layout.pageHeight, height - at * layout.pageHeight)}px;background-position:0 -${at * layout.pageHeight}px"></div><span>Page ${at + 1} of ${count}</span></div>`,
+  ).join('');
+  return `<style>.${id}{background:url(${dataUri(png)}) no-repeat;border:1px solid #888;box-sizing:content-box}</style><div class="pages" style="grid-template-columns:repeat(${Math.min(count, 3)},max-content)">${tiles}</div>`;
+}
+
+/** A print piece with its trim and safe marks in the margin around it, never over it. */
+function printFigure(png: Buffer, layout: Extract<PairLayout, { kind: 'print' }>) {
+  const { width, height } = pngSize(png);
+  const margin = 32;
+  const k = layout.pxPerMm;
+  const xs = (offset: number) => [margin + offset * k, margin + width - offset * k];
+  const ys = (offset: number) => [margin + offset * k, margin + height - offset * k];
+  const line = (x1: number, y1: number, x2: number, y2: number, safe: boolean) =>
+    `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${safe ? '#2f5bb7' : '#18181b'}" stroke-width="1"${safe ? ' stroke-dasharray="3 2"' : ''}/>`;
+  const marks: string[] = [];
+  // Trim: crop marks, from just outside the picture's edge, along the trim lines.
+  for (const x of xs(layout.bleed)) {
+    marks.push(line(x, margin - 22, x, margin - 4, false));
+    marks.push(line(x, margin + height + 4, x, margin + height + 22, false));
+  }
+  for (const y of ys(layout.bleed)) {
+    marks.push(line(margin - 22, y, margin - 4, y, false));
+    marks.push(line(margin + width + 4, y, margin + width + 22, y, false));
+  }
+  // Safe: shorter dashed ticks beside them.
+  for (const x of xs(layout.bleed + layout.safe)) {
+    marks.push(line(x, margin - 12, x, margin - 4, true));
+    marks.push(line(x, margin + height + 4, x, margin + height + 12, true));
+  }
+  for (const y of ys(layout.bleed + layout.safe)) {
+    marks.push(line(margin - 12, y, margin - 4, y, true));
+    marks.push(line(margin + width + 4, y, margin + width + 12, y, true));
+  }
+  return (
+    `<div style="position:relative;width:${width + 2 * margin}px;height:${height + 2 * margin}px">` +
+    `<img src="${dataUri(png)}" style="position:absolute;left:${margin}px;top:${margin}px;width:${width}px;height:${height}px;border:0;outline:1px solid #888">` +
+    `<svg width="${width + 2 * margin}" height="${height + 2 * margin}" style="position:absolute;left:0;top:0">${marks.join('')}</svg></div>` +
+    `<p class="legend">${layout.trim.w}×${layout.trim.h} mm trim (solid marks) · ${layout.bleed} mm bleed (the picture's edge) · ${layout.safe} mm safe, inside the trim (dashed marks) · ${layout.pxPerMm} px/mm</p>`
+  );
+}
+
+/** A mark at the sizes it is used at, side by side on the drawn ground. */
+function sheetFigure(png: Buffer, layout: Extract<PairLayout, { kind: 'sheet' }>) {
+  return `<div class="sheet">${layout.sizes
+    .map(
+      (size) =>
+        `<figure><img src="${dataUri(png)}" width="${size}" height="${size}" style="border:0"><figcaption>${size} px</figcaption></figure>`,
+    )
+    .join('')}</div>`;
+}
+
+/** Before beside After, captioned, as one page to picture in full. A new board has only an After. */
 export function pairPage(input: {
   before: Buffer | null;
   after: Buffer;
@@ -197,19 +264,28 @@ export function pairPage(input: {
   scheme: 'light' | 'dark';
   /** The After's questions, listed under it by their badges' numbers. */
   questions?: BoardQuestion[];
+  /** How the picture is laid out when it is more than a screen: pages, a print piece, a sheet. */
+  layout?: PairLayout;
 }) {
-  const { before, after, width, scheme } = input;
+  const { before, after, width, scheme, layout } = input;
   const questions = input.questions?.length
     ? `<ol class="q">${input.questions.map((entry) => `<li value="${entry.n}">${escapeHtml(entry.question)}${entry.layer ? ` <span>${escapeHtml(entry.layer)}</span>` : ''}</li>`).join('')}</ol>`
     : '';
-  const image = (png: Buffer | null) =>
-    png
-      ? `<img src="data:image/png;base64,${png.toString('base64')}">`
-      : '<p>New board · no Before</p>';
+  const image = (png: Buffer, id: string) =>
+    layout?.kind === 'pages'
+      ? pagesFigure(png, layout, id)
+      : layout?.kind === 'print'
+        ? printFigure(png, layout)
+        : layout?.kind === 'sheet'
+          ? sheetFigure(png, layout)
+          : `<img src="${dataUri(png)}">`;
+  const caption = (label: string) => `${label} · ${width} · ${scheme}`;
   return (
-    `<style>body{margin:0;display:flex;gap:16px;padding:16px;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${width - 24}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}</style>` +
-    `<figure><figcaption>Before · main · ${width} · ${scheme}</figcaption>${image(before)}</figure>` +
-    `<figure><figcaption>After · this branch · ${width} · ${scheme}</figcaption>${image(after)}${questions}</figure>`
+    `<style>body{margin:0;display:flex;gap:16px;padding:16px;align-items:flex-start;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${Math.max(240, width - 24)}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}.pages{display:grid;gap:16px}.pg span{display:block;margin-top:4px;opacity:.6}.legend{margin:8px 0 0;width:auto;opacity:.7}.sheet{display:flex;align-items:flex-end;gap:24px;padding:12px}.sheet figure{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.sheet figcaption{margin:0;opacity:.6}</style>` +
+    (before
+      ? `<figure><figcaption>${caption('Before · main')}</figcaption>${image(before, 'pgA')}</figure>`
+      : '') +
+    `<figure><figcaption>${caption(before ? 'After · this branch' : 'New board')}</figcaption>${image(after, 'pgB')}${questions}</figure>`
   );
 }
 

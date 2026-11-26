@@ -54,6 +54,7 @@ export function overflowProblems(
   file: string,
   title: string,
   measured: { after: Overflow; before: Overflow | null } | undefined,
+  width = 700,
 ): CheckProblem[] {
   if (!measured) return [];
   const { after, before } = measured;
@@ -63,11 +64,11 @@ export function overflowProblems(
         code: 'text_cut_off',
         file,
         board: title,
-        width: 700,
+        width,
         scheme: 'light',
-        label: `${title} is cut off at 700 px`,
+        label: `${title} is cut off at ${width} px`,
         detail: `"${after.cut}" leaves the page`,
-        short: 'cut off at 700 px',
+        short: `cut off at ${width} px`,
         fix: 'let the row wrap or scroll sideways, or shorten the words',
       },
     ];
@@ -77,12 +78,12 @@ export function overflowProblems(
         code: 'overflows_sideways',
         file,
         board: title,
-        width: 700,
+        width,
         scheme: 'light',
-        label: `${title} overflows at 700 px`,
+        label: `${title} overflows at ${width} px`,
         detail: 'the page scrolls sideways',
-        short: 'overflows at 700 px',
-        fix: 'find what is wider than 700 px and let it shrink or wrap',
+        short: `overflows at ${width} px`,
+        fix: `find what is wider than ${width} px and let it shrink or wrap`,
       },
     ];
   return [];
