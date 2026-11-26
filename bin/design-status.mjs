@@ -688,6 +688,9 @@ export function guideLines({ top, designSystem }) {
     '  3. deploy design check --fix        draws it beside main here; fixes what has one answer',
   );
   lines.push('  4. fix every problem, read the notes and the pairs in output/design/pairs');
+  lines.push(
+    '     deploy design review               a brief for a second agent; act on its facts',
+  );
   lines.push('  5. git commit, with the code the board pictures');
   return lines;
 }

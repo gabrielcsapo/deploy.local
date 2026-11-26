@@ -32,6 +32,7 @@ Usage  deploy design <command> [flags]
   status [<Board>…]        Where to start a board: its source, siblings, questions
   check                    Draw what you changed beside main and check it, here
   sync [<Board>…]          Draw component instances again from their data-props
+  review                   A brief for a second agent to review what you changed
   dev                      Open the Design page on this folder, as you save
 
 Legacy review flow
@@ -83,6 +84,38 @@ the boards on the Design page as you save. deploy design propose
 asks for review, and deploy design feedback --wait hears back.
 `;
 
+/**
+ * The brief for a second agent reviewing a design change: what to read, what to open, and how to
+ * report, facts apart from judgements, so the author can act on facts and weigh the rest.
+ */
+export function reviewBrief({ top, boards }) {
+  const list = boards.map((board) => `  - design/boards/${board}`).join('\n');
+  return `You are a second reviewer for a design change in ${top}. Another agent made it; you did
+not. Read only; change nothing.
+
+The boards it changed or added:
+${list}
+
+1. Read design/README.md (especially "What agents get wrong"), the design system's README in
+   design/ds/*/README.md, and the brief or task the change answers.
+2. Run \`deploy design check\` in ${top} and read its problems, notes and review sheet.
+3. Open every pair it lists in output/design/pairs for these boards: every width, both schemes.
+4. Read the boards' HTML, and the product's code where a board claims what the product does.
+
+Reply with a short numbered list of what a demanding owner would reject or ask to change, most
+important first. Mark each [fact] (the brief, the code or the boards show it; say where) or
+[judgement] (a design opinion; it must agree with the READMEs, and cite them where they settle
+it). For each: the board, width and scheme, the layer, what is wrong, and the fix. Cover:
+anything invented beyond the brief; questions asked rather than values made up; only the design
+system's tokens and components; one primary action and calm restraint; consistency across boards
+and between web and iPhone; every width and scheme readable, nothing cut off, words true to the
+render; layer IDs kept and named; a sensible canvas. Skip praise. If nothing needs fixing, say so
+in one line.
+
+Then the author fixes what is fact, and what is judgement only where the READMEs agree, and runs
+deploy design check --fix again.`;
+}
+
 /** design/README.md for a project deploy design init starts: how to work, in short. */
 export const INIT_README = (name) => `# Design
 
@@ -94,7 +127,27 @@ One board per screen, drawn before it is built, on the same branch as the code.
 3. Draw \`design/boards/<Board>.html\` with the design system in \`ds/${name}/\`.
 4. \`deploy design check --fix\`: draws each changed board in light and dark into
    \`output/design/pairs\`, places new boards on the canvas, and lists problems and notes.
-5. Look at every pair, fix every problem, commit with the code.
+5. Look at every pair, fix every problem.
+6. \`deploy design review\`: hand the brief it prints to a second agent, act on its facts, then
+   check again and commit with the code.
+
+## What agents get wrong
+- **Read first.** The brief, the product's code if there is any, and \`ds/${name}/README.md\`
+  (its rules and iPhone conventions). Draw what the product does, in its words.
+- **Nothing beyond the brief.** No extra tabs, screens, banners, notes fields or counts the brief
+  didn't ask for. Sample names and numbers are placeholders; make them add up to what is drawn.
+- **Don't invent; ask.** A rule the product doesn't decide gets \`data-question\` on the layer that
+  shows it, and the layer says only what is true today, with no value and no promised setting.
+- **Stay on the system.** Tokens and components only; one accent; one primary action per view;
+  roomy rows; no box inside a card; type and spacing on the scale.
+- **Light and dark, every width.** Web at 1440 and 700, iPhone at 390. Words that describe the
+  render ("Light", "Web 1440") must be true in every render.
+- **iPhone is iPhone.** Sheets with Cancel and the confirm action in their bar, inset grouped
+  rows, native pickers and steppers; never a web select, date field or checkbox.
+- **Never type inside a component.** Set its data-props and run \`deploy design sync\`.
+- **Keep layer IDs** when you rebuild something, and name new ones for what they are.
+- **Draw each state completely**: after an action, show where its result appears.
+- **Look at every pair**, every width and both schemes. Unread pairs are where the mistakes are.
 
 ## A board
 A standalone HTML page that links \`../ds/${name}/tokens.css\` and \`../ds/${name}/components.css\`,
@@ -1002,6 +1055,26 @@ export async function runDesign(sub, args, options, deps) {
         exitCode: 0,
         json: { ok: true, code: 'initialized', name, written, next: 'deploy design guide' },
       };
+    }
+
+    case 'review': {
+      // A second agent finds what the author and the check missed; this is its brief.
+      const top = needsDesign(root());
+      const main = `origin/${mainName(top)}`;
+      const changed = [
+        ...(tryGit(['diff', '--name-only', main, '--', 'design/boards'], top) ?? '').split('\n'),
+        ...(
+          tryGit(['ls-files', '--others', '--exclude-standard', '--', 'design/boards'], top) ?? ''
+        ).split('\n'),
+      ]
+        .map((path) => path.trim())
+        .filter((path) => path.endsWith('.html'));
+      const boards = [...new Set(changed)].map((path) => basename(path));
+      if (!boards.length)
+        throw cliError('This branch changes no boards yet.', 'deploy design status <Board>', 1);
+      const brief = reviewBrief({ top, boards });
+      out(brief);
+      return { exitCode: 0, json: { ok: true, code: 'review', boards, brief } };
     }
 
     case 'guide': {

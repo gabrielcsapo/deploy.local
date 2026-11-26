@@ -1793,3 +1793,16 @@ test("init copies the real starter, with its examples pointing at this project's
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('init writes the agent checklist, and review briefs a second agent on the changed boards', async () => {
+  const { INIT_README, reviewBrief } = await import('./cli-design.mjs');
+  const readme = INIT_README('larder');
+  assert.match(readme, /## What agents get wrong/);
+  assert.match(readme, /deploy design review/);
+  assert.match(readme, /ds\/larder\/README\.md/);
+  const brief = reviewBrief({ top: '/p', boards: ['Pantry.html', 'PantryPhone.html'] });
+  assert.match(brief, /design\/boards\/Pantry\.html/);
+  assert.match(brief, /design\/boards\/PantryPhone\.html/);
+  assert.match(brief, /\[fact\]/);
+  assert.match(brief, /\[judgement\]/);
+});
