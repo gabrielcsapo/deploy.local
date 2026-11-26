@@ -190,14 +190,17 @@ export function whitePaper(doc: Document = document) {
     const color = view.getComputedStyle(element).backgroundColor;
     return color === 'transparent' || /rgba\(.*,\s*0\)$/.test(color) ? null : color;
   };
-  // The ground is the page's colour, the body's, or else that of the wrapper that spans it; only
-  // that colour is the screen's ground. A tinted block inside the page is the design's own.
+  // The ground is the page's colour (the page's or the body's), or that of the wrapper that spans
+  // the body; a wrapper's own colour is the ground, and only that colour inside it. A tinted block
+  // in the page is the design's own and stays.
   let ground = paint(doc.documentElement) ?? paint(doc.body);
   const clear = (element: Element, depth: number) => {
     const color = paint(element);
     const wide = element.getBoundingClientRect().width >= doc.body.clientWidth * 0.9;
-    if (color && wide && (ground ??= color) === color)
+    if (color && wide && (depth === 0 || ground === color)) {
+      if (depth === 0) ground = color;
       (element as HTMLElement).style.setProperty('background', 'transparent', 'important');
+    }
     if (wide && depth < 2) for (const child of element.children) clear(child, depth + 1);
   };
   for (const child of doc.body.children) clear(child, 0);
