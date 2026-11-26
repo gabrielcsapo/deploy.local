@@ -1,9 +1,10 @@
 // The browser `deploy design check` draws boards with on this computer: Playwright's Chromium if it
 // was installed (deploy browser install, or a project's own Playwright), else the computer's Chrome,
-// Chromium or Edge. It is driven over the DevTools protocol with Node's own WebSocket, so the CLI
-// needs no Playwright of its own: the standalone binary and a fresh worktree draw the same way.
+// Chromium or Edge. It is driven over the DevTools protocol on a pipe (no port, no network), so the
+// CLI needs no Playwright of its own: the standalone binary and a fresh worktree draw the same way,
+// and so does a sandbox that forbids sockets.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -102,43 +103,57 @@ export function chromiumCandidates({
 /** What to run when no browser was found. */
 export const browserFix = 'deploy browser install';
 
-/** One DevTools connection: commands by ID, events by name, per session. */
-function connect(url) {
-  const socket = new WebSocket(url);
+/**
+ * One DevTools connection over the pipe Chromium opens on its file descriptors 3 and 4
+ * (--remote-debugging-pipe): messages are JSON ended by a NUL. No port and no socket, so a
+ * sandbox that forbids the network still lets the check talk to its browser.
+ */
+function connect(input, output) {
   let next = 1;
+  let pending = '';
+  let closed = false;
   const waiting = new Map();
   const listeners = new Set();
-  const opened = new Promise((resolve, reject) => {
-    socket.addEventListener('open', resolve, { once: true });
-    socket.addEventListener('error', () => reject(new Error('Chromium refused the connection')), {
-      once: true,
-    });
-  });
-  socket.addEventListener('message', (event) => {
-    const message = JSON.parse(String(event.data));
-    if (message.id && waiting.has(message.id)) {
-      const { resolve, reject } = waiting.get(message.id);
-      waiting.delete(message.id);
-      if (message.error) reject(new Error(message.error.message));
-      else resolve(message.result);
-    } else if (message.method) for (const listener of listeners) listener(message);
-  });
-  socket.addEventListener('close', () => {
+  const fail = () => {
+    closed = true;
     for (const { reject } of waiting.values()) reject(new Error('Chromium went away'));
     waiting.clear();
+  };
+  output.setEncoding('utf8');
+  output.on('data', (chunk) => {
+    pending += chunk;
+    let end;
+    while ((end = pending.indexOf('\0')) >= 0) {
+      const message = JSON.parse(pending.slice(0, end));
+      pending = pending.slice(end + 1);
+      if (message.id && waiting.has(message.id)) {
+        const { resolve, reject } = waiting.get(message.id);
+        waiting.delete(message.id);
+        if (message.error) reject(new Error(message.error.message));
+        else resolve(message.result);
+      } else if (message.method) for (const listener of listeners) listener(message);
+    }
   });
+  output.on('close', fail);
+  output.on('error', fail);
+  input.on('error', fail);
   return {
-    opened,
     send(method, params = {}, sessionId) {
+      if (closed) return Promise.reject(new Error('Chromium went away'));
       const id = next++;
-      socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+      input.write(
+        `${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`,
+      );
       return new Promise((resolve, reject) => waiting.set(id, { resolve, reject }));
     },
     on(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    close: () => socket.close(),
+    close: () => {
+      closed = true;
+      input.end();
+    },
   };
 }
 
@@ -156,11 +171,44 @@ const withTimeout = (promise, ms, message) =>
  * where a tab can setContent(html), evaluate(expression), screenshot({ fullPage }) and close().
  * Pages load from a file in a private folder and reach nothing on the network.
  */
-export async function launchChromium(executable, { timeoutMs = 20000 } = {}) {
-  const profile = mkdtempSync(join(tmpdir(), 'deploy-design-chromium-'));
+/**
+ * Chromium's flags for a sandbox (Codex's, a container): no setuid or seatbelt sandbox of its
+ * own inside the outer one, no crash reporter writing outside the work folder, no GPU process,
+ * and one process: on a Mac a sandbox that forbids registering Mach services stops Chromium at
+ * its child-process rendezvous (bootstrap_check_in), which a single process never needs.
+ */
+export const sandboxFlags = [
+  '--no-sandbox',
+  '--single-process',
+  '--no-zygote',
+  '--disable-gpu-sandbox',
+  '--disable-crash-reporter',
+  '--disable-crashpad',
+  '--disable-breakpad',
+  '--disable-dev-shm-usage',
+  '--use-mock-keychain',
+  '--password-store=basic',
+];
+
+/**
+ * Starts a headless browser. Resolves to { executable, newTab({ width, height, scheme }), close },
+ * where a tab can setContent(html), goto(url), evaluate(expression), screenshot({ fullPage })
+ * and close(). Pages load from files in `workDir` (else the system's temporary folder) and reach
+ * nothing on the network. With `sandboxed`, the profile and temporary files also live in
+ * `workDir` and Chromium runs with sandboxFlags.
+ */
+export async function launchChromium(
+  executable,
+  { timeoutMs = 20000, workDir = null, sandboxed = false } = {},
+) {
+  const root = workDir ?? tmpdir();
+  mkdirSync(root, { recursive: true });
+  const profile = mkdtempSync(join(root, 'chromium-'));
+  const temporary = join(profile, 'tmp');
+  mkdirSync(temporary, { recursive: true });
   const args = [
     '--headless=new',
-    '--remote-debugging-port=0',
+    '--remote-debugging-pipe',
     `--user-data-dir=${profile}`,
     '--no-first-run',
     '--no-default-browser-check',
@@ -174,10 +222,16 @@ export async function launchChromium(executable, { timeoutMs = 20000 } = {}) {
     '--disable-features=Translate,MediaRouter,OptimizationHints',
     '--font-render-hinting=none',
     '--force-color-profile=srgb',
-    ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
+    ...(sandboxed ? sandboxFlags : process.getuid?.() === 0 ? ['--no-sandbox'] : []),
     'about:blank',
   ];
-  const child = spawn(executable, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+  const env = sandboxed
+    ? { ...process.env, TMPDIR: temporary, TMP: temporary, TEMP: temporary, HOME: profile }
+    : process.env;
+  const child = spawn(executable, args, {
+    stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'],
+    env,
+  });
   const cleanup = () => {
     try {
       child.kill('SIGKILL');
@@ -186,26 +240,27 @@ export async function launchChromium(executable, { timeoutMs = 20000 } = {}) {
     }
     rmSync(profile, { recursive: true, force: true, maxRetries: 3 });
   };
-  let endpoint;
+  let stderr = '';
+  child.stderr.on('data', (chunk) => {
+    stderr = (stderr + chunk).slice(-4000);
+  });
+  const cdp = connect(child.stdio[3], child.stdio[4]);
   try {
-    endpoint = await withTimeout(
-      new Promise((resolve, reject) => {
-        let text = '';
-        child.stderr.on('data', (chunk) => {
-          text += chunk;
-          const match = /DevTools listening on (ws:\/\/\S+)/.exec(text);
-          if (match) resolve(match[1]);
-          if (text.length > 64000) text = text.slice(-4000);
-        });
-        child.once('error', (error) => reject(error));
-        child.once('exit', (code) =>
-          reject(
-            new Error(
-              `Chromium stopped at start (${code}): ${text.trim().split('\n').at(-1) ?? ''}`,
+    // The first answer says the pipe is up; an early exit says why it is not.
+    await withTimeout(
+      Promise.race([
+        cdp.send('Browser.getVersion'),
+        new Promise((_, reject) => {
+          child.once('error', reject);
+          child.once('exit', (code, signal) =>
+            reject(
+              new Error(
+                `Chromium stopped at start (${code ?? signal}): ${stderr.trim().split('\n').at(-1) ?? ''}`,
+              ),
             ),
-          ),
-        );
-      }),
+          );
+        }),
+      ]),
       timeoutMs,
       'Chromium did not start in time',
     );
@@ -213,24 +268,17 @@ export async function launchChromium(executable, { timeoutMs = 20000 } = {}) {
     cleanup();
     throw error;
   }
-  child.stderr.resume();
-  const cdp = connect(endpoint);
-  try {
-    await withTimeout(cdp.opened, timeoutMs, 'Chromium did not answer');
-  } catch (error) {
-    cleanup();
-    throw error;
-  }
-  const pages = mkdtempSync(join(tmpdir(), 'deploy-design-pages-'));
+  const pages = mkdtempSync(join(root, 'pages-'));
   let pageCount = 0;
 
   async function newTab({ width, height, scheme = 'light' }) {
-    const { browserContextId } = await cdp.send('Target.createBrowserContext', {
-      disposeOnDetach: true,
-    });
+    // A context of its own per tab; one process (in a sandbox) has only the default one.
+    const { browserContextId } = sandboxed
+      ? { browserContextId: undefined }
+      : await cdp.send('Target.createBrowserContext', { disposeOnDetach: true });
     const { targetId } = await cdp.send('Target.createTarget', {
       url: 'about:blank',
-      browserContextId,
+      ...(browserContextId ? { browserContextId } : {}),
     });
     const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
     const send = (method, params) => cdp.send(method, params, sessionId);
@@ -296,7 +344,11 @@ export async function launchChromium(executable, { timeoutMs = 20000 } = {}) {
         return Buffer.from(data, 'base64');
       },
       async close() {
-        await cdp.send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
+        await (
+          browserContextId
+            ? cdp.send('Target.disposeBrowserContext', { browserContextId })
+            : cdp.send('Target.closeTarget', { targetId })
+        ).catch(() => {});
         for (const file of files) rmSync(file, { force: true });
       },
     };
@@ -322,13 +374,20 @@ export async function openChromium(options = {}) {
   const candidates = options.candidates ?? chromiumCandidates(options);
   if (!candidates.length)
     return { browser: null, reason: 'no Chromium or Chrome on this computer' };
-  let reason = '';
-  for (const executable of candidates) {
-    try {
-      return { browser: await launchChromium(executable, options) };
-    } catch (error) {
-      reason = String(error?.message ?? error).split('\n')[0];
+  // As usual first; then as a sandbox needs it (its own sandbox and crash reporter off, every
+  // file in the work folder); then the next browser.
+  const attempts = [false, true];
+  const reasons = [];
+  for (const executable of candidates)
+    for (const sandboxed of attempts) {
+      try {
+        return {
+          browser: await launchChromium(executable, { ...options, sandboxed }),
+          sandboxed,
+        };
+      } catch (error) {
+        reasons.push(String(error?.message ?? error).split('\n')[0]);
+      }
     }
-  }
-  return { browser: null, reason };
+  return { browser: null, reason: reasons.at(-1) ?? 'Chromium did not start' };
 }

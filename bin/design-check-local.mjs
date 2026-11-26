@@ -116,7 +116,10 @@ export async function openLocalDrawing({
   ),
   open = openChromium,
 }) {
-  const { browser, reason } = await open();
+  // Chromium's profile and pages live in the worktree's output folder: a sandbox lets the check
+  // write there when it lets it write nowhere else.
+  const workDir = join(top, 'output', 'design', '.chromium');
+  const { browser, reason, sandboxed } = await open({ workDir });
   if (!browser) return { reason };
   const fonts = new Map();
   const missingFonts = new Set();
@@ -144,10 +147,10 @@ export async function openLocalDrawing({
         await tab.close();
       }
     },
-    async pair({ before, after, width, height, scheme }) {
+    async pair({ before, after, width, height, scheme, questions }) {
       const tab = await browser.newTab({ width: width * 2 + 48, height: height + 64 });
       try {
-        await tab.setContent(pairPage({ before, after, width, scheme }));
+        await tab.setContent(pairPage({ before, after, width, scheme, questions }));
         return await tab.screenshot({ fullPage: true });
       } finally {
         await tab.close();
@@ -157,6 +160,7 @@ export async function openLocalDrawing({
   return {
     drawing,
     executable: browser.executable,
+    sandboxed: Boolean(sandboxed),
     missingFonts,
     close: () => browser.close(),
   };
