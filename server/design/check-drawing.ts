@@ -199,15 +199,18 @@ const escapeHtml = (text: string) =>
 const dataUri = (png: Buffer) => `data:image/png;base64,${png.toString('base64')}`;
 
 /** A tall render as the pages it prints on, side by side, three to a row. */
-function pagesFigure(png: Buffer, layout: { pageWidth: number; pageHeight: number }, id: string) {
+function pagesFigure(png: Buffer, layout: Extract<PairLayout, { kind: 'pages' }>, id: string) {
   const { height } = pngSize(png);
-  const count = Math.max(1, Math.ceil(height / layout.pageHeight));
+  const margin = layout.margin ?? { top: 0, right: 0, bottom: 0, left: 0 };
+  // The text is drawn as wide as a sheet's text area; each sheet shows the next stretch of it.
+  const room = Math.max(1, layout.pageHeight - margin.top - margin.bottom);
+  const count = Math.max(1, Math.ceil(height / room));
   const tiles = Array.from(
     { length: count },
     (_, at) =>
-      `<div class="pg"><div class="${id}" style="width:${layout.pageWidth}px;height:${Math.min(layout.pageHeight, height - at * layout.pageHeight)}px;background-position:0 -${at * layout.pageHeight}px"></div><span>Page ${at + 1} of ${count}</span></div>`,
+      `<div class="pg"><div class="sheet-page" style="width:${layout.pageWidth}px;height:${layout.pageHeight}px"><div class="${id}" style="left:${margin.left}px;top:${margin.top}px;width:${Math.max(1, layout.pageWidth - margin.left - margin.right)}px;height:${Math.min(room, height - at * room)}px;background-position:0 -${at * room}px"></div></div><span>Page ${at + 1} of ${count}</span></div>`,
   ).join('');
-  return `<style>.${id}{background:url(${dataUri(png)}) no-repeat;border:1px solid #888;box-sizing:content-box}</style><div class="pages" style="grid-template-columns:repeat(${Math.min(count, 3)},max-content)">${tiles}</div>`;
+  return `<style>.${id}{position:absolute;background:url(${dataUri(png)}) no-repeat}</style><div class="pages" style="grid-template-columns:repeat(${Math.min(count, 3)},max-content)">${tiles}</div>`;
 }
 
 /** A print piece with its trim and safe marks in the margin around it, never over it. */
@@ -281,7 +284,7 @@ export function pairPage(input: {
           : `<img src="${dataUri(png)}">`;
   const caption = (label: string) => `${label} · ${width} · ${scheme}`;
   return (
-    `<style>body{margin:0;display:flex;gap:16px;padding:16px;align-items:flex-start;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${Math.max(240, width - 24)}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}.pages{display:grid;gap:16px}.pg span{display:block;margin-top:4px;opacity:.6}.legend{margin:8px 0 0;width:auto;opacity:.7}.sheet{display:flex;align-items:flex-end;gap:24px;padding:12px}.sheet figure{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.sheet figcaption{margin:0;opacity:.6}</style>` +
+    `<style>body{margin:0;display:flex;gap:16px;padding:16px;align-items:flex-start;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${Math.max(240, width - 24)}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}.pages{display:grid;gap:16px}.sheet-page{position:relative;background:#fff;border:1px solid #888;box-sizing:content-box;overflow:hidden}.pg span{display:block;margin-top:4px;opacity:.6}.legend{margin:8px 0 0;width:auto;opacity:.7}.sheet{display:flex;align-items:flex-end;gap:24px;padding:12px}.sheet figure{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.sheet figcaption{margin:0;opacity:.6}</style>` +
     (before
       ? `<figure><figcaption>${caption('Before · main')}</figcaption>${image(before, 'pgA')}</figure>`
       : '') +

@@ -3695,6 +3695,8 @@ try {
       summary: { type: 'string' },
       'look-at': { type: 'string' },
       'drop-instances': { type: 'boolean', default: false },
+      kind: { type: 'string' },
+      pdf: { type: 'boolean', default: false },
       fix: { type: 'boolean', default: false },
     },
     strict: false,

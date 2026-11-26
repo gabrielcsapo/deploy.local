@@ -3,8 +3,17 @@
 // is only read. Nothing here calls deploy.local, so both work offline and in a sandbox.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { boardPlatform, parseBoardMeta, platformWidths } from '../shared/v2/design-board-meta.ts';
-import { reviewWidths } from '../shared/v2/design-review.ts';
+import { boardPlatform, parseBoardMeta } from '../shared/v2/design-board-meta.ts';
+import {
+  boardFrame,
+  designKinds,
+  drawSteps,
+  drawnAt,
+  kindPlatform,
+  platformInfo,
+  platformSchemes,
+  stepWidths,
+} from '../shared/v2/design-platforms.ts';
 import {
   boardQuestions,
   boardSimilarity,
@@ -77,15 +86,16 @@ export function readDesign(top, designSystem) {
     const html = readFileSync(join(boardsDir, file), 'utf8');
     const meta = parseBoardMeta(html);
     const placed = canvas?.boards?.[file];
-    const width = Number(placed?.w) || meta.width || 1440;
+    const platform = boardPlatform(meta, Number(placed?.w) || meta.width || 1440);
+    const frame = boardFrame(platform, meta, placed ?? {});
     boards.set(file, {
       file,
       html,
       meta,
       placed,
-      platform: boardPlatform(meta, width),
-      width,
-      height: Number(placed?.h) || meta.height || 900,
+      platform,
+      width: frame.width,
+      height: frame.height ?? 900,
     });
   }
   // A board is replaced when another's head says replaces=<it>.
@@ -138,6 +148,7 @@ export function readDesign(top, designSystem) {
     files,
     boards,
     canvas,
+    kind: typeof canvas?.kind === 'string' && designKinds[canvas.kind] ? canvas.kind : 'app',
     replacedBy,
     library,
     tokens,
@@ -161,7 +172,7 @@ function currentOf(file, replacedBy) {
   return at;
 }
 
-const platformOfName = (file) =>
+const platformOfName = (file, kind = 'app') =>
   /Phone\.html$/.test(file)
     ? 'phone'
     : /(Pad|Tablet)\.html$/.test(file)
@@ -170,10 +181,7 @@ const platformOfName = (file) =>
         ? 'mac'
         : /TV\.html$/.test(file)
           ? 'tv'
-          : 'web';
-
-/** "1440 and 700" for a web board, "390" for a phone board. */
-const sizes = (width) => reviewWidths(width).join(' and ');
+          : kindPlatform(kind);
 
 /** Branches on origin, other than main and this one, that change a file since they left main. */
 function otherBranches(top, git, main, paths) {
@@ -378,7 +386,7 @@ export function designStatus({
     if (!board) {
       // No board yet: the current boards of the same screen, on this platform first, then the
       // others, which the new board takes as its source.
-      const platform = platformOfName(file);
+      const platform = platformOfName(file, design.kind);
       const family = screenFamily(file, design.files).filter(current);
       const same = family.filter((other) => design.boards.get(other)?.platform === platform);
       const other = family.filter((entry) => !same.includes(entry));
@@ -396,7 +404,8 @@ export function designStatus({
         file,
         exists: false,
         platform,
-        sizes: reviewWidths(platformWidths[platform] ?? 1440),
+        sizes: stepWidths(drawSteps(platform, parseBoardMeta(null), {})),
+        drawnAt: drawnAt(platform, parseBoardMeta(null), {}),
         startFrom: same.slice(0, 5),
         ...(means ? { means } : {}),
         copyFrom,
@@ -410,8 +419,8 @@ export function designStatus({
               // Examples of this platform first.
               examples: [...design.examples].sort(
                 (a, b) =>
-                  Number(platformOfName(b.split('/').pop()) === platform) -
-                  Number(platformOfName(a.split('/').pop()) === platform),
+                  Number(platformOfName(b.split('/').pop(), design.kind) === platform) -
+                  Number(platformOfName(a.split('/').pop(), design.kind) === platform),
               ),
               ds: design.ds,
             }),
@@ -431,9 +440,10 @@ export function designStatus({
       exists: true,
       title: board.meta.title ?? board.placed?.title ?? null,
       platform: board.platform,
-      sizes: reviewWidths(board.width),
+      sizes: stepWidths(drawSteps(board.platform, board.meta, board.placed ?? {})),
+      drawnAt: drawnAt(board.platform, board.meta, board.placed ?? {}),
       height: board.height,
-      schemes: board.meta.schemes ?? ['light', 'dark'],
+      schemes: board.meta.schemes ?? platformSchemes(board.platform, null),
       current: current(file),
       replacedBy: current(file) ? null : currentOf(file, design.replacedBy),
       replaces: board.meta.replaces,
@@ -457,7 +467,7 @@ export function statusLines(status) {
   }
   for (const board of status.boards) {
     if (!board.exists) {
-      lines.push(`${board.file}  no board yet · ${board.platform} · ${board.sizes.join(' and ')}`);
+      lines.push(`${board.file}  no board yet · ${board.platform} · ${board.drawnAt}`);
       if (board.means)
         lines.push(`  ${label('Means')}${board.means}: work on that board, it is this screen`);
       else if (board.copyFrom)
@@ -494,7 +504,7 @@ export function statusLines(status) {
       continue;
     }
     lines.push(
-      `${board.file}  ${board.platform} · ${board.sizes.join(' and ')} · ${board.schemes.join(', ')} · ${
+      `${board.file}  ${board.platform} · ${board.drawnAt} · ${board.schemes.join(', ')} · ${
         board.current ? 'current' : `replaced by ${board.replacedBy}`
       }`,
     );
@@ -556,6 +566,15 @@ export function iconSources(design, icons) {
   });
 }
 
+const kindWords = {
+  doc: 'documents, read on screen and printed',
+  slides: 'a slide deck (1920×1080, light, in canvas order)',
+  print: 'print pieces (trim, bleed and safe margins in mm, type in pt)',
+  mac: 'Mac app windows',
+  game: 'game screens',
+  logo: 'a logo (the mark from 512 down to 16 px)',
+};
+
 /** `deploy design guide`: how to work on this project's design, from its own files. */
 export function guideLines({ top, designSystem }) {
   const design = readDesign(top, designSystem);
@@ -583,14 +602,23 @@ export function guideLines({ top, designSystem }) {
     lines.push('  This project has no design system yet.');
     lines.push('  deploy design init makes design/ with a starter one in design/ds/<name>/.');
   }
-  section('Platforms and sizes');
-  if (!design.boards.size) {
-    lines.push('  web     1440  drawn at 1440 and 700, light and dark');
-    lines.push('  phone   390   drawn at 390 (844 tall), light and dark');
+  if (design.kind !== 'app') {
+    section('Kind');
+    lines.push(
+      `  This project makes ${kindWords[design.kind] ?? design.kind} (canvas.json "kind": "${design.kind}"); its boards are ${designKinds[design.kind].platforms.join(' or ')} boards.`,
+    );
   }
+  section('Platforms and sizes');
+  const none = parseBoardMeta(null);
+  const schemeWords = (platform) => platformSchemes(platform, design.canvas?.schemes).join(' and ');
+  if (!design.boards.size)
+    for (const platform of designKinds[design.kind].platforms)
+      lines.push(
+        `  ${platform.padEnd(8)}${String(boardFrame(platform, none, {}).width).padEnd(6)}drawn at ${drawnAt(platform, none, {})}, ${schemeWords(platform)}`,
+      );
   const platforms = new Map();
   for (const board of design.boards.values()) {
-    const entry = platforms.get(board.platform) ?? { count: 0, widths: new Map() };
+    const entry = platforms.get(board.platform) ?? { count: 0, widths: new Map(), example: board };
     entry.count++;
     entry.widths.set(board.width, (entry.widths.get(board.width) ?? 0) + 1);
     platforms.set(board.platform, entry);
@@ -598,11 +626,14 @@ export function guideLines({ top, designSystem }) {
   for (const [platform, entry] of [...platforms].sort((a, b) => b[1].count - a[1].count)) {
     const width = [...entry.widths].sort((a, b) => b[1] - a[1])[0][0];
     lines.push(
-      `  ${platform.padEnd(8)}${String(width).padEnd(6)}drawn at ${sizes(width)}, light and dark · ${entry.count} board${entry.count === 1 ? '' : 's'}`,
+      `  ${platform.padEnd(8)}${String(width).padEnd(6)}drawn at ${drawnAt(platform, entry.example.meta, entry.example.placed ?? {})}, ${schemeWords(platform)} · ${entry.count} board${entry.count === 1 ? '' : 's'}`,
     );
   }
   lines.push(
     '  A board says what it is in its head: <meta name="design-board" content="width=390,height=844,platform=phone,source=Inbox.html">',
+  );
+  lines.push(
+    '  Platforms: web, phone, mac, slide, doc (page=a4|letter), print (size=85x55mm,bleed=3mm,safe=4mm), game (device=phone), logo.',
   );
   lines.push(
     '  Also schemes=light dark, title=…, replaces=<Old>.html, copied_from=<Board>.html (commas between keys; semicolons work too).',
@@ -612,7 +643,16 @@ export function guideLines({ top, designSystem }) {
   );
 
   const groups = design.tokensJson?.type?.groups ?? [];
-  if (groups.length) {
+  const kindScale = [...new Set(designKinds[design.kind].platforms)]
+    .map((platform) => platformInfo(platform).scale)
+    .filter((scale) => scale && design.tokens?.typeTokens?.[scale]);
+  if (design.kind !== 'app' && kindScale.length) {
+    for (const scale of kindScale) {
+      section(`Type scale for ${design.kind} (${scale}, from the design system's CSS)`);
+      for (const token of design.tokens.typeTokens[scale])
+        lines.push(`  ${token.name.padEnd(28)}${token.value}`);
+    }
+  } else if (groups.length) {
     section('Type scale (px, size/line height)');
     for (const group of groups)
       for (const style of group.styles ?? [])

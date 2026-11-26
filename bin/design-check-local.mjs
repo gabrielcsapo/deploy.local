@@ -192,6 +192,25 @@ export async function openLocalDrawing({
         await tab.close();
       }
     },
+    /** A board as a PDF on its paper: one page when its frame is fixed, as many as it needs otherwise. */
+    async pdf({ commit, file, width, height, paperWidth, paperHeight, fixed }) {
+      const html = read(commit, `boards/${file}`);
+      if (!html) return null;
+      let built = await page(commit, html.toString());
+      // A fixed frame is one page: nothing runs on to a second sheet for a fraction of a pixel.
+      const style = `<style>html,body{margin:0}${fixed ? `html,body{max-height:${paperHeight}px;overflow:hidden}` : ''}</style>`;
+      built = /<head[^>]*>/i.test(built)
+        ? built.replace(/<head[^>]*>/i, (head) => head + style)
+        : style + built;
+      const tab = await browser.newTab({ width, height, scheme: 'light', media: 'print' });
+      try {
+        await tab.setContent(built);
+        await tab.evaluate('document.fonts.ready.then(() => true)');
+        return await tab.pdf({ paperWidth, paperHeight });
+      } finally {
+        await tab.close();
+      }
+    },
     async pair({ before, after, width, height, scheme, questions, layout }) {
       const tab = await browser.newTab({ width: width * 2 + 48, height: height + 64 });
       try {

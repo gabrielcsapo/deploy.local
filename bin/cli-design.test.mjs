@@ -1806,3 +1806,150 @@ test('init writes the agent checklist, and review briefs a second agent on the c
   assert.match(brief, /\[fact\]/);
   assert.match(brief, /\[judgement\]/);
 });
+
+test('init --kind copies the base, then the kind over it: css, rules, components, examples, canvas kind and schemes', async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-kind-')));
+  try {
+    git(['init', '-q', '--initial-branch=main'], root);
+    const starter = {
+      'tokens.css': Buffer.from(':root{--space-4:16px}\n'),
+      'library.json': Buffer.from(
+        JSON.stringify({ components: [{ id: 'row', name: 'Row', html: '<div></div>' }] }),
+      ),
+      'README.md': Buffer.from('# Base rules\n'),
+      'examples/Base.html': Buffer.from('<link href="../ds/__DS__/tokens.css">'),
+      'kinds/print/print.css': Buffer.from(':root{--text-print-body:8pt;--text-print-name:11pt}\n'),
+      'kinds/print/print.md': Buffer.from('## Print\nKeep type 4 mm inside the trim.\n'),
+      'kinds/print/library-print.json': Buffer.from(
+        JSON.stringify({ components: [{ id: 'card', name: 'Card', html: '<div></div>' }] }),
+      ),
+      'kinds/print/examples/CardFront.html': Buffer.from(
+        '<link href="../ds/__DS__/print.css"><meta name="design-board" content="platform=print">',
+      ),
+      'kinds/doc/doc.css': Buffer.from(':root{--text-doc-body:11pt}\n'),
+    };
+    const made = terminal(root, coordinator().api, { starter: () => starter });
+    const result = await runDesign('init', ['cards'], { kind: 'print' }, made.deps);
+    assert.equal(result.json.kind, 'print');
+    const ds = (path) => readFileSync(join(root, 'design/ds/cards', path), 'utf8');
+    assert.match(ds('README.md'), /^# Base rules\n\n## Print\nKeep type 4 mm inside the trim\.\n$/);
+    assert.deepEqual(
+      JSON.parse(ds('library.json')).components.map((component) => component.id),
+      ['row', 'card'],
+    );
+    assert.match(ds('print.css'), /--text-print-body:8pt/);
+    assert.match(ds('examples/CardFront.html'), /\.\.\/ds\/cards\/print\.css/);
+    assert.ok(existsSync(join(root, 'design/ds/cards/examples/Base.html')));
+    assert.equal(existsSync(join(root, 'design/ds/cards/kinds')), false);
+    assert.equal(existsSync(join(root, 'design/ds/cards/doc.css')), false, 'only the chosen kind');
+    const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
+    assert.equal(canvas.kind, 'print');
+    assert.deepEqual(canvas.schemes, ['light']);
+
+    // guide says the kind, its platform and size, and the kind's own type scale.
+    const guide = terminal(root, coordinator().api, {});
+    await runDesign('guide', [], {}, guide.deps);
+    assert.match(guide.text(), /\nKind\n {2}This project makes print pieces/);
+    assert.match(
+      guide.text(),
+      /print {3}344 {3}drawn at 85×55 mm trim, 3 mm bleed, 4 mm safe, at 8 px\/mm, light\n/,
+    );
+    assert.match(
+      guide.text(),
+      /Type scale for print[^\n]*\n {2}--text-print-body +8pt\n {2}--text-print-name +11pt\n/,
+    );
+    // status names a new board by the project's kind.
+    const status = terminal(root, coordinator().api, {});
+    const asked = await runDesign('status', ['Menu'], {}, status.deps);
+    assert.equal(asked.json.boards[0].platform, 'print');
+    assert.match(status.text(), /Menu\.html {2}no board yet · print · 85×55 mm trim/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('init --kind with no starter for it says so; an unknown kind is wrong usage', async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-kind-none-')));
+  try {
+    git(['init', '-q', '--initial-branch=main'], root);
+    const starter = { 'tokens.css': Buffer.from(':root{}\n') };
+    await assert.rejects(
+      runDesign(
+        'init',
+        [],
+        { kind: 'poster' },
+        terminal(root, coordinator().api, { starter: () => starter }).deps,
+      ),
+      (error) => error.exitCode === 2 && /No kind "poster"/.test(error.message),
+    );
+    const made = terminal(root, coordinator().api, { starter: () => starter });
+    const result = await runDesign('init', [], { kind: 'slides' }, made.deps);
+    assert.equal(result.exitCode, 0);
+    assert.match(made.text(), /No starter for slides/);
+    const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
+    assert.deepEqual([canvas.kind, canvas.schemes], ['slides', ['light']]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('export prints each board at its own size in canvas order into one PDF', async () => {
+  const { exportOrder, mergePdfs } = await import('./design-export.mjs');
+  assert.deepEqual(
+    exportOrder({ order: ['B.html', 'Z.html'], boards: { 'C.html': {}, 'A.html': {} } }, [
+      'A.html',
+      'B.html',
+      'C.html',
+      'D.html',
+    ]),
+    ['B.html', 'C.html', 'A.html', 'D.html'],
+  );
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-export-')));
+  try {
+    git(['init', '-q', '--initial-branch=main'], root);
+    mkdirSync(join(root, 'design/boards'), { recursive: true });
+    writeFileSync(
+      join(root, 'design/canvas.json'),
+      JSON.stringify({ kind: 'slides', order: ['Two.html', 'One.html'], boards: {} }),
+    );
+    for (const [file, head] of [
+      ['One.html', 'platform=slide'],
+      ['Two.html', 'platform=print,size=85x55mm,bleed=3mm'],
+      ['Notes.html', 'platform=doc,page=letter'],
+    ])
+      writeFileSync(
+        join(root, 'design/boards', file),
+        `<meta name="design-board" content="${head}"><main>${file}</main>`,
+      );
+    const printed = [];
+    const drawing = {
+      pdf: async (input) => {
+        printed.push([input.file, input.paperWidth, input.paperHeight, input.fixed]);
+        return Buffer.from(`pdf:${input.file}`);
+      },
+    };
+    const run = terminal(root, coordinator().api, {
+      openLocalDrawing: async () => ({ drawing, close: async () => {} }),
+    });
+    // The stand-in PDFs have no pages; the joining is tested on Chromium's own output.
+    const result = await runDesign('export', [], {}, run.deps);
+    assert.deepEqual(result.json.boards, ['Two.html', 'One.html', 'Notes.html']);
+    assert.ok(existsSync(join(root, 'output/design/export')));
+    assert.deepEqual(
+      printed.map(([file, w, h, fixed]) => [file, Math.round(w), Math.round(h), fixed]),
+      [
+        ['Two.html', 344, 231, true],
+        ['One.html', 1920, 1080, true],
+        ['Notes.html', 816, 1056, false],
+      ],
+      'canvas order, each at its own paper: trim plus bleed, the slide, a letter page',
+    );
+    await assert.rejects(
+      runDesign('export', ['Nope'], {}, run.deps),
+      (error) => error.exitCode === 2 && /No board named Nope\.html/.test(error.message),
+    );
+    assert.equal(typeof mergePdfs, 'function');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

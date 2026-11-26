@@ -397,3 +397,201 @@ test('form fields in a dialog card are no box in a card; a bordered box in a car
     await browser.close();
   }
 });
+
+test('a print piece is drawn at 8 px per millimetre, a document in a short window is measured whole, and @page margins are read', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  const { smallContrast, decodePng, pngSize } = await import('../server/design/kind-checks.ts');
+  const { CSS_PX_PER_MM, PRINT_PX_PER_MM } = await import('../shared/v2/design-platforms.ts');
+  try {
+    // 91 x 61 mm: trim 85 x 55 and 3 mm of bleed, drawn at 8 px/mm.
+    const card = `<!doctype html><body style="margin:0"><div style="width:91mm;height:61mm;background:#fff1c8"><p style="margin:0;padding:7mm;font:11pt serif">Name</p></div></body>`;
+    const tab = await browser.newTab({
+      width: Math.round(91 * CSS_PX_PER_MM),
+      height: Math.round(61 * CSS_PX_PER_MM),
+      scheme: 'light',
+      scale: PRINT_PX_PER_MM / CSS_PX_PER_MM,
+    });
+    try {
+      const shot = await shootBoard(tab, card, { scheme: 'light', measure: true, inspect: true });
+      const size = pngSize(shot.png);
+      assert.ok(
+        Math.abs(size.width - 91 * 8) <= 1 && Math.abs(size.height - 61 * 8) <= 1,
+        JSON.stringify(size),
+      );
+      assert.ok(decodePng(shot.png).rgba.length === size.width * size.height * 4);
+      // A text starts 7 mm in, in CSS px.
+      assert.ok(Math.abs(shot.inspected.texts[0].left - 7 * CSS_PX_PER_MM) < 1);
+    } finally {
+      await tab.close();
+    }
+
+    // A document in a 100 px window: its height is what it needs, never the window's.
+    const doc = `<!doctype html><html><head><style>@page{size:A4;margin:24mm 20mm}body{margin:0;font:16px serif}</style></head><body><h1>Title</h1><div style="height:2000px">Long</div></body></html>`;
+    const docTab = await browser.newTab({ width: 700, height: 100, scheme: 'light' });
+    try {
+      const shot = await shootBoard(docTab, doc, {
+        scheme: 'light',
+        measure: false,
+        inspect: true,
+        fullPage: true,
+      });
+      assert.ok(
+        shot.inspected.height >= 2000 && shot.inspected.height < 2200,
+        String(shot.inspected.height),
+      );
+      assert.equal(pngSize(shot.png).height, shot.inspected.height, 'the whole page is pictured');
+      assert.equal(shot.inspected.headings[0].text, 'Title');
+      const margin = shot.inspected.pageMargin;
+      assert.ok(
+        Math.abs(margin.top - 24 * CSS_PX_PER_MM) < 1 &&
+          Math.abs(margin.left - 20 * CSS_PX_PER_MM) < 1,
+      );
+    } finally {
+      await docTab.close();
+    }
+
+    // A short page in a tall window: the window is not what a board needs.
+    const short = '<!doctype html><body style="margin:0"><p>One line</p></body>';
+    const tall = await browser.newTab({ width: 700, height: 900, scheme: 'light' });
+    const little = await browser.newTab({ width: 700, height: 100, scheme: 'light' });
+    try {
+      const big = await shootBoard(tall, short, { scheme: 'light', measure: false, inspect: true });
+      const natural = await shootBoard(little, short, {
+        scheme: 'light',
+        measure: false,
+        inspect: true,
+      });
+      assert.equal(big.inspected.height, 900, 'a tall window gives its own height back');
+      assert.equal(
+        natural.inspected.height,
+        100,
+        'a short window gives what the page needs, at least its own',
+      );
+    } finally {
+      await tall.close();
+      await little.close();
+    }
+
+    // A mark that fills its ground reads at 16 px; a faint one does not.
+    const mark = async (fill) => {
+      const markTab = await browser.newTab({ width: 256, height: 256, scheme: 'light' });
+      try {
+        const page = `<!doctype html><body style="margin:0;background:#fff"><div style="margin:96px;width:64px;height:64px;background:${fill}"></div></body>`;
+        return (await shootBoard(markTab, page, { scheme: 'light', measure: false })).png;
+      } finally {
+        await markTab.close();
+      }
+    };
+    assert.ok(smallContrast(await mark('#1c1b1f')).contrast > 3);
+    assert.ok(smallContrast(await mark('#f1f1f1')).contrast < 3);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('the pair picture lays out pages, a print piece with marks outside it, a sheet of sizes, and a new board alone', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  const { pngSize } = await import('../server/design/kind-checks.ts');
+  try {
+    const draw = async (width, height, color) => {
+      const tab = await browser.newTab({ width, height, scheme: 'light' });
+      try {
+        return await shootBoard(
+          tab,
+          `<!doctype html><body style="margin:0;background:${color}"><p>Hello</p></body>`,
+          { scheme: 'light', measure: false },
+        );
+      } finally {
+        await tab.close();
+      }
+    };
+    const picture = async (input) => {
+      const tab = await browser.newTab({ width: 1200, height: 700, scheme: 'light' });
+      try {
+        await tab.setContent(pairPage(input));
+        return { html: pairPage(input), png: await tab.screenshot({ fullPage: true }) };
+      } finally {
+        await tab.close();
+      }
+    };
+    const after = (await draw(728, 488, '#ffe9a8')).png;
+    const print = await picture({
+      before: null,
+      after,
+      width: 728,
+      scheme: 'light',
+      layout: { kind: 'print', pxPerMm: 8, trim: { w: 85, h: 55 }, bleed: 3, safe: 4 },
+    });
+    assert.match(print.html, /New board · 728 · light/);
+    assert.doesNotMatch(print.html, /Before/);
+    assert.doesNotMatch(print.html, /no Before/);
+    // The guides sit in a margin around the picture: it grows by the margin on every side.
+    assert.ok(pngSize(print.png).width >= 728 + 64 && pngSize(print.png).height >= 488 + 64);
+    // Marks are lines in the margin, never drawn over the picture.
+    const svg = /<svg[^>]*>([\s\S]*?)<\/svg>/.exec(print.html)[1];
+    for (const [, x1, y1, x2, y2] of svg.matchAll(
+      /x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/g,
+    )) {
+      const insidePicture = (x, y) => x > 32 && x < 32 + 728 && y > 32 && y < 32 + 488;
+      assert.equal(insidePicture(+x1, +y1) || insidePicture(+x2, +y2), false);
+    }
+
+    const tall = (await draw(300, 1000, '#cfe')).png;
+    const pages = await picture({
+      before: tall,
+      after: tall,
+      width: 300,
+      scheme: 'light',
+      layout: { kind: 'pages', pageWidth: 300, pageHeight: 400 },
+    });
+    assert.equal((pages.html.match(/Page \d of 3/g) ?? []).length, 6, 'three sheets, each side');
+    assert.match(pages.html, /Before · main/);
+
+    const sheet = await picture({
+      before: null,
+      after: (await draw(256, 256, '#123')).png,
+      width: 700,
+      scheme: 'light',
+      layout: { kind: 'sheet', sizes: [512, 128, 64, 32, 16] },
+    });
+    assert.deepEqual(
+      [...sheet.html.matchAll(/<figcaption>(\d+) px/g)].map((m) => +m[1]),
+      [512, 128, 64, 32, 16],
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("Chromium's PDFs of boards at different sizes join into one, a page each, a document running over", async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  const { mergePdfs } = await import('./design-export.mjs');
+  try {
+    const print = async (width, height, paperHeight, html) => {
+      const tab = await browser.newTab({ width, height, scheme: 'light', media: 'print' });
+      try {
+        await tab.setContent(`<!doctype html><body style="margin:0">${html}</body>`);
+        return await tab.pdf({ paperWidth: width, paperHeight });
+      } finally {
+        await tab.close();
+      }
+    };
+    const slide = await print(1920, 1080, 1080, '<h1>Slide</h1>');
+    const doc = await print(794, 100, 1123, '<h1>Doc</h1><div style="height:1600px">x</div>');
+    const merged = mergePdfs([slide, doc]);
+    assert.equal(merged.pages, 3);
+    const text = merged.pdf.toString('latin1');
+    assert.match(text, /^%PDF-1\.4/);
+    assert.equal((text.match(/\/Type \/Page\b(?!s)/g) ?? []).length, 3);
+    const boxes = [...text.matchAll(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/g)].map((m) =>
+      Math.round(+m[1]),
+    );
+    assert.deepEqual(boxes, [1440, 596, 596], 'the slide is 1920 px wide, the document an A4 page');
+    assert.match(text, /startxref\n\d+\n%%EOF\n$/);
+  } finally {
+    await browser.close();
+  }
+});

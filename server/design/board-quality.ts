@@ -81,7 +81,9 @@ export function readTokens(json: string | null, css: string | null): DesignToken
 /** px from "16px", "1rem" (16 px a rem) or "9pt" (a point is 96/72 px). */
 const cssPx = (value: string) => {
   const match = /^(-?\d*\.?\d+)(px|rem|pt)$/.exec(value.trim());
-  return match ? Number(match[1]) * (match[2] === 'rem' ? 16 : match[2] === 'pt' ? 96 / 72 : 1) : null;
+  return match
+    ? Number(match[1]) * (match[2] === 'rem' ? 16 : match[2] === 'pt' ? 96 / 72 : 1)
+    : null;
 };
 
 /** The platforms whose type scale is their own: --text-mac-*, --text-slide-*, --text-doc-* … */
@@ -152,14 +154,24 @@ export function tokensFromCss(css: string): DesignTokens {
   const phoneType = sizes(/^(text|font-size|type|fs)-.*\b(phone|ios)\b/);
   const platformType: Record<string, number[]> = {};
   const typeTokens: Record<string, { name: string; value: string }[]> = {};
+  // A kind's scale may be written twice (px on screen, pt under @media print): both count.
+  const declared = [...text.matchAll(/--([\w-]+)\s*:\s*([^;}]+)[;}]?/g)].map((match) => ({
+    name: match[1],
+    value: match[2].trim(),
+  }));
   for (const kind of kindScales) {
     const own = new RegExp(`^(text|font-size|type|fs)-.*\\b${kind}\\b`);
-    const found = sizes(own);
+    const found = declared.filter((entry) => own.test(entry.name) && cssPx(entry.value) !== null);
     if (!found.length) continue;
-    platformType[kind] = found;
-    typeTokens[kind] = Object.entries(all)
-      .filter(([name, value]) => own.test(name) && cssPx(value) !== null)
-      .map(([name, value]) => ({ name: `--${name}`, value: value.trim() }));
+    platformType[kind] = [...new Set(found.map((entry) => cssPx(entry.value)!))].sort(
+      (a, b) => a - b,
+    );
+    typeTokens[kind] = found
+      .filter(
+        (entry, at) =>
+          found.findIndex((e) => e.name === entry.name && e.value === entry.value) === at,
+      )
+      .map((entry) => ({ name: `--${entry.name}`, value: entry.value }));
   }
   return {
     colors,
@@ -1083,7 +1095,9 @@ const typeScaleName = (platform: string) =>
 
 /** A scale as the design system writes it: pt for a print piece, else px. */
 function typeScaleWords(tokens: DesignTokens | null, platform: string, scale: number[]) {
-  const written = tokens?.typeTokens?.[platformInfo(platform).scale ?? '']?.map((token) => token.value);
+  const written = tokens?.typeTokens?.[platformInfo(platform).scale ?? '']?.map(
+    (token) => token.value,
+  );
   if (written?.length && platformInfo(platform).scale === platform)
     return [...new Set(written)].join(', ');
   return `${scale.map((size) => Math.round(size * 10) / 10).join(', ')} px`;
@@ -1318,7 +1332,11 @@ export function screenFamily(
 
 /** Every code the check reports, whether it blocks, and what it means: what guide prints. */
 export const checkCodes: { code: string; problem: boolean; means: string }[] = [
-  { code: 'text_cut_off', problem: true, means: 'text leaves the page (at 700 px; at its size for the rest)' },
+  {
+    code: 'text_cut_off',
+    problem: true,
+    means: 'text leaves the page (at 700 px; at its size for the rest)',
+  },
   { code: 'overflows_sideways', problem: true, means: 'the page scrolls sideways' },
   { code: 'low_contrast', problem: true, means: 'text under 4.5:1 (3:1 large) in light or dark' },
   { code: 'not_a_token', problem: true, means: 'a colour written out instead of a token' },
@@ -1342,7 +1360,8 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   {
     code: 'missing_scheme',
     problem: true,
-    means: "fewer schemes than the project's (by default light and dark; a slide or print is light)",
+    means:
+      "fewer schemes than the project's (by default light and dark; a slide or print is light)",
   },
   {
     code: 'scheme_dropped',

@@ -345,6 +345,23 @@ export async function launchChromium(
         });
         return Buffer.from(data, 'base64');
       },
+      /**
+       * The page as a PDF with backgrounds, on paper `paperWidth` x `paperHeight` CSS px with no
+       * margins; a page taller than the paper continues on the next sheet (a document).
+       */
+      async pdf({ paperWidth, paperHeight }) {
+        const { data } = await send('Page.printToPDF', {
+          printBackground: true,
+          preferCSSPageSize: false,
+          paperWidth: paperWidth / 96,
+          paperHeight: paperHeight / 96,
+          marginTop: 0,
+          marginBottom: 0,
+          marginLeft: 0,
+          marginRight: 0,
+        });
+        return Buffer.from(data, 'base64');
+      },
       async close() {
         await (
           browserContextId

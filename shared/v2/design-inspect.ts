@@ -43,8 +43,16 @@ export type Inspection = {
   figures?: Box[];
   /** Headings and where they end, for a document's page breaks. */
   headings?: (Box & { text: string })[];
+  /** The margins the page's @page rule sets, in px: what a printed sheet leaves round the text. */
+  pageMargin?: { top: number; right: number; bottom: number; left: number };
 };
-export type Box = { layer: string | null; left: number; top: number; width: number; height: number };
+export type Box = {
+  layer: string | null;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
 
 /** Runs in the page: what the check measures there. */
 export function inspectBoard(doc: Document = document): Inspection {
@@ -317,6 +325,32 @@ export function inspectBoard(doc: Document = document): Inspection {
       height: Math.round(rect.height * 10) / 10,
     };
   };
+  const toPx = (value: string) => {
+    const match = /^(-?\d*\.?\d+)(px|mm|cm|in|pt)$/.exec(value.trim());
+    if (!match) return 0;
+    const unit = { px: 1, mm: 96 / 25.4, cm: 96 / 2.54, in: 96, pt: 96 / 72 }[match[2]] ?? 1;
+    return Number(match[1]) * unit;
+  };
+  let pageMargin: Inspection['pageMargin'];
+  const findPageRules = (rules: CSSRuleList) => {
+    for (const rule of rules) {
+      // 6 is an @page rule; media and supports rules hold more.
+      if (rule.constructor.name === 'CSSPageRule') {
+        const style = (rule as CSSPageRule).style;
+        const sides = ['Top', 'Right', 'Bottom', 'Left'].map((side) =>
+          toPx(style.getPropertyValue(`margin-${side.toLowerCase()}`)),
+        );
+        if (sides.some(Boolean))
+          pageMargin = { top: sides[0], right: sides[1], bottom: sides[2], left: sides[3] };
+      } else if ('cssRules' in rule) findPageRules((rule as CSSGroupingRule).cssRules);
+    }
+  };
+  for (const sheet of doc.styleSheets)
+    try {
+      findPageRules(sheet.cssRules);
+    } catch {
+      // A sheet from elsewhere cannot be read.
+    }
   const figures = [...doc.body.querySelectorAll('img, svg, canvas, video')]
     .filter((element) => shown(element) && !element.parentElement?.closest('svg'))
     .map(boxOf);
@@ -331,6 +365,7 @@ export function inspectBoard(doc: Document = document): Inspection {
     height: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight),
     figures,
     headings,
+    ...(pageMargin ? { pageMargin } : {}),
     clipped,
     texts,
     aligned,

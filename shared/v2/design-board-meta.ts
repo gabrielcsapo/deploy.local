@@ -107,7 +107,13 @@ export function parseBoardMeta(html: string | null | undefined): BoardMeta {
     } else if (key === 'source') meta.source = boardFile(value);
     else if (key === 'copied_from' || key === 'copied-from') meta.copiedFrom = boardFile(value);
     else if (key === 'title') meta.title = value || null;
-    else if (key === 'page' || key === 'size' || key === 'bleed' || key === 'safe' || key === 'device')
+    else if (
+      key === 'page' ||
+      key === 'size' ||
+      key === 'bleed' ||
+      key === 'safe' ||
+      key === 'device'
+    )
       meta[key] = value.toLowerCase() || null;
     else meta.other[key] = value;
   }

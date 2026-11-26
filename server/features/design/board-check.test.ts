@@ -4,6 +4,14 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { deflateSync } from 'node:zlib';
+import {
+  drawSteps,
+  drawnAt,
+  platformInfo,
+  platformSchemes,
+  printGeometry,
+} from '../../../shared/v2/design-platforms.ts';
 import { instanceQuestions, syncInstances, type Library } from '../../design/board-html.ts';
 import {
   boardWords,
@@ -38,6 +46,7 @@ import {
   questionFindings,
   readTokens,
   tokensFromCss,
+  typeScaleFor,
   schemeDroppedProblem,
   schemePinnedProblems,
   screenFamily,
@@ -607,7 +616,10 @@ test("a board's head may say its platform, schemes, source and what it replaces;
   const print = parseBoardMeta(
     '<meta name="design-board" content="platform=print,size=85x55mm,bleed=3mm,safe=4mm">',
   );
-  assert.deepEqual([print.platform, print.size, print.bleed, print.safe], ['print', '85x55mm', '3mm', '4mm']);
+  assert.deepEqual(
+    [print.platform, print.size, print.bleed, print.safe],
+    ['print', '85x55mm', '3mm', '4mm'],
+  );
   assert.equal(
     parseBoardMeta('<meta name="design-board" content="platform=doc,page=letter">').page,
     'letter',
@@ -1983,4 +1995,381 @@ test('an iPhone bar and an icon button carry the actions their web source has', 
       '<main><span class="ds-stepper"><button aria-label="Fewer"><svg></svg></button><button aria-label="More"><svg></svg></button></span></main>',
   );
   assert.deepEqual(droppedActions(phone, web), []);
+});
+
+// ── Kinds of artifact beyond web and phone ──────────────────────────────────────────────────────
+
+/** A board for a platform, with the design system's kind stylesheet for its type scale. */
+const kindBoard = (
+  head: string,
+  body = '<main data-layer="page"><p data-layer="line">Words</p></main>',
+) =>
+  `<!doctype html><html><head><meta name="design-board" content="${head}"><link rel="stylesheet" href="../ds/k/tokens.css"><link rel="stylesheet" href="../ds/k/kind.css"></head><body>${body}</body></html>`;
+
+/** A project of one kind, with main holding only its design system, and a new board on a branch. */
+async function kindCheck(options: {
+  head: string;
+  file?: string;
+  canvas?: Record<string, unknown>;
+  placed?: Record<string, number>;
+  inspect?: (input: { width: number; scheme: string; media?: string }) => Partial<Inspection>;
+  png?: (scheme: string) => Buffer;
+}) {
+  const repo = repository();
+  try {
+    const file = options.file ?? 'Board.html';
+    repo.write('design/ds/k/tokens.css', ':root{--space-4:16px;--text-body:16px}');
+    repo.write(
+      'design/ds/k/kind.css',
+      ':root{--text-slide-body:32px;--text-slide-title:72px;--text-print-body:8pt;--text-print-name:11pt;--text-doc-body:17px}@media print{:root{--text-doc-body:11pt}}',
+    );
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({ designSystem: 'ds/k', ...options.canvas, boards: {} }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'kind']);
+    repo.write(`design/boards/${file}`, kindBoard(options.head));
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        designSystem: 'ds/k',
+        ...options.canvas,
+        boards: { [file]: { x: 0, y: 0, w: 1440, h: 900, ...options.placed } },
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Board']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const shots: {
+      width: number;
+      height: number;
+      scheme: string;
+      scale?: number;
+      media?: string;
+      fullPage?: boolean;
+    }[] = [];
+    const pairs: { width: number; scheme: string; before: Buffer | null; layout?: unknown }[] = [];
+    const drawer: CheckDrawing = {
+      shoot: async (input) => {
+        shots.push({
+          width: input.width,
+          height: input.height,
+          scheme: input.scheme,
+          scale: input.scale,
+          media: input.media,
+          fullPage: input.fullPage,
+        });
+        return {
+          png: options.png?.(input.scheme) ?? Buffer.from('png'),
+          measured: input.measure ? { scrolls: false, cut: null } : null,
+          inspected: input.inspect
+            ? inspection({
+                height: input.height,
+                ...options.inspect?.({
+                  width: input.width,
+                  scheme: input.scheme,
+                  media: input.media,
+                }),
+              })
+            : null,
+        };
+      },
+      pair: async ({ before, width, scheme, layout }) => {
+        pairs.push({ width, scheme, before, layout });
+        return Buffer.from('pair');
+      },
+    };
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    return { result, shots, pairs };
+  } finally {
+    repo.cleanup();
+  }
+}
+
+test('a slide is drawn once at 1920 by 1080 in light, alone as a new board, with no app-only notes', async () => {
+  const { result, shots, pairs } = await kindCheck({
+    head: 'platform=slide',
+    inspect: () => ({
+      texts: [text('title', { size: 72 }), text('body', { size: 32 }), text('odd', { size: 40 })],
+      // App notes that a slide does not owe.
+      aligned: [{ a: 'title', b: 'body', dx: 2 }],
+      boxes: [{ layer: 'card', inside: 'panel' }],
+      primaries: ['a', 'b'],
+    }),
+  });
+  assert.deepEqual(
+    shots.map((shot) => [shot.width, shot.height, shot.scheme]),
+    [[1920, 1080, 'light']],
+  );
+  assert.deepEqual(
+    result.pictures.map((picture) => picture.name),
+    ['Board-1920-light.png'],
+  );
+  assert.equal(pairs[0].before, null, 'a new board has no Before half');
+  assert.deepEqual(result.widths, [1920]);
+  assert.deepEqual(result.schemes, ['light']);
+  assert.deepEqual(result.problems, [], 'a light-only slide is not missing dark');
+  // Held to --text-slide-*: 40 px is off it, and the web's scale is not asked.
+  assert.deepEqual(
+    result.notes.map((note) => [note.code, note.short]),
+    [['type_off_scale', '40 px type']],
+  );
+  assert.match(result.notes[0].fix ?? '', /slide type scale: 32px, 72px/);
+});
+
+test('a project that asks for light and dark still gets a printed card in light only', async () => {
+  const { result, shots, pairs } = await kindCheck({
+    head: 'platform=print,size=85x55mm,bleed=3mm,safe=4mm',
+    canvas: { schemes: ['light', 'dark'] },
+    inspect: () => ({
+      texts: [text('name', { left: 40, top: 40, width: 80, height: 20, size: 14.6667 })],
+    }),
+  });
+  assert.deepEqual(result.schemes, ['light']);
+  assert.deepEqual(result.problems, []);
+  // 91 x 61 mm with its bleed, in CSS px, drawn at 8 px per millimetre.
+  assert.equal(shots[0].width, 344);
+  assert.equal(shots[0].height, 231);
+  assert.ok(Math.abs((shots[0].scale ?? 0) * (96 / 25.4) - 8) < 1e-9);
+  assert.deepEqual(
+    result.pictures.map((picture) => picture.name),
+    ['Board-728-light.png'],
+  );
+  assert.deepEqual(pairs[0].layout, {
+    kind: 'print',
+    pxPerMm: 8,
+    trim: { w: 85, h: 55 },
+    bleed: 3,
+    safe: 4,
+  });
+  // 11pt is on --text-print-*, 14.67 px is 11pt; no note.
+  assert.deepEqual(result.notes, []);
+});
+
+test('text inside the safe margin of a printed piece is a problem; a bleeding picture is not', async () => {
+  const { result } = await kindCheck({
+    head: 'platform=print',
+    inspect: () => ({
+      texts: [
+        text('inside', { left: 40, top: 40, width: 100, height: 14 }),
+        text('too-close', { left: 14, top: 100, width: 100, height: 14 }),
+      ],
+      figures: [
+        { layer: 'wash', left: 0, top: 0, width: 150, height: 100 },
+        { layer: 'logo', left: 20, top: 100, width: 40, height: 40 },
+      ],
+    }),
+  });
+  assert.deepEqual(
+    result.problems.map((problem) => [problem.code, problem.layer]),
+    [['outside_safe_area', 'too-close']],
+  );
+  assert.match(result.problems[0].detail, /too-close, logo/);
+});
+
+test('a document is drawn at 700 and 390 as tall as it reads, then as printed pages; height is measured', async () => {
+  const { result, shots, pairs } = await kindCheck({
+    head: 'platform=doc,page=letter',
+    placed: { w: 700, h: 900 },
+    inspect: ({ width }) => ({
+      height: width === 700 ? 2400 : 3100,
+      texts: [text('line', { size: 17 })],
+      headings:
+        width === 816
+          ? [{ layer: 'h', text: 'Stranded', left: 0, top: 1000, width: 400, height: 40 }]
+          : [],
+    }),
+  });
+  assert.deepEqual(
+    shots.map((shot) => [shot.width, shot.scheme, shot.media ?? 'screen', shot.fullPage]),
+    [
+      [700, 'light', 'screen', true],
+      [700, 'dark', 'screen', true],
+      [390, 'light', 'screen', true],
+      [390, 'dark', 'screen', true],
+      // The probe that reads the @page margin, then the pages themselves.
+      [816, 'light', 'print', true],
+      [816, 'light', 'print', true],
+    ],
+  );
+  assert.deepEqual(
+    result.pictures.map((picture) => picture.name),
+    [
+      'Board-700-light.png',
+      'Board-700-dark.png',
+      'Board-390-light.png',
+      'Board-390-dark.png',
+      'Board-816-light.png',
+    ],
+  );
+  assert.deepEqual(pairs.at(-1)?.layout, { kind: 'pages', pageWidth: 816, pageHeight: 1056 });
+  // The height is what the 700 render needs, not the frame the canvas gave it.
+  assert.deepEqual(result.heights, { 'Board.html': 2400 });
+  assert.deepEqual(
+    result.problems.map((problem) => [problem.code, problem.label]),
+    [['height_differs', 'Board is 2400 px tall as drawn, not 900']],
+  );
+  // 17 px (screen) and 11pt (print) are both on --text-doc-*.
+  assert.deepEqual(
+    result.notes.map((note) => note.code),
+    ['page_break_inside'],
+  );
+});
+
+test('a logo is one sheet on each ground, and a mark that vanishes at 16 px is noted', async () => {
+  const png =
+    (mark: [number, number, number], ground: [number, number, number]) => (scheme: string) => {
+      void scheme;
+      return pngOf(256, 256, (x, y) => {
+        const inside = x > 96 && x < 160 && y > 96 && y < 160;
+        return inside ? mark : ground;
+      });
+    };
+  const faint = await kindCheck({
+    head: 'platform=logo',
+    png: png([240, 240, 240], [255, 255, 255]),
+  });
+  assert.deepEqual(
+    faint.result.pictures.map((p) => p.name),
+    ['Board-1024-light.png', 'Board-1024-dark.png'],
+  );
+  assert.deepEqual(
+    faint.shots.map((shot) => [shot.width, shot.height]),
+    [
+      [1024, 1024],
+      [1024, 1024],
+    ],
+  );
+  assert.deepEqual(faint.pairs[0].layout, { kind: 'sheet', sizes: [512, 128, 64, 32, 16] });
+  assert.deepEqual(
+    faint.result.notes.map((note) => note.code),
+    ['logo_small_unreadable'],
+  );
+  const bold = await kindCheck({ head: 'platform=logo', png: png([20, 20, 30], [255, 255, 255]) });
+  assert.deepEqual(bold.result.notes, []);
+  assert.deepEqual(bold.result.problems, []);
+});
+
+test('a slide taller than its frame is a problem; a mac window and a game screen draw once', async () => {
+  const tall = await kindCheck({ head: 'platform=slide', inspect: () => ({ height: 1300 }) });
+  assert.deepEqual(
+    tall.result.problems.map((problem) => problem.code),
+    ['taller_than_frame'],
+  );
+  const mac = await kindCheck({ head: 'platform=mac', canvas: { schemes: ['light', 'dark'] } });
+  assert.deepEqual(
+    mac.shots.map((shot) => [shot.width, shot.height, shot.scheme]),
+    [
+      [1280, 800, 'light'],
+      [1280, 800, 'dark'],
+    ],
+  );
+  const game = await kindCheck({ head: 'platform=game,device=phone' });
+  assert.deepEqual(
+    game.shots.map((shot) => [shot.width, shot.height]),
+    [
+      [390, 844],
+      [390, 844],
+    ],
+  );
+});
+
+/** A PNG (8-bit RGB) of the pixels a function gives, as a browser would write one. */
+function pngOf(
+  width: number,
+  height: number,
+  pixel: (x: number, y: number) => [number, number, number],
+) {
+  const rows = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) rows.set(pixel(x, y), y * (width * 3 + 1) + 1 + x * 3);
+  const chunk = (kind: string, data: Buffer) => {
+    const out = Buffer.alloc(12 + data.length);
+    out.writeUInt32BE(data.length, 0);
+    out.write(kind, 4, 'latin1');
+    data.copy(out, 8);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 2;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+test('type scales come from each platform own tokens, in pt where they say pt', () => {
+  const css =
+    ':root{--text-body:16px;--text-phone-body:17px;--text-mac-body:13px;--text-slide-body:32px;--text-print-body:8pt;--text-doc-body:17px}@media print{:root{--text-doc-body:11pt}}';
+  const tokens = tokensFromCss(css);
+  assert.deepEqual(tokens.type, [16]);
+  assert.deepEqual(tokens.phoneType, [17]);
+  assert.deepEqual(tokens.platformType?.mac, [13]);
+  assert.deepEqual(tokens.platformType?.slide, [32]);
+  assert.deepEqual(
+    tokens.platformType?.print?.map((size) => Math.round(size * 100) / 100),
+    [10.67],
+  );
+  assert.deepEqual(
+    tokens.platformType?.doc?.map((size) => Math.round(size * 10) / 10),
+    [14.7, 17],
+  );
+  assert.deepEqual(typeScaleFor(tokens, 'web'), [16]);
+  assert.deepEqual(typeScaleFor(tokens, 'game'), [17], 'a game falls back to the phone scale');
+  assert.deepEqual(typeScaleFor({ ...tokens, platformType: {} }, 'slide'), [], 'no scale, no note');
+  assert.deepEqual(typeScaleFor(tokens, 'logo'), []);
+});
+
+test('every platform says how it is drawn: sizes, schemes and guides', () => {
+  const none = parseBoardMeta(null);
+  assert.deepEqual(
+    drawSteps('web', none).map((step) => step.width),
+    [1440, 700],
+  );
+  assert.deepEqual(
+    drawSteps('phone', none).map((step) => [step.width, step.height]),
+    [[390, 844]],
+  );
+  assert.deepEqual(
+    drawSteps('mac', none).map((step) => [step.width, step.height]),
+    [[1280, 800]],
+  );
+  assert.deepEqual(
+    drawSteps('slide', none).map((step) => [step.width, step.height]),
+    [[1920, 1080]],
+  );
+  assert.deepEqual(
+    drawSteps('doc', none).map((step) => [step.width, step.mode]),
+    [
+      [700, 'screen'],
+      [390, 'screen'],
+      [794, 'pages'],
+    ],
+  );
+  assert.equal(drawnAt('print', none), '85×55 mm trim, 3 mm bleed, 4 mm safe, at 8 px/mm');
+  assert.deepEqual(platformSchemes('slide', ['light', 'dark']), ['light', 'dark']);
+  assert.deepEqual(platformSchemes('print', ['light', 'dark']), ['light']);
+  assert.deepEqual(platformSchemes('doc', null), ['light', 'dark']);
+  assert.equal(platformInfo('logo').appChecks, false);
+  assert.deepEqual(
+    printGeometry(
+      parseBoardMeta('<meta name="design-board" content="size=100x70mm,bleed=2mm,safe=5mm">'),
+    ).trim,
+    { w: 100, h: 70 },
+  );
+  assert.equal(
+    drawSteps(
+      'game',
+      parseBoardMeta('<meta name="design-board" content="width=800,height=480">'),
+    )[0].width,
+    800,
+  );
 });

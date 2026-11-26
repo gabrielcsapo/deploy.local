@@ -142,7 +142,13 @@ export function printGeometry(meta: Pick<BoardMeta, 'size' | 'bleed' | 'safe'>) 
 /** How a pair's picture is laid out beyond Before beside After. */
 export type PairLayout =
   /** A tall render cut into the pages it prints on. */
-  | { kind: 'pages'; pageWidth: number; pageHeight: number }
+  | {
+      kind: 'pages';
+      pageWidth: number;
+      pageHeight: number;
+      /** What each sheet leaves round the text (the board's @page margin), in px. */
+      margin?: { top: number; right: number; bottom: number; left: number };
+    }
   /** A print piece with its trim, bleed and safe margins drawn outside it. */
   | {
       kind: 'print';
@@ -186,16 +192,21 @@ export function boardFrame(
   meta: Pick<BoardMeta, 'width' | 'height' | 'size' | 'bleed' | 'safe' | 'device' | 'page'>,
   placed: PlacedSize = {},
 ): { width: number; height: number | null } {
-  const width = Number(placed.w) || meta.width || null;
-  const height = Number(placed.h) || meta.height || null;
+  const fromPlace = { width: Number(placed.w) || null, height: Number(placed.h) || null };
+  // Web and phone boards take the canvas's size first, as they always have; a slide, a window, a
+  // screen or a mark is the size its head says, whatever the canvas holds.
+  const first = ['web', 'phone', 'tablet', 'tv'].includes(platform) || !platform;
+  const width = first ? fromPlace.width || meta.width : meta.width;
+  const height = first ? fromPlace.height || meta.height : meta.height;
   switch (platform) {
     case 'mac':
       return { width: width ?? 1280, height: height ?? 800 };
     case 'slide':
       return { width: width ?? 1920, height: height ?? 1080 };
     case 'print': {
+      // The trim, bleed and safe margin in the head are the size; nothing else can disagree.
       const geometry = printGeometry(meta);
-      return { width: width ?? geometry.width, height: height ?? geometry.height };
+      return { width: geometry.width, height: geometry.height };
     }
     case 'game':
       // device=phone (or nothing said) is a phone's screen; else the width and height it gives.
@@ -204,7 +215,7 @@ export function boardFrame(
       return { width: width ?? 1024, height: height ?? 1024 };
     case 'doc':
       // The canvas shows a document at its first reading width, as tall as it reads.
-      return { width: width ?? 700, height };
+      return { width: 700, height: fromPlace.height || meta.height || null };
     case 'phone':
       return { width: width ?? 390, height: height ?? 844 };
     default:
@@ -217,11 +228,7 @@ export const platformOfBoard = (meta: BoardMeta, placed: PlacedSize = {}) =>
   boardPlatform(meta, Number(placed.w) || undefined);
 
 /** How a board is drawn: each size, in the order of its pictures. */
-export function drawSteps(
-  platform: string,
-  meta: BoardMeta,
-  placed: PlacedSize = {},
-): DrawStep[] {
+export function drawSteps(platform: string, meta: BoardMeta, placed: PlacedSize = {}): DrawStep[] {
   const frame = boardFrame(platform, meta, placed);
   const screen = (width: number, height: number | null, extra: Partial<DrawStep> = {}) =>
     ({
@@ -302,7 +309,7 @@ export function drawnAt(platform: string, meta: BoardMeta, placed: PlacedSize = 
   switch (platform) {
     case 'doc': {
       const page = docPage(meta);
-      return `reading at 700 and 390 (as tall as it reads), printed pages at ${page.label} ${page.w}×${page.h}`;
+      return `700 and 390 (as tall as it reads), then the printed pages at ${page.label} ${page.w}×${page.h}`;
     }
     case 'print': {
       const geometry = printGeometry(meta);
@@ -321,3 +328,48 @@ export function drawnAt(platform: string, meta: BoardMeta, placed: PlacedSize = 
 
 /** The planned sizes' widths, for a board's status. */
 export const stepWidths = (steps: DrawStep[]) => [...new Set(steps.map((step) => step.width))];
+
+/** What a project makes, as `deploy design init --kind` names it, and the platforms its boards are. */
+export const designKinds: Record<string, { platforms: string[]; schemes: Scheme[] }> = {
+  app: { platforms: ['web', 'phone'], schemes: ['light', 'dark'] },
+  doc: { platforms: ['doc'], schemes: ['light', 'dark'] },
+  slides: { platforms: ['slide'], schemes: ['light'] },
+  print: { platforms: ['print'], schemes: ['light'] },
+  mac: { platforms: ['mac'], schemes: ['light', 'dark'] },
+  game: { platforms: ['game'], schemes: ['light', 'dark'] },
+  logo: { platforms: ['logo'], schemes: ['light', 'dark'] },
+};
+
+/** The platform a new board of a project's kind is, when its name says no other. */
+export const kindPlatform = (kind: string | null | undefined) =>
+  designKinds[kind ?? 'app']?.platforms[0] ?? 'web';
+
+/**
+ * The paper a board is exported on: its own size (a slide, a window, a screen), trim plus bleed
+ * for a print piece, the page size for a document, which then runs over as many pages as it needs.
+ */
+export function exportPage(platform: string, meta: BoardMeta, placed: PlacedSize = {}) {
+  const frame = boardFrame(platform, meta, placed);
+  if (platform === 'doc') {
+    const page = docPage(meta);
+    return {
+      width: page.w,
+      height: 100,
+      paperWidth: page.w,
+      paperHeight: page.h,
+      fixed: false,
+    };
+  }
+  if (platform === 'print') {
+    const geometry = printGeometry(meta);
+    return {
+      width: frame.width,
+      height: frame.height ?? geometry.height,
+      paperWidth: geometry.widthMm * CSS_PX_PER_MM,
+      paperHeight: geometry.heightMm * CSS_PX_PER_MM,
+      fixed: true,
+    };
+  }
+  const height = frame.height ?? 900;
+  return { width: frame.width, height, paperWidth: frame.width, paperHeight: height, fixed: true };
+}

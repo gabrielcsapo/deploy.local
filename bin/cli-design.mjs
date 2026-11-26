@@ -17,7 +17,14 @@ import {
 } from './design-status.mjs';
 import { syncInstances } from '../server/design/board-html.ts';
 import { checkDesign, parseLibrary } from '../server/features/design/board-check.ts';
-import { parseBoardMeta, setBoardMetaHeight } from '../shared/v2/design-board-meta.ts';
+import {
+  boardPlatform,
+  parseBoardMeta,
+  platformWidths,
+  setBoardMetaHeight,
+} from '../shared/v2/design-board-meta.ts';
+import { designKinds, exportPage } from '../shared/v2/design-platforms.ts';
+import { exportOrder, mergePdfs } from './design-export.mjs';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const LABEL = 33;
@@ -27,7 +34,9 @@ export const DESIGN_HELP = `deploy design — change what people see, on the sam
 
 Usage  deploy design <command> [flags]
 
-  init [<name>]            Start design/ here, with a starter design system
+  init [<name>] [--kind k] Start design/ here, with a starter design system
+                           (kinds: app, doc, slides, print, mac, game, logo)
+  export [<Board>…]        One PDF of the boards, in canvas order, at their own sizes
   guide                    How to work on this project's design
   status [<Board>…]        Where to start a board: its source, siblings, questions
   check                    Draw what you changed beside main and check it, here
@@ -49,6 +58,8 @@ Flags
   --title, --summary, --look-at
                            propose: answer its questions up front
   --drop-instances         check: put carried boards back as on main
+  --kind <kind>            init: what this project makes (default app)
+  --pdf                    export: the PDF (the default, and only, format)
 
 Check exits 0 clean, 1 with problems, 2 on wrong usage, 4 when deploy.local
 is needed (no browser here) and out of reach.
@@ -173,9 +184,10 @@ draws ("schemes": ["light", "dark"]).
  * design/ for a project: an empty canvas, its README, boards/, and the starter design system
  * copied into ds/<name>/. Returns the paths it wrote, relative to the project.
  */
-export function initDesign(top, name, starter) {
+export function initDesign(top, name, starter, kind = 'app') {
   const design = join(top, 'design');
   const written = [];
+  const kindInfo = designKinds[kind] ?? designKinds.app;
   const put = (path, bytes) => {
     mkdirSync(dirname(join(top, path)), { recursive: true });
     writeFileSync(join(top, path), bytes);
@@ -187,7 +199,8 @@ export function initDesign(top, name, starter) {
       {
         title: name,
         designSystem: `ds/${name}`,
-        schemes: ['light', 'dark'],
+        ...(kind === 'app' ? {} : { kind }),
+        schemes: kindInfo.schemes,
         boards: {},
         order: [],
         notes: {},
@@ -201,14 +214,51 @@ export function initDesign(top, name, starter) {
   writeFileSync(join(design, 'boards', '.gitkeep'), '');
   written.push('design/boards/');
   mkdirSync(join(design, 'ds', name), { recursive: true });
-  for (const [path, bytes] of Object.entries(starter).sort(([a], [b]) => a.localeCompare(b))) {
-    if (path.split('/').includes('..')) continue;
-    // The starter's examples link ../ds/__DS__/…: this project's folder.
-    const text = /\.(html|css|md|json)$/.test(path)
+  // The starter's examples link ../ds/__DS__/…: this project's folder.
+  const fill = (path, bytes) =>
+    /\.(html|css|md|json)$/.test(path)
       ? Buffer.from(Buffer.from(bytes).toString('utf8').replaceAll('__DS__', name))
       : bytes;
-    put(`design/ds/${name}/${path}`, text);
+  const entries = Object.entries(starter)
+    .filter(([path]) => !path.split('/').includes('..'))
+    .sort(([a], [b]) => a.localeCompare(b));
+  // The base, then the kind's files over it: its stylesheet and examples as they are, its rules
+  // appended to the design system README, its components merged into the library.
+  const prefix = `kinds/${kind}/`;
+  const own = new Map(
+    entries
+      .filter(([path]) => path.startsWith(prefix))
+      .map(([path, bytes]) => [path.slice(prefix.length), bytes]),
+  );
+  const base = new Map(entries.filter(([path]) => !path.startsWith('kinds/')));
+  const rules = own.get(`${kind}.md`);
+  const parts = own.get(`library-${kind}.json`);
+  if (rules && base.has('README.md'))
+    base.set(
+      'README.md',
+      Buffer.from(
+        `${Buffer.from(base.get('README.md')).toString('utf8').replace(/\n*$/, '\n')}\n${Buffer.from(rules).toString('utf8')}`,
+      ),
+    );
+  if (parts && base.has('library.json')) {
+    try {
+      const library = JSON.parse(Buffer.from(base.get('library.json')).toString('utf8'));
+      const extra = JSON.parse(Buffer.from(parts).toString('utf8'));
+      const added = Array.isArray(extra) ? extra : (extra.components ?? []);
+      const ids = new Set(added.map((component) => component.id));
+      library.components = [
+        ...(library.components ?? []).filter((component) => !ids.has(component.id)),
+        ...added,
+      ];
+      base.set('library.json', Buffer.from(`${JSON.stringify(library, null, 2)}\n`));
+    } catch {
+      // A library that does not read is left as the base has it.
+    }
   }
+  for (const [path, bytes] of own)
+    if (path !== `${kind}.md` && path !== `library-${kind}.json`) base.set(path, bytes);
+  for (const [path, bytes] of [...base].sort(([a], [b]) => a.localeCompare(b)))
+    put(`design/ds/${name}/${path}`, fill(path, bytes));
   return written;
 }
 
@@ -512,8 +562,13 @@ export async function runDesign(sub, args, options, deps) {
         for (const [file, height] of heights) {
           const path = join(top, 'design', 'boards', file);
           const html = readFileSync(path, 'utf8');
-          const width = canvas.boards?.[file]?.w ?? parseBoardMeta(html).width ?? 1440;
-          writeFileSync(path, setBoardMetaHeight(html, height, width));
+          const meta = parseBoardMeta(html);
+          const platform = boardPlatform(meta, canvas.boards?.[file]?.w);
+          const width = canvas.boards?.[file]?.w ?? meta.width ?? platformWidths[platform] ?? 1440;
+          writeFileSync(
+            path,
+            setBoardMetaHeight(html, height, width, platform === 'web' ? null : platform),
+          );
           if (canvas.boards?.[file]) canvas.boards[file].h = height;
           fixed.push(`${screenName(file)} is ${height} px tall in its meta and canvas.json`);
         }
@@ -1043,17 +1098,87 @@ export async function runDesign(sub, args, options, deps) {
       if (existsSync(join(top, 'design')))
         throw cliError('This project already has design/.', 'deploy design guide', 1);
       const name = designSlug(args[0] ?? basename(top)) || 'project';
-      const written = initDesign(top, name, deps.starter?.() ?? {});
+      const kind = options.kind === undefined ? 'app' : String(options.kind);
+      if (!designKinds[kind])
+        throw cliError(
+          `No kind "${kind}". Kinds: ${Object.keys(designKinds).join(', ')}.`,
+          'deploy design init --kind doc',
+          2,
+        );
+      const starter = deps.starter?.() ?? {};
+      const written = initDesign(top, name, starter, kind);
+      const hasKind =
+        kind === 'app' || Object.keys(starter).some((path) => path.startsWith(`kinds/${kind}/`));
       for (const path of written.slice(0, 6)) step('✓', 'Made', path);
       if (written.length > 6)
         step('✓', 'Made', `and ${written.length - 6} more in design/ds/${name}/`);
-      if (!Object.keys(deps.starter?.() ?? {}).length)
+      if (!Object.keys(starter).length)
         step('!', 'No starter design system', `this CLI carries none; design/ds/${name}/ is empty`);
+      else if (!hasKind)
+        step('!', `No starter for ${kind}`, 'this CLI carries the base system only');
       out();
       out('Next: deploy design guide, then draw your first board in design/boards/');
       return {
         exitCode: 0,
-        json: { ok: true, code: 'initialized', name, written, next: 'deploy design guide' },
+        json: { ok: true, code: 'initialized', name, kind, written, next: 'deploy design guide' },
+      };
+    }
+
+    case 'export': {
+      // The boards as one PDF: a page each, in canvas order, at the board's own size.
+      const top = needsDesign(root());
+      const design = readDesign(top, deps.designSystem);
+      const order = exportOrder(design.canvas, design.files);
+      const chosen = args.length ? args.map(boardFileName) : order;
+      for (const file of chosen)
+        if (!design.boards.has(file))
+          throw cliError(`No board named ${file}.`, 'deploy design status', 2);
+      const files = args.length ? order.filter((file) => chosen.includes(file)) : chosen;
+      if (!files.length)
+        throw cliError('This project has no boards yet.', 'deploy design guide', 1);
+      const opened = deps.openLocalDrawing
+        ? await deps.openLocalDrawing(top)
+        : { reason: 'this terminal has no browser' };
+      if (!opened.drawing?.pdf)
+        throw cliError(
+          `No browser to print with here (${opened.reason}).`,
+          'deploy browser install',
+          4,
+        );
+      let merged;
+      try {
+        const pdfs = [];
+        for (const file of files) {
+          const board = design.boards.get(file);
+          const paper = exportPage(board.platform, board.meta, board.placed ?? {});
+          const pdf = await opened.drawing.pdf({ commit: WORKTREE, file, ...paper });
+          if (!pdf) throw cliError(`${file} could not be printed.`, 'deploy design check', 1);
+          pdfs.push(pdf);
+          step('✓', `Printed ${screenName(file)}`, board.platform);
+        }
+        merged = mergePdfs(pdfs);
+      } finally {
+        await opened.close?.();
+      }
+      const mainFolder = (tryGit(['worktree', 'list', '--porcelain'], top) ?? '')
+        .split('\n')[0]
+        .replace(/^worktree /, '');
+      const name = designSlug(basename(mainFolder || top)) || 'design';
+      const folder = join(top, 'output', 'design', 'export');
+      mkdirSync(folder, { recursive: true });
+      const path = join(folder, `${name}.pdf`);
+      writeFileSync(path, merged.pdf);
+      out();
+      step('✓', 'Wrote', `output/design/export/${name}.pdf · ${plural(merged.pages, 'page')}`);
+      return {
+        exitCode: 0,
+        json: {
+          ok: true,
+          code: 'exported',
+          file: `output/design/export/${name}.pdf`,
+          boards: files,
+          pages: merged.pages,
+        },
       };
     }
 

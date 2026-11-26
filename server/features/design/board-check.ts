@@ -67,6 +67,7 @@ import {
 } from '../../design/board-quality.ts';
 import { reviewWidths, screenName } from '../../../shared/v2/design-review.ts';
 import {
+  boardFrame,
   drawSteps,
   platformInfo,
   platformSchemes,
@@ -774,10 +775,7 @@ export async function checkDesign(
       // Every scheme its source or siblings draw, and no page pinned to one.
       const platformDefault = requiredSchemes(text, file);
       // What the project asks of every board: canvas.json's schemes, else the platform's own.
-      const projectSchemes = platformSchemes(
-        boardPlatform(meta, placedWidth(file)),
-        canvasSchemes,
-      );
+      const projectSchemes = platformSchemes(boardPlatform(meta, placedWidth(file)), canvasSchemes);
       const schemes = boardSchemes(meta, platformDefault);
       const mainSchemes = before
         ? boardSchemes(parseBoardMeta(before), requiredSchemes(before, file, 'main')).join(' ')
@@ -940,10 +938,12 @@ export async function checkDesign(
     );
     if (!why) continue;
     const meta = parseBoardMeta(text);
-    const size = {
-      w: Number(placing.boards[file]?.w) || meta.width || 1440,
-      h: Number(placing.boards[file]?.h) || meta.height || 900,
-    };
+    const frame = boardFrame(
+      boardPlatform(meta, Number(placing.boards[file]?.w) || undefined),
+      meta,
+      placing.boards[file] ?? {},
+    );
+    const size = { w: frame.width, h: frame.height ?? 900 };
     // Beside the board it came from, else beside a board of the same screen already placed.
     const placedSibling = screenFamily(
       file,
@@ -992,8 +992,7 @@ export async function checkDesign(
   // Each of the branch's own boards beside main's, at its widths in its schemes. Several boards
   // are drawn at once (the drawing queue decides how many reach Chromium); results keep the
   // boards' order, and the first failure stops the boards not yet started.
-  const overflow: Record<string, { after: Overflow; before: Overflow | null; width: number }> =
-    {};
+  const overflow: Record<string, { after: Overflow; before: Overflow | null; width: number }> = {};
   const drawnFindings: Record<string, { problems: Finding[]; notes: Finding[] }> = {};
   const heights: Record<string, number> = {};
   const usedSchemes = new Set<string>();
@@ -1019,10 +1018,45 @@ export async function checkDesign(
     // A logo's pictures, whose pixels say whether the mark shows at 16 px.
     const logoPictures: { scheme: Scheme; png: Buffer }[] = [];
     let inspectedOnce = false;
-    for (const step of steps) {
+    for (const planned of steps) {
+      let step = planned;
+      if (planned.mode === 'pages' && planned.layout?.kind === 'pages') {
+        // A sheet leaves its @page margin round the text: draw the text as wide as that leaves.
+        const probe = await drawing.shoot({
+          commit,
+          file,
+          width: planned.width,
+          height: 100,
+          scheme: 'light',
+          measure: false,
+          inspect: true,
+          media: 'print',
+          fullPage: true,
+        });
+        const margin = probe?.inspected?.pageMargin;
+        if (margin)
+          step = {
+            ...planned,
+            width: Math.max(200, Math.round(planned.width - margin.left - margin.right)),
+            layout: { ...planned.layout, margin },
+          };
+      }
       const { width } = step;
       // A page as tall as its content is drawn in a short window and pictured whole.
-      const height = step.height ?? 100;
+      // A sheet's window is its text area, so what print pins to the margins (a running head and
+      // foot) falls outside the stretch each sheet shows.
+      const height =
+        step.height ??
+        (step.layout?.kind === 'pages'
+          ? Math.max(
+              100,
+              Math.round(
+                step.layout.pageHeight -
+                  (step.layout.margin?.top ?? 0) -
+                  (step.layout.margin?.bottom ?? 0),
+              ),
+            )
+          : 100);
       const stepSchemes: Scheme[] = step.schemes ?? schemes;
       for (const scheme of stepSchemes) {
         usedSchemes.add(scheme);
@@ -1066,7 +1100,10 @@ export async function checkDesign(
                 file,
                 title,
                 inspection: afterShot.inspected,
-                pageHeight: step.layout.pageHeight,
+                pageHeight:
+                  step.layout.pageHeight -
+                  (step.layout.margin?.top ?? 0) -
+                  (step.layout.margin?.bottom ?? 0),
               }),
             );
         } else if (inspect && afterShot.inspected) {
