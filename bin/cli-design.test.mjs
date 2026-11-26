@@ -1563,11 +1563,12 @@ test('a clean check ends with the pairs to open and the questions a reviewer ask
       ['light', 'dark'].map((scheme) => `output/design/pairs/Sidebar-${width}-${scheme}.png`),
     );
     assert.deepEqual(result.json.review, { pairs, questions: reviewQuestions });
+    assert.deepEqual(result.json.pairs, pairs);
     assert.equal(reviewQuestions.length, 8);
     const text = run.text();
     assert.match(
       text,
-      /\nBefore you finish\nOpen each pair:\n {3}1\. output\/design\/pairs\/Sidebar-1440-light\.png\n/,
+      /\nOpen every one of these before you finish:\n {3}1\. output\/design\/pairs\/Sidebar-1440-light\.png\n/,
     );
     assert.match(
       text,

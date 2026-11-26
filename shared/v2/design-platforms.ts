@@ -12,6 +12,8 @@ export type Scheme = 'light' | 'dark';
 export const CSS_PX_PER_MM = 96 / 25.4;
 /** How sharply a print piece is drawn in the check's pictures. */
 export const PRINT_PX_PER_MM = 8;
+/** The slug round a print piece's bleed that holds its crop marks, in millimetres. */
+export const PRINT_SLUG_MM = 5;
 /** Pages as they print at 96 dpi. */
 export const pageSizes: Record<string, { w: number; h: number; label: string }> = {
   a4: { w: 794, h: 1123, label: 'A4' },
@@ -254,7 +256,6 @@ export function drawSteps(platform: string, meta: BoardMeta, placed: PlacedSize 
           mode: 'sheet',
           measure: true,
           inspect: true,
-          shown: 720,
           layout: { kind: 'sheet', sizes: logoSizes },
         }),
       ];
@@ -348,7 +349,12 @@ export const kindPlatform = (kind: string | null | undefined) =>
  * The paper a board is exported on: its own size (a slide, a window, a screen), trim plus bleed
  * for a print piece, the page size for a document, which then runs over as many pages as it needs.
  */
-export function exportPage(platform: string, meta: BoardMeta, placed: PlacedSize = {}) {
+export function exportPage(
+  platform: string,
+  meta: BoardMeta,
+  placed: PlacedSize = {},
+  options: { marks?: boolean } = {},
+) {
   const frame = boardFrame(platform, meta, placed);
   if (platform === 'doc') {
     const page = docPage(meta);
@@ -364,6 +370,26 @@ export function exportPage(platform: string, meta: BoardMeta, placed: PlacedSize
   }
   if (platform === 'print') {
     const geometry = printGeometry(meta);
+    if (options.marks) {
+      // Trim plus bleed plus a slug of 5 mm each side, with crop marks in the slug.
+      const px = (mm: number) => mm * CSS_PX_PER_MM;
+      const slug = PRINT_SLUG_MM;
+      const width = Math.round(px(geometry.widthMm + 2 * slug));
+      const height = Math.round(px(geometry.heightMm + 2 * slug));
+      return {
+        width,
+        height,
+        paperWidth: width,
+        paperHeight: height,
+        fixed: true,
+        cropMarks: {
+          slug: px(slug),
+          bleed: px(geometry.bleed),
+          trimW: px(geometry.trim.w),
+          trimH: px(geometry.trim.h),
+        },
+      };
+    }
     return {
       width: frame.width,
       height: frame.height ?? geometry.height,

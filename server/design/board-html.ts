@@ -72,11 +72,90 @@ function attribute(tag: string, name: string) {
   return new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
 }
 
-/** The name a layer gets from its markup alone: its label, its text, its first class, or its tag. */
+/** Words that are stand-ins, never a name: "to be confirmed", "placeholder", 00, one/two/three. */
+const placeholderWords = new Set([
+  'placeholder',
+  'tbc',
+  'tbd',
+  'confirmed',
+  'lorem',
+  'ipsum',
+  'sample',
+  'dummy',
+  'untitled',
+  '0',
+  '00',
+  '000',
+  'one',
+  'two',
+  'three',
+]);
+const isPlaceholder = (name: string) => {
+  const words = name.split('-').filter(Boolean);
+  return !words.length || words.some((word) => placeholderWords.has(word));
+};
+/** The text as a name, or '' when it is only a stand-in. */
+function textSlug(text: string) {
+  const name = slug(text);
+  return name && !isPlaceholder(name) && !/to-be/.test(name) ? name : '';
+}
+
+/** What a tag is, when its tag says so: a landmark, a heading, a figure. */
+const tagRoles: Record<string, string> = {
+  nav: 'nav',
+  header: 'header',
+  footer: 'footer',
+  main: 'main',
+  aside: 'aside',
+  section: 'section',
+  article: 'article',
+  figure: 'figure',
+  blockquote: 'quote',
+  form: 'form',
+  table: 'table',
+  ul: 'list',
+  ol: 'list',
+  li: 'item',
+  tr: 'row',
+  img: 'image',
+  button: 'button',
+  a: 'link',
+  h1: 'heading',
+  h2: 'heading',
+  h3: 'heading',
+  h4: 'heading',
+  h5: 'heading',
+  h6: 'heading',
+};
+/** Tags whose own words name them best (a button is its label, a heading its title). */
+const wordsFirst = new Set(['button', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'label', 'summary']);
+
+/**
+ * What an element is, from its markup: a data-role, its aria-label, its component class (without
+ * the ds- or dl- prefix), its landmark or semantic tag. Null when none says. `indexed` is whether
+ * the name came from a class or data-role, which siblings of the same kind share.
+ */
+function roleOf(tag: string, name: string): { role: string; indexed: boolean } | null {
+  const dataRole = slug(attribute(tag, 'data-role') ?? '');
+  if (dataRole && !isPlaceholder(dataRole)) return { role: dataRole, indexed: true };
+  const label = textSlug(attribute(tag, 'aria-label') ?? '');
+  if (label) return { role: label, indexed: false };
+  const firstClass = (attribute(tag, 'class') ?? '').split(/\s+/).find(Boolean) ?? '';
+  const named = slug(firstClass.replace(/^(?:ds|dl)-/, ''));
+  if (named && !isPlaceholder(named) && !/^(?:[a-z]|t|c|v|x)$/.test(named))
+    return { role: named, indexed: true };
+  return tagRoles[name]
+    ? { role: tagRoles[name], indexed: name === 'li' || name === 'tr' }
+    : null;
+}
+
+/** The name a layer gets from its markup alone: its role, its text, its first class, or its tag. */
 function layerName(tag: string, name: string, text: string) {
-  const label = attribute(tag, 'aria-label');
-  if (label && slug(label)) return slug(label);
-  if (text && slug(text)) return slug(text);
+  const own = textSlug(text);
+  const role = roleOf(tag, name);
+  if (wordsFirst.has(name) && own) return own;
+  if (role) return role.role;
+  if (own) return own;
   const firstClass = attribute(tag, 'class')?.split(/\s+/).find(Boolean);
   if (firstClass) return slug(firstClass.replace(/^dl-/, '')) || name;
   return name;
@@ -85,8 +164,11 @@ function layerName(tag: string, name: string, text: string) {
 /** A list row: its children are named after it. */
 const rowClass = /\b(dl-item|dl-ph-row|dl-setting|dl-log-row|dl-menu-item|dl-file|row|file)\b/;
 /** Names that say nothing on their own: a letter, a tag, a generic word. */
-const generic =
-  /^(?:[a-z]|t|c|v|x|on|off|end|start|layer|el|item|row|box|wrap|inner|outer|container|group|block|text|label|content|span|div|svg|path|g|p|a|i|b|em|strong|small|section|header|footer|main|nav|aside|button|img|ul|ol|li|figure|lead|meta|chev|glyph|grow)(?:-\d+)?$/;
+const generic = new RegExp(
+  '^(?:(?:[a-z]|t|c|v|x|on|off|end|start|layer|el|box|wrap|inner|outer|container|span|div|svg|path|g|p|a|i|b|em|strong|small|img|ul|ol|li|chev|glyph|grow)(?:-\\d+)?' +
+    // A role is only generic bare: figure-1 and item-2 say which one.
+    '|item|row|text|label|content|group|block|section|header|footer|main|nav|aside|button|figure|lead|meta)$',
+);
 /** What a value is: 212 KB is a size, 2m 58s a time, 5 a count. */
 function valueKind(text: string) {
   const plain = text.replace(/&[a-z]+;/g, ' ').trim();
@@ -135,7 +217,21 @@ export function assignLayerIds(html: string): string {
     return id;
   };
   // Each element's whole markup by where it starts, for a row's words.
-  const outers = new Map(scanElements(html).map((element) => [element.open, element.outer]));
+  const scanned = scanElements(html);
+  const outers = new Map(scanned.map((element) => [element.open, element.outer]));
+  // Siblings that share a role (three figures in one box) are numbered, so each name is its own.
+  const siblingNumber = new Map<number, number>();
+  const groups = new Map<string, number[]>();
+  scanned.forEach((element, at) => {
+    const start = /^<([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/.exec(element.outer);
+    const found = start ? roleOf(start[0], start[1].toLowerCase()) : null;
+    if (!found?.indexed) return;
+    const key = `${element.parent}:${found.role}`;
+    groups.set(key, [...(groups.get(key) ?? []), at]);
+  });
+  for (const members of groups.values())
+    if (members.length > 1)
+      members.forEach((at, position) => siblingNumber.set(scanned[at].open, position + 1));
   // The open elements: their names, IDs and whether they are rows.
   const open: { name: string; id: string | null; row: string | null; main: string }[] = [];
 
@@ -191,10 +287,11 @@ export function assignLayerIds(html: string): string {
       const label = attribute(tag, 'aria-label') ?? '';
       const kind = valueKind(label || text);
       let base: string;
-      if (isRow && about) {
+      const listRow = name === 'li' || name === 'tr';
+      if (isRow && about && !listRow && !isPlaceholder(slug(about))) {
         // A row: what it is about, and a file row says so.
         base = joinName(/\.[a-z0-9]{1,5}$/i.test(about) ? 'file' : '', slug(about));
-      } else if (row?.id) {
+      } else if (row?.id && !listRow) {
         // Inside a row: the row's name and the element's role in it.
         // Its own words, without the row's (a "Download report.xml" label is the download).
         const rowAbout = slug(row.main);
@@ -211,16 +308,23 @@ export function assignLayerIds(html: string): string {
         base = joinName(row.id, role);
       } else {
         const plain = layerName(tag, name, text);
+        const found = roleOf(tag, name);
+        // A role from the markup (a class, a data-role) is the parent's name, then the role, then
+        // which of its kind it is: budget-figure-2, and what is in it budget-figure-2-value.
+        const fromRole = !kind && name !== 'svg' && Boolean(found?.indexed) && plain === found!.role;
+        const number = siblingNumber.get(lt);
         const role = kind
           ? kind
           : name === 'svg'
             ? 'icon'
-            : /^\d/.test(plain)
-              ? 'value'
-              : generic.test(plain)
-                ? plain
-                : null;
-        // A value, an icon or a name that says nothing alone takes its named ancestor's name.
+            : fromRole
+              ? joinName(plain, number ? String(number) : '')
+              : /^\d/.test(plain)
+                ? 'value'
+                : generic.test(plain)
+                  ? plain
+                  : null;
+        // A value, an icon, a role or a name that says nothing alone takes its named ancestor's name.
         base = role ? (context?.id ? joinName(context.id, role) : role) : plain;
       }
       id = unique(base);

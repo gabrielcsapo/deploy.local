@@ -51,7 +51,6 @@ import {
   boardSchemes,
   schemeDroppedProblem,
   schemePinnedProblems,
-  renameMeaninglessLayers,
   removedLayersNote,
   boardContent,
   boardSimilarity,
@@ -428,6 +427,10 @@ export type CheckResult = {
       why: string;
     }
   >;
+  /** Canvas entries whose board file is gone: what --fix takes off the canvas. */
+  removed: string[];
+  /** Boards whose canvas title differs from the title in the board: what --fix writes to the canvas. */
+  titles: Record<string, string>;
   /** Before and after, named <Board>-<width>-<scheme>.png, as base64. */
   pictures: { name: string; png: string }[];
 };
@@ -876,10 +879,8 @@ export async function checkDesign(
       notes.push(...asked.notes);
       // Only names the board was written with: the check's own names are its job, not the agent's.
       const nameProblem = layerNameNote({ ...baseline, after: written.get(file) ?? text });
-      if (nameProblem) {
-        problems.push(nameProblem);
-        renames[file] = renameMeaninglessLayers(baseline.before, text);
-      }
+      // --fix never replaces an ID the author wrote; it only names elements that have none.
+      if (nameProblem) problems.push(nameProblem);
       notes.push(
         ...spacingNotes({ ...baseline, tokens, platform: boardPlatform(meta, placedWidth(file)) }),
       );
@@ -988,7 +989,22 @@ export async function checkDesign(
       placing.boards[file] ?? {},
     );
     const size = { w: frame.width, h: frame.height ?? 900 };
-    // Beside the board it came from, else beside a board of the same screen already placed.
+    // Beside the board it came from; else, for a kind that is drawn in runs (slides, a card's
+    // sides, a deck of game screens), in a row with the boards of its kind, in their order; else
+    // beside a board of the same screen already placed.
+    const platform = boardPlatform(meta, Number(placing.boards[file]?.w) || undefined);
+    const sameKind: string[] = [];
+    if (!['web', 'phone'].includes(platform))
+      for (const other of Object.keys(placing.boards)) {
+        if (other === file) continue;
+        const otherText = await after(other);
+        if (
+          otherText &&
+          boardPlatform(parseBoardMeta(otherText), Number(placing.boards[other]?.w) || undefined) ===
+            platform
+        )
+          sameKind.push(other);
+      }
     const placedSibling = screenFamily(
       file,
       Object.keys(placing.boards).filter(
@@ -999,7 +1015,9 @@ export async function checkDesign(
       canvas: placing,
       file,
       size,
-      near: originOf.get(file) ?? placedSibling ?? null,
+      near: originOf.get(file) ?? (sameKind.length ? null : placedSibling) ?? null,
+      siblings: sameKind,
+      order: Array.isArray(canvas?.order) ? canvas.order : [],
     });
     places[file] = {
       x: spot.x,
@@ -1024,6 +1042,19 @@ export async function checkDesign(
       if (problem.file === file)
         if (['boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(problem.code ?? ''))
           problem.fix = `deploy design check --fix places it at x ${spot.x}, y ${spot.y}, ${where}`;
+  }
+
+  // Canvas entries with no board file go; a canvas title that is not the board's own is updated.
+  const removed = problems
+    .filter((problem) => problem.code === 'canvas_only')
+    .map((problem) => problem.file as string);
+  const titles: Record<string, string> = {};
+  for (const file of own) {
+    const entry = canvas?.boards?.[file];
+    const text = await after(file);
+    if (!entry || text === null) continue;
+    const said = parseBoardMeta(text).title ?? /<title>([^<]*)<\/title>/i.exec(text)?.[1]?.trim();
+    if (said && entry.title !== said) titles[file] = said;
   }
 
   // The platform of a board, from its head or its width, for sizes and siblings.
@@ -1432,6 +1463,8 @@ export async function checkDesign(
     restore,
     heights,
     places,
+    removed,
+    titles,
     renames,
     pictures,
   };

@@ -491,12 +491,16 @@ export async function launchChromium(
           );
         return result.result.value;
       },
-      async screenshot({ fullPage = false, clip: area = null } = {}) {
+      async screenshot({ fullPage = false, fitWidth = false, clip: area = null } = {}) {
         let clip;
         if (area) clip = { ...area, scale: 1 };
         else if (fullPage) {
+          // fitWidth: only as wide as the page's content (and its right padding), however wide the
+          // window was opened to be.
           const size = await this.evaluate(
-            '({ width: document.documentElement.scrollWidth, height: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) })',
+            fitWidth
+              ? '({ width: Math.ceil(Math.max(1, ...Array.from(document.body.children).filter((el) => !/^(STYLE|SCRIPT)$/.test(el.tagName)).map((el) => el.getBoundingClientRect().right))) + (parseFloat(getComputedStyle(document.body).paddingRight) || 0), height: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) })'
+              : '({ width: document.documentElement.scrollWidth, height: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) })',
           );
           clip = { x: 0, y: 0, width: size.width, height: size.height, scale: 1 };
         }

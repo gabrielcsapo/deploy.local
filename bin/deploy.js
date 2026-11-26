@@ -3697,6 +3697,7 @@ try {
       'drop-instances': { type: 'boolean', default: false },
       kind: { type: 'string' },
       pdf: { type: 'boolean', default: false },
+      marks: { type: 'boolean', default: false },
       fix: { type: 'boolean', default: false },
     },
     strict: false,

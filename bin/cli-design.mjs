@@ -61,6 +61,7 @@ Flags
   --kind <kind>            init: what this project makes (default app)
   --all                    guide: the full guide, not only this project's kind
   --pdf                    export: the PDF (the default, and only, format)
+  --marks                  export: print boards get a 5 mm slug with crop marks round trim + bleed
 
 Check exits 0 clean, 1 with problems, 2 on wrong usage, 4 when deploy.local
 is needed (no browser here) and out of reach.
@@ -746,6 +747,31 @@ export async function runDesign(sub, args, options, deps) {
             ),
         );
       }
+      // Canvas entries whose board is gone come off the canvas; a canvas title that is not the
+      // board's own is made the board's, with fix.
+      const removed = result.removed ?? [];
+      const titles = Object.entries(result.titles ?? {});
+      if (fix && (removed.length || titles.length)) {
+        const canvasPath = join(top, 'design', 'canvas.json');
+        const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
+        for (const file of removed) {
+          if (!canvas.boards?.[file] || existsSync(join(top, 'design', 'boards', file))) continue;
+          delete canvas.boards[file];
+          if (Array.isArray(canvas.order))
+            canvas.order = canvas.order.filter((entry) => entry !== file);
+          fixed.push(`${screenName(file)} is not a board any more: taken off the canvas`);
+        }
+        for (const [file, title] of titles) {
+          if (!canvas.boards?.[file]) continue;
+          fixed.push(`${screenName(file)} is "${title}" on the canvas, as in the board`);
+          canvas.boards[file].title = title;
+        }
+        writeFileSync(canvasPath, `${JSON.stringify(canvas, null, 2)}\n`);
+        const gone = new Set(removed);
+        result.problems = result.problems.filter(
+          (problem) => !(problem.code === 'canvas_only' && gone.has(problem.file)),
+        );
+      }
       for (const board of result.boards)
         board.problems = result.problems
           .filter((problem) => problem.file === board.file)
@@ -766,6 +792,8 @@ export async function runDesign(sub, args, options, deps) {
       restore: _restore,
       heights: _heights,
       places: _places,
+      removed: _removed,
+      titles: _titles,
       renames: _renames,
       ...shown
     } = result;
@@ -888,7 +916,7 @@ export async function runDesign(sub, args, options, deps) {
       }
       const shown = new Map();
       return {
-        result: { notes: [], heights: {}, places: {}, renames: {}, ...result },
+        result: { notes: [], heights: {}, places: {}, renames: {}, removed: [], titles: {}, ...result },
         where: 'deploy.local',
         reason,
         sent: (file) => {
@@ -939,7 +967,7 @@ export async function runDesign(sub, args, options, deps) {
         'boards_overlap',
         'board_overlaps_note',
         'not_on_canvas',
-        'layer_name_says_nothing',
+        'canvas_only',
       ].includes(problem.code),
     );
     out(`  deploy design check${carried ? ' --drop-instances' : ''}${heights ? ' --fix' : ''}`);
@@ -984,7 +1012,13 @@ export async function runDesign(sub, args, options, deps) {
       for (const note of result.notes) printFinding('!', note);
     }
     out();
-    out(`Before and after, side by side:  ${paint.bold(result.pairs)}`);
+    out(`Before and after, side by side:  ${paint.bold(result.pairsDir ?? result.pairs)}`);
+    // Every picture the check wrote, so none is left unopened.
+    if (result.pairFiles?.length) {
+      out();
+      out(paint.bold('Open every one of these before you finish:'));
+      result.pairFiles.forEach((file, at) => out(`  ${String(at + 1).padStart(2)}. ${file}`));
+    }
     if (result.problems.length) fixLine(result);
     else {
       out();
@@ -1003,9 +1037,7 @@ export async function runDesign(sub, args, options, deps) {
       if (result.pairFiles.length) {
         out();
         out(paint.bold('Before you finish'));
-        out('Open each pair:');
-        result.pairFiles.forEach((file, at) => out(`  ${String(at + 1).padStart(2)}. ${file}`));
-        out('And answer each, in your own words:');
+        out('Answer each, in your own words, looking at the pairs above:');
         reviewQuestions.forEach((question, at) => out(`  ${at + 1}. ${question}`));
       }
     }
@@ -1040,6 +1072,9 @@ export async function runDesign(sub, args, options, deps) {
         : `deploy design check${heights ? ' --fix' : ''}`,
       checked: true,
       ...result,
+      // Every picture the check wrote, as paths; the folder is pairsDir.
+      pairsDir: result.pairs,
+      pairs: result.pairFiles ?? [],
       ...(ok ? { review: { pairs: result.pairFiles, questions: reviewQuestions } } : {}),
     };
   };
@@ -1279,7 +1314,9 @@ export async function runDesign(sub, args, options, deps) {
         const pdfs = [];
         for (const file of files) {
           const board = design.boards.get(file);
-          const paper = exportPage(board.platform, board.meta, board.placed ?? {});
+          const paper = exportPage(board.platform, board.meta, board.placed ?? {}, {
+            marks: Boolean(options.marks),
+          });
           const pdf = await opened.drawing.pdf({ commit: WORKTREE, file, ...paper });
           if (!pdf) throw cliError(`${file} could not be printed.`, 'deploy design check', 1);
           pdfs.push(pdf);
