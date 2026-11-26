@@ -969,8 +969,8 @@
 .dz-ed .comment-form .draft-to:has(b:empty) {
   display: none;
 }
-/* Comment stays the form's button; with nothing written it cannot send yet. */
-.dz-ed .comment-form:has(.draft-text:empty) .dl-btn {
+/* Comment stays the form's button; with nothing written it is disabled, as in the app. */
+.dz-ed .comment-form .dl-btn:disabled {
   opacity: 0.5;
 }
 
