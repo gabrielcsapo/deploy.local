@@ -188,3 +188,57 @@
   flex: none;
   box-shadow: var(--shadow-raised);
 }
+
+/* ---------- Back of a postcard or card: the content fills the face ----------
+   Message at the left, taking all the height (a block of ruled lines to write on, or the
+   printed message with the wordmark at its foot); at the right, separated by a hairline, the stamp
+   box at the top and the address block below it on rules, the lowest 15 mm of the face left free
+   for the post's barcode. Nothing floats top-left over an empty bottom. */
+.ds-print-back .ds-print-safe {
+  flex-direction: row;
+  gap: 8mm;
+}
+.ds-print-back-message {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+}
+.ds-print-back-message .ds-print-lines {
+  flex: 1;
+  min-height: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(8mm - 0.25pt),
+    var(--line-strong) calc(8mm - 0.25pt),
+    var(--line-strong) 8mm
+  );
+}
+.ds-print-back-side {
+  flex: none;
+  width: 62mm;
+  box-sizing: border-box;
+  padding-left: 8mm;
+  border-left: 0.25pt solid var(--line-strong);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  /* the post's barcode strip: keep the lowest 15 mm of the face free */
+  padding-bottom: calc(15mm - var(--print-safe));
+}
+.ds-print-back-side .ds-print-address {
+  align-self: stretch;
+}
+.ds-print-address.ruled .line {
+  display: flex;
+  align-items: flex-end;
+  min-height: 9mm;
+  box-sizing: border-box;
+  border-bottom: 0.25pt solid var(--line-strong);
+}
+.ds-print-address.ruled .line + .line {
+  margin-top: 0;
+}

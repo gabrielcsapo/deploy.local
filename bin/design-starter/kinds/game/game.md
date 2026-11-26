@@ -9,9 +9,18 @@ A game board is one screen on a phone: `<meta name="design-board" content="platf
 - **Level select.** `.ds-game-grid`, four across; tiles are `.locked` (dashed, no number emphasis, a lock), `.available` (accent border, accent number) or `.done` (filled, a check). One available tile at a time is the next level.
 - **Result.** `.ds-game-result`: a title, up to three stars (`.off` for missing), the score and two stats, then the actions under it: one primary (Next) and one secondary (Replay). Never a modal of five buttons.
 - **Pause.** `.ds-game-sheet` over `.ds-game-dim`: Resume (primary), Restart, Quit. Three actions; settings are one more row only if the game has them.
-- **Safe areas.** 54 px top and 34 px bottom on the phone, and 54 px on the sides in landscape; nothing tappable under the home indicator.
+- **The iPhone frame.** Every portrait screen starts with `.ds-game-status` (the status bar: time at the left, signal and battery at the right) and ends with `.ds-game-home` (the home indicator), both children of `.ds-game`. They are the device's, not content: the time and glyphs are the iOS fixture and need no `data-question`. The 54 px top and 34 px bottom padding is the safe area: the HUD, stage and every button live inside it, nothing tappable under the status bar or the home indicator. Landscape has no status bar and 54 px side insets.
+- **A grid that fits.** `.ds-game-grid` is four across at 390 (80 px tiles at the 12 gap), `.five` is five (65 px at the 8 gap), `.three` for three; never six, a tile is never under 44 px, and a grid with more rows than the screen holds sits in `.ds-game-scroll`, never clipped by the frame or the home indicator.
+- **Labelled controls.** Every control has an `aria-label`; a control whose icon is not universal (jump, boost, aim) also has a caption under it (`.ds-game-control` with a `.ds-game-label`). Pause, close, back and sound are understood without one. Never a row of unlabelled glyphs.
+- **Progress captions.** A progress bar (`.ds-game-progress`) has its caption 8 px under it and 24 px of air before what follows; a caption under a title is 4 px below it (`.ds-game-heading`). The caption's numbers ("n of m done") are the game's own, never made up.
+- **No invented numbers.** Scores, levels, lives, stars, best scores and times on a screen are the brief's. A score is `000` or a word ("Best score") with `data-question`, never a plausible 12,480; a reviewer lists each unflagged figure as a `[fact]` finding.
 
 What agents get wrong for games:
+
+- A game screen with no status bar or home indicator, so the phone frame is missing and the layout ignores the safe areas.
+- Level grids that clip at 390, or captions glued to the grid or floating away from their bar.
+- Icon-only controls with nothing saying what they do.
+- Meta without `width=390,height=844`, so the check treats it as a web board.
 
 - Making it loud: neon, gradients, glows, many colours, confetti. A calm game is a design choice; the player's attention goes to the stage.
 - Tiny controls and links in the HUD. Everything pressed in play is at least 44 px.

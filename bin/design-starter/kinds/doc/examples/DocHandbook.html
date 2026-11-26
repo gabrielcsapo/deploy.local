@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="design-board" content="platform=doc,page=a4,schemes=light dark" />
+    <meta name="design-board" content="platform=doc,page=a4,schemes=light dark,height=1975" />
     <title>Example handbook</title>
     <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
     <link rel="stylesheet" href="../ds/__DS__/components.css" />
@@ -20,7 +20,7 @@
     <div class="ds-doc">
       <header class="ds-doc-head"><span>Team handbook</span><span>Working together</span></header>
       <main class="ds-doc-page">
-        <div class="ds-doc-kicker">Version 1.0</div>
+        <div class="ds-doc-kicker">Version</div>
         <h1>Working together</h1>
         <p class="ds-doc-lede">
           How the team plans, decides and hands work over. It is short on purpose: read it once, then
@@ -29,12 +29,12 @@
 
         <h2>Planning</h2>
         <p>
-          Work is planned in cycles of two weeks. Before a cycle starts, each person writes down what
+          Work is planned in cycles. Before a cycle starts, each person writes down what
           they expect to finish and what could get in the way. The plan is a list, not a document:
           anyone should be able to read it in a minute.
         </p>
         <ul>
-          <li>Pick no more than three things to finish per person.</li>
+          <li>Pick only the few things each person can finish.</li>
           <li>Name the person who decides if the scope has to change.</li>
           <li>Leave one afternoon free for what nobody planned.</li>
         </ul>
@@ -51,7 +51,7 @@
 
         <h2>Roles and hours</h2>
         <p>Each role has one place where its work is reviewed and a usual time it is reachable.</p>
-        <table class="ds-doc-table">
+        <table class="ds-doc-table" data-layer="roles-table" data-question="Which hours is each role reachable, and what share of a cycle does it take?">
           <caption>
             Who to ask, and when
           </caption>
@@ -67,20 +67,20 @@
             <tr>
               <td>Lead</td>
               <td data-label="Reviews">Plans and scope</td>
-              <td data-label="Reachable">Weekdays, 09:00 to 17:00</td>
-              <td data-label="Cycle share" class="num">20%</td>
+              <td data-label="Reachable">Hours to be confirmed</td>
+              <td data-label="Cycle share" class="num">Share</td>
             </tr>
             <tr>
               <td>Maker</td>
               <td data-label="Reviews">Own work, then a peer</td>
-              <td data-label="Reachable">Weekdays, 10:00 to 16:00</td>
-              <td data-label="Cycle share" class="num">70%</td>
+              <td data-label="Reachable">Hours to be confirmed</td>
+              <td data-label="Cycle share" class="num">Share</td>
             </tr>
             <tr>
               <td>Support</td>
               <td data-label="Reviews">Answers and handovers</td>
-              <td data-label="Reachable">Weekdays, 08:00 to 18:00</td>
-              <td data-label="Cycle share" class="num">10%</td>
+              <td data-label="Reachable">Hours to be confirmed</td>
+              <td data-label="Cycle share" class="num">Share</td>
             </tr>
           </tbody>
         </table>
@@ -113,7 +113,7 @@
           same thread, not in a new one.
         </p>
       </main>
-      <footer class="ds-doc-foot"><span>Updated 1 January</span><span>Page numbers added in print</span></footer>
+      <footer class="ds-doc-foot"><span>Date of the last update</span><span>Page numbers added in print</span></footer>
     </div>
   </body>
 </html>

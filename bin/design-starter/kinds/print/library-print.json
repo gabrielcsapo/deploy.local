@@ -21,9 +21,9 @@
       "name": "Bleed ground",
       "group": "Print layout",
       "platform": "print",
-      "description": "A solid ground that runs into the bleed; first child of the face.",
+      "description": "A solid ground is a class on the face itself (.ground-brand, .ground-ink, .ground-quiet), so the text on it takes the matching colour. .ds-print-bleed is for a picture that runs to the cut edge, never the ground.",
       "props": [],
-      "html": "<div class=\"ds-print-bleed ground-brand\"></div>"
+      "html": "<div class=\"ds-print-face ground-brand\" style=\"--print-w: 148mm; --print-h: 105mm; --print-bleed: 3mm; --print-safe: 5mm\"><div class=\"ds-print-safe\"><p class=\"ds-print-display\">Front line</p></div></div>"
     },
     {
       "id": "print-person",
@@ -91,6 +91,21 @@
       "description": "A proof sheet with both faces side by side; its board meta is the sheet size.",
       "props": [],
       "html": "<div class=\"ds-print-pair\"><div class=\"ds-print-face\"><div class=\"ds-print-safe\"></div></div><div class=\"ds-print-face\"><div class=\"ds-print-safe\"></div></div></div>"
+    },
+    {
+      "id": "print-back",
+      "name": "Postcard or card back",
+      "group": "Print layouts",
+      "platform": "print",
+      "description": "A back that fills the face: message area at the left (ruled lines to write on, wordmark at its foot), hairline, stamp box and the address on rules at the right, lowest 15 mm free for the post.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Wordmark",
+          "default": "Product name"
+        }
+      ],
+      "html": "<div class=\"ds-print-face ds-print-back\" style=\"--print-w: 148mm; --print-h: 105mm; --print-bleed: 3mm; --print-safe: 5mm\"><div class=\"ds-print-safe\"><div class=\"ds-print-back-message\"><p class=\"ds-print-body\">A few lines of message.</p><div class=\"ds-print-lines\"></div><div class=\"ds-print-wordmark\">{{name}}</div></div><div class=\"ds-print-back-side\"><div class=\"ds-print-stamp\">Stamp</div><address class=\"ds-print-address ruled\"><span class=\"line\">Recipient name</span><span class=\"line\">Street and number</span><span class=\"line\">Postcode and town</span><span class=\"line\">Country</span></address></div></div></div>"
     }
   ]
 }

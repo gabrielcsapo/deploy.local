@@ -1825,7 +1825,7 @@ test('init --kind copies the base, then the kind over it: css, rules, components
         JSON.stringify({ components: [{ id: 'card', name: 'Card', html: '<div></div>' }] }),
       ),
       'kinds/print/examples/CardFront.html': Buffer.from(
-        '<link href="../ds/__DS__/print.css"><meta name="design-board" content="platform=print">',
+        '<title>Example card</title><link href="../ds/__DS__/print.css"><meta name="design-board" content="platform=print,size=85x55mm,bleed=3mm,safe=4mm">',
       ),
       'kinds/doc/doc.css': Buffer.from(':root{--text-doc-body:11pt}\n'),
     };
@@ -1836,16 +1836,34 @@ test('init --kind copies the base, then the kind over it: css, rules, components
     assert.match(ds('README.md'), /^# Base rules\n\n## Print\nKeep type 4 mm inside the trim\.\n$/);
     assert.deepEqual(
       JSON.parse(ds('library.json')).components.map((component) => component.id),
-      ['row', 'card'],
+      ['card'],
+      'a kind other than app leaves the app components out of the library',
     );
     assert.match(ds('print.css'), /--text-print-body:8pt/);
     assert.match(ds('examples/CardFront.html'), /\.\.\/ds\/cards\/print\.css/);
-    assert.ok(existsSync(join(root, 'design/ds/cards/examples/Base.html')));
+    assert.equal(
+      existsSync(join(root, 'design/ds/cards/examples/Base.html')),
+      false,
+      'the app examples are not copied into another kind',
+    );
     assert.equal(existsSync(join(root, 'design/ds/cards/kinds')), false);
     assert.equal(existsSync(join(root, 'design/ds/cards/doc.css')), false, 'only the chosen kind');
     const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
     assert.equal(canvas.kind, 'print');
     assert.deepEqual(canvas.schemes, ['light']);
+    // The kind's starting board is in boards/ and on the canvas at its own size.
+    assert.match(
+      readFileSync(join(root, 'design/boards/CardFront.html'), 'utf8'),
+      /\.\.\/ds\/cards\/print\.css/,
+    );
+    assert.deepEqual(canvas.boards['CardFront.html'], {
+      x: 0,
+      y: 0,
+      w: 344,
+      h: 231,
+      title: 'Example card',
+    });
+    assert.deepEqual(canvas.order, ['CardFront.html']);
 
     // guide says the kind, its platform and size, and the kind's own type scale.
     const guide = terminal(root, coordinator().api, {});
@@ -1853,7 +1871,7 @@ test('init --kind copies the base, then the kind over it: css, rules, components
     assert.match(guide.text(), /\nKind\n {2}This project makes print pieces/);
     assert.match(
       guide.text(),
-      /print {3}344 {3}drawn at 85×55 mm trim, 3 mm bleed, 4 mm safe, at 8 px\/mm, light\n/,
+      /print {3}344 {3}drawn at 85×55 mm trim, 3 mm bleed, 4 mm safe, at 8 px\/mm, light · 1 board\n/,
     );
     assert.match(
       guide.text(),
@@ -1961,4 +1979,110 @@ test('export prints each board at its own size in canvas order into one PDF', as
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('init --kind with the real starter: only the kind, a starting board with true meta, no app components', async () => {
+  const { designStarterFiles } = await import('./design-local-assets.mjs');
+  const starter = designStarterFiles();
+  const sizes = {
+    doc: [700, 1975],
+    slides: [1920, 1080],
+    print: [344, 231],
+    mac: [1280, 800],
+    game: [390, 844],
+    logo: [1024, 1024],
+  };
+  for (const [kind, [w, h]] of Object.entries(sizes)) {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), `cli-design-real-${kind}-`)));
+    try {
+      git(['init', '-q', '--initial-branch=main'], root);
+      await runDesign(
+        'init',
+        ['proj'],
+        { kind },
+        terminal(root, coordinator().api, { starter: () => starter }).deps,
+      );
+      const ds = join(root, 'design/ds/proj');
+      assert.equal(
+        existsSync(join(ds, 'examples/ExampleList.html')),
+        false,
+        `${kind}: no app example`,
+      );
+      const library = JSON.parse(readFileSync(join(ds, 'library.json'), 'utf8'));
+      assert.ok(library.components.length > 0, kind);
+      assert.ok(
+        library.components.every((component) => !['web', 'phone'].includes(component.platform)),
+        `${kind}: no web or phone component in the guide`,
+      );
+      assert.doesNotMatch(readFileSync(join(ds, 'README.md'), 'utf8'), /iPhone conventions/, kind);
+      assert.match(
+        readFileSync(join(ds, 'README.md'), 'utf8'),
+        /Invented figures|invented figures/i,
+        kind,
+      );
+      const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
+      const [file, place] = Object.entries(canvas.boards)[0];
+      assert.deepEqual([place.w, place.h], [w, h], `${kind}: canvas size`);
+      assert.deepEqual(canvas.order, [file]);
+      const html = readFileSync(join(root, 'design/boards', file), 'utf8');
+      assert.doesNotMatch(html, /__DS__/);
+      assert.match(html, new RegExp(`platform=${kind === 'slides' ? 'slide' : kind}`));
+      if (kind === 'game') assert.match(html, /width=390,height=844/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('the kind kits carry what the round-3 review asked for', async () => {
+  const { designStarterFiles } = await import('./design-local-assets.mjs');
+  const text = (path) => Buffer.from(designStarterFiles()[path]).toString('utf8');
+  // Slides: figures and a closing slide that is more than one line.
+  assert.match(text('kinds/slides/slides.css'), /\.ds-slide-figures/);
+  assert.match(text('kinds/slides/slides.css'), /\.ds-slide\.closing/);
+  assert.match(text('kinds/slides/slides.md'), /closing slide/i);
+  const slides = JSON.parse(text('kinds/slides/library-slides.json')).components.map((c) => c.id);
+  assert.ok(slides.includes('slide-figures') && slides.includes('slide-closing'));
+  // Print: a ground is on the face, never on a child; a back fills its face.
+  assert.match(text('kinds/print/examples/PostcardFront.html'), /ds-print-face ground-brand/);
+  assert.doesNotMatch(text('kinds/print/examples/PostcardFront.html'), /ds-print-bleed ground/);
+  assert.match(text('kinds/print/examples/PostcardBack.html'), /ds-print-back/);
+  // Game: every example says its size; the status bar and home indicator are drawn.
+  for (const name of ['GameTitle', 'GamePlay', 'GameLevels']) {
+    const html = text(`kinds/game/examples/${name}.html`);
+    assert.match(html, /width=390,height=844/, name);
+    assert.match(html, /ds-game-status/, name);
+    assert.match(html, /ds-game-home/, name);
+  }
+  // Mac: the pieces round 2 had to add, and the selection rule.
+  const mac = text('kinds/mac/mac.css');
+  for (const rule of [
+    '.plain',
+    '.ds-mac-search.wide',
+    '.ds-mac-textarea',
+    '.under-extra',
+    '.has-popover',
+    '.app-name',
+    '.focused',
+    '.inactive',
+  ])
+    assert.ok(mac.includes(rule), rule);
+  assert.match(text('kinds/mac/mac.md'), /grey when its pane/);
+  // Logo: a small cut and fixed-ground tiles.
+  assert.match(text('kinds/logo/logo.css'), /\.s16 \.full/);
+  assert.match(text('kinds/logo/examples/LogoLockups.html'), /data-theme="dark"/);
+  // Every kind says no invented figures.
+  for (const kind of ['doc', 'slides', 'print', 'mac', 'game', 'logo'])
+    assert.match(text(`kinds/${kind}/${kind}.md`), /invented|made up/i, kind);
+});
+
+test('the review brief makes a critic list every unflagged invented figure as a fact', async () => {
+  const { INIT_README, reviewBrief } = await import('./cli-design.mjs');
+  const brief = reviewBrief({ top: '/p', boards: ['A.html'] });
+  assert.match(brief, /unflagged one separately as a \[fact\] finding/);
+  assert.match(INIT_README('p'), /No invented figures/);
+  assert.match(INIT_README('p'), /1,840 kg/);
+  const slides = INIT_README('p', 'slides');
+  assert.doesNotMatch(slides, /iPhone is iPhone/);
+  assert.match(slides, /No invented figures/);
 });

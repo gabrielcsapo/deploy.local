@@ -23,7 +23,7 @@ import {
   platformWidths,
   setBoardMetaHeight,
 } from '../shared/v2/design-board-meta.ts';
-import { designKinds, exportPage } from '../shared/v2/design-platforms.ts';
+import { boardFrame, designKinds, exportPage } from '../shared/v2/design-platforms.ts';
 import { exportOrder, mergePdfs } from './design-export.mjs';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -117,7 +117,10 @@ Reply with a short numbered list of what a demanding owner would reject or ask t
 important first. Mark each [fact] (the brief, the code or the boards show it; say where) or
 [judgement] (a design opinion; it must agree with the READMEs, and cite them where they settle
 it). For each: the board, width and scheme, the layer, what is wrong, and the fix. Cover:
-anything invented beyond the brief; questions asked rather than values made up; only the design
+anything invented beyond the brief, and in particular every specific figure, date, time, name
+or claim that is neither in the brief nor replaced by an honest placeholder nor marked with
+data-question on its layer: list each unflagged one separately as a [fact] finding, with the
+layer and the text; questions asked rather than values made up; only the design
 system's tokens and components; one primary action and calm restraint; consistency across boards
 and between web and iPhone; every width and scheme readable, nothing cut off, words true to the
 render; layer IDs kept and named; a sensible canvas. Skip praise. If nothing needs fixing, say so
@@ -128,7 +131,7 @@ deploy design check --fix again.`;
 }
 
 /** design/README.md for a project deploy design init starts: how to work, in short. */
-export const INIT_README = (name) => `# Design
+const appReadme = (name) => `# Design
 
 One board per screen, drawn before it is built, on the same branch as the code.
 
@@ -147,6 +150,11 @@ One board per screen, drawn before it is built, on the same branch as the code.
   (its rules and iPhone conventions). Draw what the product does, in its words.
 - **Nothing beyond the brief.** No extra tabs, screens, banners, notes fields or counts the brief
   didn't ask for. Sample names and numbers are placeholders; make them add up to what is drawn.
+- **No invented figures.** Every specific figure, date, time, name or claim that is not in the
+  brief is either replaced by an honest placeholder that reads as finished copy ("the year's
+  total", "this spring", "to be confirmed") or carries \`data-question\` on its layer. 64 plots,
+  1,840 kg, $9,800, a 4:00 to 4:45 session or a named person nobody gave you are the usual
+  ones. A sample is kept only when it is obviously illustrative (\`00\`, "Item one") and flagged.
 - **Don't invent; ask.** A rule the product doesn't decide gets \`data-question\` on the layer that
   shows it, and the layer says only what is true today, with no value and no promised setting.
 - **Stay on the system.** Tokens and components only; one accent; one primary action per view;
@@ -180,6 +188,24 @@ notes beside them, the design system ("designSystem": "ds/${name}") and the sche
 draws ("schemes": ["light", "dark"]).
 `;
 
+export const INIT_README = (name, kind = 'app') => {
+  const text = appReadme(name);
+  if (kind === 'app') return text;
+  // Another kind has no web or iPhone: its boards, sizes and rules are the kind's own.
+  return text
+    .replace(/- \*\*iPhone is iPhone\.\*\*[^\n]*\n[^\n]*\n/, '')
+    .replace(
+      /- \*\*Light and dark, every width\.\*\*[^\n]*\n[^\n]*\n/,
+      `- **Every size and scheme the kind draws.** \`deploy design guide\` says them; words that describe the render must be true in every one.\n`,
+    )
+    .replace('(its rules and iPhone conventions)', "(its rules and the kind's)")
+    .replace('platform (web or phone)', `platform (${kind}: see \`deploy design guide\`)`)
+    .replace(
+      '3. Draw `design/boards/<Board>.html`',
+      `3. Start from the board \`init\` placed in \`design/boards/\` (and its siblings in \`ds/${name}/examples/\`); draw \`design/boards/<Board>.html\``,
+    );
+};
+
 /**
  * design/ for a project: an empty canvas, its README, boards/, and the starter design system
  * copied into ds/<name>/. Returns the paths it wrote, relative to the project.
@@ -209,7 +235,7 @@ export function initDesign(top, name, starter, kind = 'app') {
       2,
     )}\n`,
   );
-  put('design/README.md', INIT_README(name));
+  put('design/README.md', INIT_README(name, kind));
   mkdirSync(join(design, 'boards'), { recursive: true });
   writeFileSync(join(design, 'boards', '.gitkeep'), '');
   written.push('design/boards/');
@@ -230,7 +256,29 @@ export function initDesign(top, name, starter, kind = 'app') {
       .filter(([path]) => path.startsWith(prefix))
       .map(([path, bytes]) => [path.slice(prefix.length), bytes]),
   );
-  const base = new Map(entries.filter(([path]) => !path.startsWith('kinds/')));
+  let base = new Map(entries.filter(([path]) => !path.startsWith('kinds/')));
+  // A kind other than app is not the app with a few files added: it takes the tokens, the pieces
+  // every kind shares (kinds/_shared: the icon class, the general rules) and its own files, and
+  // none of the web or iPhone components, examples or rules. A CLI with nothing for the kind
+  // falls back to the whole base, as it always did.
+  const slim = kind !== 'app' && own.size > 0;
+  if (slim) {
+    const shared = new Map(
+      entries
+        .filter(([path]) => path.startsWith('kinds/_shared/'))
+        .map(([path, bytes]) => [path.slice('kinds/_shared/'.length), bytes]),
+    );
+    const library = base.get('library.json');
+    base = new Map([...base].filter(([path]) => path === 'tokens.css' || path === 'README.md'));
+    for (const [path, bytes] of shared) base.set(path, bytes);
+    if (library)
+      base.set(
+        'library.json',
+        Buffer.from(
+          `${JSON.stringify({ name: 'Starter design system', components: [] }, null, 2)}\n`,
+        ),
+      );
+  }
   const rules = own.get(`${kind}.md`);
   const parts = own.get(`library-${kind}.json`);
   if (rules && base.has('README.md'))
@@ -240,9 +288,11 @@ export function initDesign(top, name, starter, kind = 'app') {
         `${Buffer.from(base.get('README.md')).toString('utf8').replace(/\n*$/, '\n')}\n${Buffer.from(rules).toString('utf8')}`,
       ),
     );
-  if (parts && base.has('library.json')) {
+  if (parts) {
     try {
-      const library = JSON.parse(Buffer.from(base.get('library.json')).toString('utf8'));
+      const library = JSON.parse(
+        Buffer.from(base.get('library.json') ?? Buffer.from('{"components":[]}')).toString('utf8'),
+      );
       const extra = JSON.parse(Buffer.from(parts).toString('utf8'));
       const added = Array.isArray(extra) ? extra : (extra.components ?? []);
       const ids = new Set(added.map((component) => component.id));
@@ -257,10 +307,40 @@ export function initDesign(top, name, starter, kind = 'app') {
   }
   for (const [path, bytes] of own)
     if (path !== `${kind}.md` && path !== `library-${kind}.json`) base.set(path, bytes);
+  // The kind's starting board: one example, ready to edit, in boards/ and on the canvas.
+  const startFile = startingBoards[kind];
+  const startBytes = startFile ? own.get(`examples/${startFile}.html`) : undefined;
+  if (startFile && startBytes) {
+    const html = fill('x.html', startBytes).toString('utf8');
+    const file = `${startFile}.html`;
+    const meta = parseBoardMeta(html);
+    const platform = boardPlatform(meta);
+    const frame = boardFrame(platform, meta);
+    const title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? startFile;
+    // A document is as tall as it reads; the canvas shows it at a reading height until measured.
+    const box = { w: frame.width, h: frame.height ?? 1000 };
+    put(`design/boards/${file}`, html);
+    rmSync(join(design, 'boards', '.gitkeep'), { force: true });
+    const canvasPath = join(top, 'design', 'canvas.json');
+    const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
+    canvas.boards[file] = { x: 0, y: 0, ...box, title };
+    canvas.order = [file];
+    writeFileSync(canvasPath, `${JSON.stringify(canvas, null, 2)}\n`);
+  }
   for (const [path, bytes] of [...base].sort(([a], [b]) => a.localeCompare(b)))
     put(`design/ds/${name}/${path}`, fill(path, bytes));
   return written;
 }
+
+/** The example each kind's init places in boards/ as the board to start from. */
+const startingBoards = {
+  doc: 'DocHandbook',
+  slides: 'SlideTitle',
+  print: 'CardFront',
+  mac: 'MacMain',
+  game: 'GameTitle',
+  logo: 'LogoMark',
+};
 
 /** A project's first board: a standalone page, styled by its own <style>. */
 export function firstBoard(title = 'Board', width = 1440, height = 900) {

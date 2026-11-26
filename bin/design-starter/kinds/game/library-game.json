@@ -6,9 +6,9 @@
       "name": "Game screen",
       "group": "Game layout",
       "platform": "game",
-      "description": "A full-screen frame; .landscape for 844 x 390. Everything in it is a flex column.",
+      "description": "A full-screen frame with the iPhone status bar and home indicator; .landscape for 844 x 390 (no status bar). The HUD and stage start below the status bar.",
       "props": [],
-      "html": "<div class=\"ds-game\"></div>"
+      "html": "<div class=\"ds-game\"><div class=\"ds-game-status\" data-layer=\"status-bar\" aria-hidden=\"true\"><span class=\"time\">9:41</span><span class=\"glyphs\"><svg viewBox=\"0 0 18 12\"><rect x=\"0\" y=\"8\" width=\"3\" height=\"4\" rx=\"1\"/><rect x=\"5\" y=\"5\" width=\"3\" height=\"7\" rx=\"1\"/><rect x=\"10\" y=\"2\" width=\"3\" height=\"10\" rx=\"1\"/><rect x=\"15\" y=\"0\" width=\"3\" height=\"12\" rx=\"1\"/></svg><svg viewBox=\"0 0 28 13\"><rect x=\"0.5\" y=\"0.5\" width=\"24\" height=\"12\" rx=\"3.5\" fill=\"none\" stroke=\"currentColor\" opacity=\".5\"/><rect x=\"2\" y=\"2\" width=\"21\" height=\"9\" rx=\"2.5\"/><rect x=\"26\" y=\"4.5\" width=\"2\" height=\"4\" rx=\"1\" opacity=\".5\"/></svg></span></div><div class=\"ds-game-home\" aria-hidden=\"true\"></div></div>"
     },
     {
       "id": "game-hud",
@@ -101,6 +101,36 @@
       "description": "Resume, Restart, Quit over the dimmed game.",
       "props": [],
       "html": "<div class=\"ds-game-dim\"></div><div class=\"ds-game-sheet\"><span class=\"grab\"></span><h2 class=\"ds-game-title\">Paused</h2><button type=\"button\" class=\"ds-game-play\" style=\"border: 0\">Resume</button><button type=\"button\" class=\"ds-game-play secondary\">Restart</button><button type=\"button\" class=\"ds-game-play secondary\">Quit</button></div>"
+    },
+    {
+      "id": "game-control",
+      "name": "Labelled control",
+      "group": "Game controls",
+      "platform": "game",
+      "description": "A thumb button with its caption under it, for controls whose icon is not universal.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Jump"
+        }
+      ],
+      "html": "<div class=\"ds-game-control\"><button type=\"button\" class=\"ds-game-btn\" aria-label=\"{{label}}\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 14l6-6 6 6\"/></svg></button><span class=\"ds-game-label\">{{label}}</span></div>"
+    },
+    {
+      "id": "game-progress",
+      "name": "Progress with caption",
+      "group": "Game layouts",
+      "platform": "game",
+      "description": "A bar and its caption 8 px under it, 24 px before the next block; --v is 0 to 100.",
+      "props": [
+        {
+          "id": "caption",
+          "label": "Caption",
+          "default": "Levels done of all levels"
+        }
+      ],
+      "html": "<div class=\"ds-game-progress\"><div class=\"track\"><i style=\"--v: 0\"></i></div><span class=\"ds-game-label\">{{caption}}</span></div>"
     }
   ]
 }

@@ -180,9 +180,21 @@
   font-size: var(--text-mac-small);
   color: var(--ink-secondary);
 }
+/* Selection follows the system's rule: grey when its pane or window is not the one with focus,
+   the accent when it is. A sidebar row is grey by default and accent in a pane marked .focused;
+   a list or table row is the reverse: its pane is the focused one unless it says .unfocused. A
+   window drawn .inactive (grey lights, not frontmost) is grey everywhere. */
 .ds-mac-sideitem.on {
   background: var(--fill-strong);
   font-weight: var(--weight-medium);
+}
+.ds-mac-sidebar.focused .ds-mac-sideitem.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ds-mac-sidebar.focused .ds-mac-sideitem.on .ds-icon,
+.ds-mac-sidebar.focused .ds-mac-sideitem.on .count {
+  color: inherit;
 }
 .ds-mac-list {
   flex: none;
@@ -215,6 +227,14 @@
 .ds-mac-item.on .sub {
   color: inherit;
   opacity: 0.85;
+}
+.ds-mac-list.unfocused .ds-mac-item.on {
+  background: var(--fill-strong);
+  color: var(--ink);
+}
+.ds-mac-list.unfocused .ds-mac-item.on .sub {
+  color: var(--ink-secondary);
+  opacity: 1;
 }
 .ds-mac-detail {
   flex: 1;
@@ -639,4 +659,110 @@
 }
 .ds-mac-sheet p {
   margin: 0;
+}
+
+/* ---------- Window without focus: every selection is grey ---------- */
+.ds-mac-window.inactive .ds-mac-sidebar .ds-mac-sideitem.on,
+.ds-mac-window.inactive .ds-mac-item.on,
+.ds-mac-window.inactive .ds-mac-table tbody tr.on td {
+  background: var(--fill-strong);
+  color: var(--ink);
+}
+.ds-mac-window.inactive .ds-mac-sideitem.on .ds-icon {
+  color: var(--ink-secondary);
+}
+.ds-mac-window.inactive .ds-mac-item.on .sub {
+  color: var(--ink-secondary);
+  opacity: 1;
+}
+.ds-mac-table.unfocused tbody tr.on td {
+  background: var(--fill-strong);
+  color: var(--ink);
+}
+
+/* ---------- Title bar and toolbar variants ---------- */
+/* No rule under the bar: a settings window whose tabs follow, or a window with nothing to separate. */
+.ds-mac-titlebar.plain {
+  border-bottom: 0;
+}
+/* A toolbar search field the width a search field is (200), not the width of its words. */
+.ds-mac-search.wide {
+  width: 200px;
+}
+
+/* ---------- Settings window: a checkbox row form, a text area, controls that line up ---------- */
+/* A popup or segmented control in a form is one width, so a column of them lines up: 200. A popup
+   elsewhere is as wide as its longest choice, never under 140. */
+.ds-mac-form .ds-mac-popup {
+  width: 200px;
+}
+.ds-mac-form .full {
+  grid-column: 1 / -1;
+}
+/* A column of checkboxes under one label: 8 px apart, a note indented under the box it explains. */
+.ds-mac-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ds-mac-checks .ds-mac-check {
+  display: flex;
+}
+.ds-mac-checks .note {
+  margin: calc(-1 * var(--space-1)) 0 0 22px;
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+  color: var(--ink-secondary);
+}
+.ds-mac-textarea {
+  box-sizing: border-box;
+  height: 72px;
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.ds-mac-form .ds-mac-textarea {
+  width: 100%;
+}
+.ds-mac-popover .ds-mac-textarea {
+  margin: 0 var(--space-2) var(--space-2);
+  border: 0;
+  background: var(--fill);
+}
+.ds-mac-textarea .caret {
+  display: inline-block;
+  width: 1px;
+  height: 14px;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--ink);
+}
+
+/* ---------- Popover placement ----------
+   A popover opens under what opened it. A menu-bar extra's popover hangs 6 px under the bar at the
+   right (.under-extra, inside a .has-popover desk); one from a toolbar tool hangs under the title
+   bar (.under-tool), right-aligned with a 16 px margin. It never covers the thing that opened it. */
+.ds-mac-desk.has-popover,
+.ds-mac-window.has-popover {
+  position: relative;
+}
+.ds-mac-popover.under-extra {
+  position: absolute;
+  top: 30px;
+  right: var(--space-4);
+}
+.ds-mac-popover.under-tool {
+  position: absolute;
+  top: calc(var(--size-mac-titlebar) + 6px);
+  right: var(--space-4);
+  z-index: 2;
+}
+
+/* ---------- Small text roles ---------- */
+.ds-mac-menubar .app-name {
+  font-weight: var(--weight-semibold);
+}
+.ds-mac-detail .lead {
+  margin-top: var(--space-4);
 }
