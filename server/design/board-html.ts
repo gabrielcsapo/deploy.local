@@ -188,6 +188,11 @@ export type BoardElement = {
  * element that contains it. Comments and the text of scripts and styles are skipped.
  */
 export function boardElements(html: string): BoardElement[] {
+  return scanElements(html).map(({ layer, outer, parent }) => ({ layer, outer, parent }));
+}
+
+/** boardElements, with where each start tag begins in the markup. */
+function scanElements(html: string): (BoardElement & { open: number })[] {
   const found: (BoardElement & { open: number })[] = [];
   const stack: { index: number; name: string }[] = [];
   const finish = (entry: { index: number }, end: number) => {
@@ -220,7 +225,125 @@ export function boardElements(html: string): BoardElement[] {
     stack.push({ index, name });
   }
   for (const entry of stack) finish(entry, html.length);
-  return found.map(({ layer, outer, parent }) => ({ layer, outer, parent }));
+  return found;
+}
+
+const tagOf = (outer: string) => /^<([a-zA-Z][\w:-]*)/.exec(outer)?.[1]?.toLowerCase() ?? '';
+const classOf = (outer: string) =>
+  (/^<[^>]*\sclass="([^"]*)"/.exec(outer)?.[1] ?? '').trim().split(/\s+/).sort().join(' ');
+const wordsOf = (outer: string) =>
+  outer
+    .replace(/<(svg|style|script)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;|&#\d+;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+/** Markup without layer IDs or formatting: the same element gives the same text. */
+const signatureOf = (outer: string) =>
+  outer
+    .replace(/\sdata-layer="[^"]*"/g, '')
+    .replace(/>\s+</g, '><')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * Each layer ID `main` has and `branch` does not, with the branch element that still draws it:
+ * the same markup, or the same tag with the same words, or the same tag and class in the same
+ * place. Matching goes from the surest to the loosest, and a branch element answers for one ID at
+ * most. `at` is that element's index in boardElements(branch), or null when nothing draws it.
+ */
+export function matchLayers(
+  main: string,
+  branch: string,
+): { layer: string; at: number | null; to: string | null }[] {
+  const mainElements = boardElements(main);
+  const branchElements = boardElements(branch);
+  const branchIds = new Set(branchElements.map((element) => element.layer).filter(Boolean));
+  const mainIds = new Set(mainElements.map((element) => element.layer).filter(Boolean));
+  const gone = mainElements
+    .map((element, index) => ({ ...element, index }))
+    .filter((element) => element.layer && !branchIds.has(element.layer));
+  if (!gone.length) return [];
+  // Branch elements that could be one of them: no ID, or an ID main does not have.
+  const free = branchElements
+    .map((element, index) => ({ ...element, index }))
+    .filter((element) => !element.layer || !mainIds.has(element.layer));
+  const taken = new Set<number>();
+  const found = new Map<string, (typeof free)[number]>();
+  // Where an element sits: its nearest ancestor with an ID both boards share, and its place
+  // among that ancestor's descendants of the same tag.
+  const place = (elements: BoardElement[], index: number) => {
+    let parent = elements[index].parent;
+    while (parent >= 0 && !(elements[parent].layer && branchIds.has(elements[parent].layer!)))
+      parent = elements[parent].parent;
+    const anchor = parent >= 0 ? elements[parent].layer : '';
+    const tag = tagOf(elements[index].outer);
+    let nth = 0;
+    for (let at = parent + 1; at < index; at++) {
+      let up = elements[at].parent;
+      while (up > parent) up = elements[up].parent;
+      if (up === parent && tagOf(elements[at].outer) === tag) nth++;
+    }
+    return `${anchor} ${tag} ${nth}`;
+  };
+  const passes: ((a: (typeof gone)[number], b: (typeof free)[number]) => boolean)[] = [
+    (a, b) => signatureOf(a.outer) === signatureOf(b.outer),
+    (a, b) => {
+      const text = wordsOf(a.outer);
+      return Boolean(text) && tagOf(a.outer) === tagOf(b.outer) && text === wordsOf(b.outer);
+    },
+    (a, b) =>
+      tagOf(a.outer) === tagOf(b.outer) &&
+      classOf(a.outer) === classOf(b.outer) &&
+      place(mainElements, a.index) === place(branchElements, b.index),
+  ];
+  for (const same of passes)
+    for (const element of gone) {
+      if (found.has(element.layer!)) continue;
+      const match = free.find(
+        (candidate) => !taken.has(candidate.index) && same(element, candidate),
+      );
+      if (!match) continue;
+      taken.add(match.index);
+      found.set(element.layer!, match);
+    }
+  return gone.map((element) => {
+    const match = found.get(element.layer!);
+    return { layer: element.layer!, at: match?.index ?? null, to: match?.layer ?? null };
+  });
+}
+
+/**
+ * `after` with each of `before`'s layer IDs back on the element that still draws it, so comments
+ * and pins keep pointing at it. IDs `after` gave those elements are dropped.
+ */
+export function carryLayerIds(before: string, after: string): string {
+  // An ID put back can anchor where the next one sits, so carry until nothing moves.
+  let out = after;
+  for (let round = 0; round < 8; round++) {
+    const next = carryOnce(before, out);
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
+function carryOnce(before: string, after: string): string {
+  const matches = matchLayers(before, after).filter((match) => match.at !== null);
+  if (!matches.length) return after;
+  const elements = scanElements(after);
+  let out = after;
+  for (const match of matches.sort((a, b) => elements[b.at!].open - elements[a.at!].open)) {
+    const { open } = elements[match.at!];
+    const end = out.indexOf('>', open);
+    const tag = out.slice(open, end + 1);
+    const next = / data-layer="[^"]*"/.test(tag)
+      ? tag.replace(/ data-layer="[^"]*"/, ` data-layer="${match.layer}"`)
+      : tag.replace(/^(<[a-zA-Z][\w:-]*)/, `$1 data-layer="${match.layer}"`);
+    out = out.slice(0, open) + next + out.slice(end + 1);
+  }
+  return out;
 }
 
 /** Every `data-layer` ID in a board, in document order. */
@@ -452,7 +575,10 @@ export function renderComponent(
   return root + html.slice(end + 1);
 }
 
-/** Render every instance on a board again from the library, keeping each one's layer and place. */
+/**
+ * Render every instance on a board again from the library, keeping each one's layer, its place and
+ * the layer IDs of the elements it still draws.
+ */
 export function syncInstances(html: string, library: Library) {
   let out = html;
   const starts = [...out.matchAll(/\sdata-component="([a-z0-9-]+)"/g)].map((match) => match.index!);
@@ -472,10 +598,15 @@ export function syncInstances(html: string, library: Library) {
       // An instance with unreadable values takes the component's defaults.
     }
     const style = /\sstyle="([^"]*)"/.exec(tag)?.[1];
-    const next = renderComponent(library, id, props, {
-      layer,
-      style: style ? unescapeAttr(style) : undefined,
-    });
+    // The instance keeps the layer IDs it had where it still draws the same elements, since
+    // comments and pins on deploy.local point at them.
+    const next = carryLayerIds(
+      snippet,
+      renderComponent(library, id, props, {
+        layer,
+        style: style ? unescapeAttr(style) : undefined,
+      }),
+    );
     out = out.slice(0, open) + next + out.slice(open + snippet.length);
   }
   return out === html ? html : assignLayerIds(out);

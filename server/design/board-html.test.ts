@@ -298,6 +298,31 @@ describe('board edits', () => {
       /no component nope/,
     );
   });
+
+  it('keeps the layer IDs an instance had on the elements it still draws when it renders again', async () => {
+    const { syncInstances, layerIds } = await import('./board-html.ts');
+    const library = {
+      components: [
+        {
+          id: 'rows',
+          name: 'Rows',
+          props: [{ id: 'first', default: 'One' }],
+          html: '<ul class="rows"><li class="row">{{first}}</li><li class="row">Two</li></ul>',
+        },
+      ],
+    };
+    // A comment points at "first-row", a name the board gave the element, not the library's.
+    const board =
+      '<body><ul data-layer="list" class="rows" data-props="{&quot;first&quot;:&quot;One&quot;}" data-component="rows" data-name="Rows"><li data-layer="first-row" class="row">One</li><li data-layer="second-row" class="row">Two</li></ul></body>';
+    assert.equal(syncInstances(board, library), board);
+    // The component changes: the rows are redrawn, and each keeps its ID.
+    library.components[0].html =
+      '<ul class="rows"><li class="row wide">{{first}}</li><li class="row wide">Two</li><li class="row wide">Three</li></ul>';
+    const synced = syncInstances(board, library);
+    assert.deepEqual(layerIds(synced).slice(0, 3), ['list', 'first-row', 'second-row']);
+    assert.ok(synced.includes('<li data-layer="first-row" class="row wide">One</li>'));
+    assert.equal(syncInstances(synced, library), synced);
+  });
 });
 
 describe('board links', () => {
