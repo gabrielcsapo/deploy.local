@@ -666,6 +666,32 @@ export function renderComponent(
  * Render every instance on a board again from the library, keeping each one's layer, its place and
  * the layer IDs of the elements it still draws.
  */
+/** An attribute's raw value, in double or single quotes. */
+function quotedAttribute(tag: string, name: string) {
+  const match = new RegExp(`\\s${name}=(?:"([^"]*)"|'([^']*)')`).exec(tag);
+  return match ? (match[1] ?? match[2]) : null;
+}
+
+/**
+ * The questions an instance root asks about its inner layers:
+ * data-questions='{"draft-size":"Is the size the frame or the window?"}', by layer ID.
+ */
+export function instanceQuestions(tag: string): Record<string, string> {
+  const raw = quotedAttribute(tag, 'data-questions');
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(unescapeAttr(raw));
+    return Object.fromEntries(
+      Object.entries(parsed ?? {}).filter(
+        (entry): entry is [string, string] =>
+          typeof entry[1] === 'string' && Boolean(entry[1].trim()),
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
 export function syncInstances(html: string, library: Library) {
   let out = html;
   const starts = [...out.matchAll(/\sdata-component="([a-z0-9-]+)"/g)].map((match) => match.index!);
@@ -680,20 +706,35 @@ export function syncInstances(html: string, library: Library) {
     if (!snippet) continue;
     let props: Record<string, string> = {};
     try {
-      props = JSON.parse(unescapeAttr(/\sdata-props="([^"]*)"/.exec(tag)?.[1] ?? '{}'));
+      props = JSON.parse(unescapeAttr(quotedAttribute(tag, 'data-props') ?? '{}'));
     } catch {
       // An instance with unreadable values takes the component's defaults.
     }
     const style = /\sstyle="([^"]*)"/.exec(tag)?.[1];
+    // Questions about the instance's inner layers live on its root, so they survive drawing; a
+    // data-question someone put on an inner layer moves there rather than being lost.
+    const asked = instanceQuestions(tag);
+    for (const element of boardElements(snippet).slice(1)) {
+      const inner = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
+      const question = quotedAttribute(inner, 'data-question');
+      if (element.layer && question && !asked[element.layer])
+        asked[element.layer] = unescapeAttr(question).trim();
+    }
+    const questions = Object.keys(asked).length ? JSON.stringify(asked) : null;
     // The instance keeps the layer IDs it had where it still draws the same elements, since
     // comments and pins on deploy.local point at them.
-    const next = carryLayerIds(
+    let next = carryLayerIds(
       snippet,
       renderComponent(library, id, props, {
         layer,
         style: style ? unescapeAttr(style) : undefined,
       }),
     );
+    if (questions) {
+      const end = next.indexOf('>');
+      next =
+        withAttribute(next.slice(0, end + 1), 'data-questions', questions) + next.slice(end + 1);
+    }
     out = out.slice(0, open) + next + out.slice(open + snippet.length);
   }
   return out === html ? html : assignLayerIds(out);

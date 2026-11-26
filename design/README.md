@@ -32,7 +32,7 @@ A design is the boards on a branch, beside the code that builds them. Merging th
 
 1. `deploy design guide` once: platforms and sizes, the type and spacing scale, components, fixture names and the check codes.
 2. `deploy design status <Board>` before you start: the current board of that screen (boards that were replaced are never offered), its source on the other platform, components, open questions and other branches changing it.
-3. Edit the boards in `design/boards/` (and `canvas.json` for a new board's place, title and notes). Mark what the product doesn't decide with `data-question="…"` instead of inventing it.
+3. Edit the boards in `design/boards/` (and `canvas.json` for a new board's place, title and notes). Mark what the product doesn't decide with `data-question="…"` instead of inventing it. A component instance (`data-component`) is drawn from its `data-props`: change those, never the markup inside it, then `deploy design sync [<Board>…]` draws it again and keeps its layer IDs.
 4. `deploy design check --fix` runs on this computer: it draws each changed board beside main in light and dark into `output/design/pairs`, fixes what has one answer (layer IDs, heights) and lists problems (block the merge) and notes (taste: type or spacing off the scale, edges nearly aligned, rows unlike their siblings, a second primary button, layer names that say nothing). Look at every pair. It writes nothing in `.git`; with no browser here, deploy.local draws it instead. To look at the design on main, `node design/tools/render.mjs --main`.
 5. Rebase on main, run check again, merge when it is clean.
 
@@ -42,7 +42,7 @@ Each of these cost a design trial points. Check your board against them before y
 
 - **The product is the source of truth.** Read the app's code for the screen (`app/routes/…`, `native/Apple/…`, `server/…`) before drawing. If a form, list or button already exists, draw that one with its words; don't design a second one.
 - **Only real data.** Names, files, sizes and tasks come from the product, its fixtures (below) and its examples. Never copy sample text from a design-system board into a product board. A canvas note or sticky is not a task.
-- **Don't invent; ask.** A value the product doesn't decide gets `data-question` on the layer that shows it, never a guess, a placeholder like "N days", or a policy-sounding sentence. Put the question on that layer, not on navigation.
+- **Don't invent; ask.** A value the product doesn't decide gets `data-question` on the layer that shows it, never a guess, a placeholder like "N days", or a policy-sounding sentence. Put the question on that layer, not on navigation. Inside a component instance, ask on the instance's root by inner layer ID, since the library draws its insides again: `data-questions='{"draft-size":"Is the size the frame or the window?"}'`.
 - **Keep everything the source has.** A board drawn from another platform keeps every word, state and action of its source. Translate them (a Log button can become a row that opens the log), never drop them; if one truly can't fit, mark why with `data-question`.
 - **Keep every layer ID.** When you rebuild an element, move its old `data-layer` ID onto the new one. Pins and comments point at IDs.
 - **Draw each state completely.** After an action, show where its result appears (a sent comment in the list, a kept file in its job). Keep the chrome identical between states of the same screen.

@@ -543,6 +543,19 @@ export function guideLines({ top, designSystem }) {
     "  a value: 'Kept files are deleted after a period the owner will set'. No placeholder, no guess.",
   );
   lines.push('  The check lists it for the owner; a date or number on that layer is a problem.');
+  lines.push(
+    '  Inside a component instance, ask on its root, by inner layer ID, since the library draws the',
+  );
+  lines.push(
+    '  insides again: data-questions=\'{"draft-size":"Is the size the frame or the window?"}\'',
+  );
+  section('Components on a board');
+  lines.push(
+    '  An instance (data-component) is drawn from its data-props; anything typed inside it is lost.',
+  );
+  lines.push(
+    '  Change data-props, then deploy design sync [<Board>…] draws it again, keeping its layer IDs.',
+  );
   section('Check codes (problems block; notes do not)');
   const codeWidth = Math.max(...checkCodes.map((entry) => entry.code.length)) + 2;
   for (const entry of checkCodes)
@@ -554,6 +567,7 @@ export function guideLines({ top, designSystem }) {
     '  1. deploy design status <Board>     where to start, its source, siblings, questions',
   );
   lines.push('  2. edit design/boards/<Board>.html  with components, tokens and fixture names');
+  lines.push("     deploy design sync                 after changing an instance's data-props");
   lines.push(
     '  3. deploy design check --fix        draws it beside main here; fixes what has one answer',
   );

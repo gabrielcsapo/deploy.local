@@ -7,8 +7,15 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import * as contracts from './cli-contracts.mjs';
 import { cliError } from './cli-v2.mjs';
 import { WORKTREE, designFile, worktreeGit } from './design-check-local.mjs';
-import { designStatus, guideLines, statusLines } from './design-status.mjs';
-import { checkDesign } from '../server/features/design/board-check.ts';
+import {
+  boardFileName,
+  changedBoards,
+  designStatus,
+  guideLines,
+  statusLines,
+} from './design-status.mjs';
+import { syncInstances } from '../server/design/board-html.ts';
+import { checkDesign, parseLibrary } from '../server/features/design/board-check.ts';
 import { parseBoardMeta, setBoardMetaHeight } from '../shared/v2/design-board-meta.ts';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -22,6 +29,7 @@ Usage  deploy design <command> [flags]
   guide                    How to work on this project's design
   status [<Board>…]        Where to start a board: its source, siblings, questions
   check                    Draw what you changed beside main and check it, here
+  sync [<Board>…]          Draw component instances again from their data-props
   dev                      Open the Design page on this folder, as you save
 
 Legacy review flow
@@ -207,7 +215,7 @@ export const reviewQuestions = [
   'Does it use only components and tokens?',
   'One primary action, roomy, every size on the scale?',
   "Does it match its siblings' structure, sizes and chrome?",
-  'Is every width and scheme readable, nothing cut off, and do the scheme words match the render?',
+  'Is every width and scheme readable, nothing cut off, and do the scheme words match the render? If the board names a scheme or size, is it true in every render?',
   'Is every old layer ID kept, and every new one named for what it is?',
   'Is every open question asked with data-question instead of guessed?',
 ];
@@ -848,6 +856,50 @@ export async function runDesign(sub, args, options, deps) {
       for (const line of statusLines(status)) out(line);
       const { now: _now, ...json } = status;
       return { exitCode: 0, json: { ok: true, code: 'status', ...json } };
+    }
+
+    case 'sync': {
+      // Instances drawn again from their data-props, keeping their layer IDs and questions.
+      const top = root();
+      const libraryFile = join(top, 'design', 'ds', 'deploy-local', 'components', 'library.json');
+      const library = parseLibrary(
+        existsSync(libraryFile)
+          ? readFileSync(libraryFile, 'utf8')
+          : deps.designSystem?.('ds/deploy-local/components/library.json')?.toString(),
+      );
+      if (!library)
+        throw cliError('This project has no component library.', 'deploy design guide', 1);
+      const files = args.length
+        ? args.map(boardFileName)
+        : changedBoards(top, deps.git, mainName(top));
+      const synced = [];
+      const unchanged = [];
+      for (const file of files) {
+        const path = join(top, 'design', 'boards', file);
+        if (!existsSync(path)) throw cliError(`No board named ${file}.`, 'deploy design status', 2);
+        const html = readFileSync(path, 'utf8');
+        const count = (html.match(/\sdata-component="/g) ?? []).length;
+        const next = count ? syncInstances(html, library) : html;
+        if (next === html) {
+          unchanged.push(file);
+          continue;
+        }
+        writeFileSync(path, next.endsWith('\n') ? next : `${next}\n`);
+        synced.push(file);
+        step('✓', `Drew ${screenName(file)} again`, plural(count, 'instance'));
+      }
+      if (!synced.length)
+        step(
+          '✓',
+          'Nothing to draw again',
+          files.length ? plural(files.length, 'board') : 'no boards changed',
+        );
+      out();
+      out('Next: deploy design check');
+      return {
+        exitCode: 0,
+        json: { ok: true, code: 'synced', synced, unchanged, next: 'deploy design check' },
+      };
     }
 
     case 'guide': {

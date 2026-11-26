@@ -77,10 +77,27 @@ export function markQuestions(doc: Document = document): BoardQuestion[] {
   layer.setAttribute('aria-hidden', 'true');
   layer.style.cssText =
     'position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:2147483647;pointer-events:none';
-  for (const element of doc.querySelectorAll('[data-question]')) {
+  // Questions on layers, and an instance root's questions about its inner layers.
+  const asked: [Element, string][] = [];
+  for (const element of doc.querySelectorAll('[data-question], [data-questions]')) {
+    const own = (element.getAttribute('data-question') ?? '').trim();
+    if (own) asked.push([element, own]);
+    let inner: Record<string, unknown> = {};
+    try {
+      inner = JSON.parse(element.getAttribute('data-questions') ?? '{}') ?? {};
+    } catch {
+      inner = {};
+    }
+    for (const [id, text] of Object.entries(inner)) {
+      const target = [...element.querySelectorAll('[data-layer]')].find(
+        (candidate) => candidate.getAttribute('data-layer') === id,
+      );
+      if (target && typeof text === 'string' && text.trim()) asked.push([target, text.trim()]);
+    }
+  }
+  for (const [element, question] of asked) {
     const rect = element.getBoundingClientRect();
-    const question = (element.getAttribute('data-question') ?? '').trim();
-    if (!question || !rect.width || !rect.height) continue;
+    if (!rect.width || !rect.height) continue;
     const n = found.length + 1;
     found.push({ n, layer: element.getAttribute('data-layer') ?? '', question });
     const x = rect.left + view.scrollX;
@@ -122,7 +139,7 @@ export async function shootBoard(
   await tab.evaluate('document.fonts.ready.then(() => true)');
   const measured = options.measure ? await tab.evaluate<Overflow>(run(measureOverflow)) : null;
   const inspected = options.inspect ? await tab.evaluate<Inspection>(run(inspectBoard)) : null;
-  const questions = page.includes('data-question=')
+  const questions = /data-questions?=/.test(page)
     ? await tab.evaluate<BoardQuestion[]>(run(markQuestions))
     : [];
   return { png: await tab.screenshot(), measured, inspected, questions };

@@ -1595,3 +1595,52 @@ test("status prints the design system's phone conventions for a new phone board"
     repo.cleanup();
   }
 });
+
+test('sync draws instances again from their data-props on the changed boards, keeping IDs', async () => {
+  const repo = repository();
+  try {
+    mkdirSync(join(repo.clone, 'design/ds/deploy-local/components'), { recursive: true });
+    writeFileSync(
+      join(repo.clone, 'design/ds/deploy-local/components/library.json'),
+      JSON.stringify({
+        components: [
+          {
+            id: 'tag',
+            name: 'Tag',
+            props: [{ id: 'label', default: 'Tag' }],
+            html: '<span class="dl-tag"><b>{{label}}</b></span>',
+          },
+        ],
+      }),
+    );
+    writeFileSync(
+      join(repo.clone, 'design/boards/Sidebar.html'),
+      '<main><span data-layer="kind" data-component="tag" data-props=\'{"label":"Package"}\'><b data-layer="kind-label">Old</b></span></main>\n',
+    );
+    const run = terminal(repo.clone, coordinator().api);
+    const result = await runDesign('sync', [], {}, run.deps);
+    assert.deepEqual(result.json.synced, ['Sidebar.html']);
+    const html = readFileSync(join(repo.clone, 'design/boards/Sidebar.html'), 'utf8');
+    assert.match(html, /<b data-layer="kind-label">Package<\/b>/);
+    assert.match(run.text(), /^✓ Drew Sidebar again +1 instance\n\nNext: deploy design check\n$/);
+    const again = await runDesign(
+      'sync',
+      ['Sidebar'],
+      { json: true },
+      terminal(repo.clone, coordinator().api).deps,
+    );
+    assert.deepEqual(again.json, {
+      ok: true,
+      code: 'synced',
+      synced: [],
+      unchanged: ['Sidebar.html'],
+      next: 'deploy design check',
+    });
+    await assert.rejects(
+      runDesign('sync', ['Nope'], {}, run.deps),
+      (error) => error.exitCode === 2,
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
