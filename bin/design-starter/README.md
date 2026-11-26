@@ -30,7 +30,7 @@ Change the system here, on a branch, like any design. A screen that needs someth
 Phone boards are one screen: `<meta name="design-board" content="width=390,height=844,platform=phone,schemes=light dark">`. A phone screen is an iPhone app, never the web page made narrow.
 
 - **Three kinds of screen.**
-  - _Tab roots_ are the app's top-level places, in `.ds-tabbar` at the foot (three to five tabs). A root has a 34 px `.ds-large-title` and no back. Its one action (Add, Search) is an icon at the right of `.ds-navbar`.
+  - _Tab roots_ are the app's top-level places, in `.ds-tabbar` at the foot: one tab for each place the product really has, two to five. Never add a tab to reach a count; a product with one place has no tab bar. A root has a 34 px `.ds-large-title` and no back. Its one action (Add, Search) is an icon at the right of `.ds-navbar`.
   - _Pushed details_ open from a row. `.ds-navbar` holds back (a chevron and the previous screen's name), a short title, and at most one action at the right. The tab bar stays.
   - _Sheets_ create or edit one thing (`.ds-sheet` over the screen, with `.ds-grab`). Cancel is at the left of its bar and the confirm action (Add, Done, Save) at the right, in the accent, dimmed until the sheet is complete. No big button at the bottom of a sheet, and no back link.
 - **The bar holds a short title.** A few words that fit on one line; the item's long name goes first in the content.

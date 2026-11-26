@@ -496,7 +496,7 @@
       "name": "Tab bar",
       "group": "Phone",
       "platform": "phone",
-      "description": "The app's three to five top-level places, fixed at the foot of every tab screen. The on tab is the accent.",
+      "description": "The app's top-level places, one tab each, two to five, fixed at the foot of every tab screen; never add a tab to reach a count. The on tab is the accent.",
       "props": [],
       "html": "<nav class=\"ds-tabbar\" aria-label=\"Places\"><a href=\"#\" class=\"on\" aria-current=\"page\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg>Place one</a><a href=\"#\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Place two</a><a href=\"#\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/><circle cx=\"15\" cy=\"7\" r=\"2\"/><circle cx=\"9\" cy=\"17\" r=\"2\"/></svg>Settings</a></nav>"
     },
