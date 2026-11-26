@@ -627,12 +627,16 @@ export const isChrome = (tag: string) =>
   /\bclass="[^"]*\b(dl-side|dl-head|dl-tabbar|dl-ph-top|mac-lights)\b/.test(tag);
 
 /** The words a person sees on a board and where it lets them go, leaving out the chrome. */
-export function boardContent(html: string | null | undefined) {
+export function boardContent(
+  html: string | null | undefined,
+  { keepChrome = false }: { keepChrome?: boolean } = {},
+) {
   if (!html) return { words: [] as string[], links: [] as string[] };
   let body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
   for (const element of boardElements(body)) {
     const tag = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
-    if (isChrome(tag) || /\saria-hidden="true"/.test(tag)) body = body.replace(element.outer, ' ');
+    if ((!keepChrome && isChrome(tag)) || /\saria-hidden="true"/.test(tag))
+      body = body.replace(element.outer, ' ');
   }
   const words = new Set<string>();
   for (const chunk of body
@@ -664,14 +668,17 @@ const rowClass = /\b(dl-setting|dl-item|dl-ph-row|dl-log-row|dl-menu-item|dl-ask
  * The actions a board offers: buttons and button-styled links, with their words, where they lead
  * and whether they sit in a list row (a phone usually makes those the row's own tap).
  */
-export function boardActions(html: string | null | undefined) {
+export function boardActions(
+  html: string | null | undefined,
+  { keepChrome = false }: { keepChrome?: boolean } = {},
+) {
   if (!html) return [];
   const elements = boardElements(/<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html);
   const tag = (outer: string) => /^<[^>]*>/.exec(outer)?.[0] ?? '';
   const hidden = (index: number) => {
     for (let at = index; at >= 0; at = elements[at].parent) {
       const start = tag(elements[at].outer);
-      if (isChrome(start)) return true;
+      if (!keepChrome && isChrome(start)) return true;
     }
     return false;
   };
@@ -691,11 +698,16 @@ export function boardActions(html: string | null | undefined) {
     .filter(({ index }) => !hidden(index))
     .map(({ element, index, start }) => ({
       layer: element.layer,
-      text: plain(element.outer) || attribute(start, 'aria-label') || '',
+      // A button's name is what a person reads, or its accessible label when it shows an icon or
+      // a symbol ("−", "+") with no words.
+      text: /\p{L}/u.test(plain(element.outer))
+        ? plain(element.outer)
+        : attribute(start, 'aria-label') || '',
+      label: attribute(start, 'aria-label') ?? '',
       href: attribute(start, 'href') ?? attribute(start, 'data-link'),
       inRow: inRow(index),
     }))
-    .filter((action) => action.text);
+    .filter((action) => /\p{L}/u.test(action.text));
 }
 
 /**
@@ -762,8 +774,18 @@ export function droppedActions(
   counterparts: Record<string, string[]> = {},
 ) {
   if (!board || !source) return [];
-  const words = new Set(boardContent(board).words.map(comparable));
-  const links = reachable(boardContent(board).links, counterparts);
+  // The board offers what it shows anywhere, its own bars included (an iPhone's Cancel and Add
+  // sit in the navigation or sheet bar), and what its buttons are named, icons included.
+  const ownActions = boardActions(board, { keepChrome: true });
+  const words = new Set(
+    [
+      ...boardContent(board, { keepChrome: true }).words,
+      ...ownActions.flatMap((action) => [action.text, action.label]),
+    ]
+      .map(comparable)
+      .filter(Boolean),
+  );
+  const links = reachable(boardContent(board, { keepChrome: true }).links, counterparts);
   const questions = boardQuestions(board).map((entry) => entry.question.toLowerCase());
   return boardActions(source)
     .filter((action) => !action.inRow)
@@ -819,9 +841,12 @@ export function sourceNotes(input: {
   const dropped = droppedActions(input.after, input.sourceAfter, counterparts).filter(
     (action) => !oldDropped.has(comparable(action.text)),
   );
+  // Both boards new on this branch (a new project, a new screen): the designer is drawing both, so a
+  // missing action is worth a look, not a block.
+  const bothNew = !input.before && !input.sourceBefore;
   for (const action of dropped)
     findings.push({
-      code: 'source_action_missing',
+      code: bothNew ? 'differs_from_source' : 'source_action_missing',
       file: input.file,
       board: input.title,
       ...(action.layer ? { layer: action.layer } : {}),

@@ -14,6 +14,14 @@
   line-height: var(--leading-ui);
   -webkit-font-smoothing: antialiased;
 }
+/* A dialog and its scrim can sit outside the app shell (drawn over it), so they carry the base font too. */
+:where(.ds-scrim, .ds-dialog, .ds-sheet) {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  -webkit-font-smoothing: antialiased;
+}
 :where(.ds-app, .ds-phone, .ds-board) :where(a) {
   color: inherit;
   text-decoration: none;

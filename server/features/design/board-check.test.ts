@@ -799,7 +799,8 @@ test('a board drawn from a source lists what the source shows or reaches that it
     source: 'PipelineRun.html',
     before: null,
     after: phone,
-    sourceBefore: null,
+    // The web board is already on main; the phone board is new.
+    sourceBefore: source,
     sourceAfter: source,
   });
   assert.deepEqual(
@@ -1187,12 +1188,26 @@ test('a phone board drawn from a web one: status glyphs and row taps are fine, a
     source: 'Run.html',
     before: null,
     after: phone,
-    sourceBefore: null,
+    sourceBefore: web,
     sourceAfter: web,
   });
   assert.deepEqual(
     found.map((finding) => [finding.code, finding.label]),
     [['source_action_missing', 'RunPhone has no "Run pipeline"; Run does']],
+  );
+  // Both boards new (a new project): the designer is drawing both, so it is a note.
+  const fresh = sourceNotes({
+    file: 'RunPhone.html',
+    title: 'Run on iPhone',
+    source: 'Run.html',
+    before: null,
+    after: phone,
+    sourceBefore: null,
+    sourceAfter: web,
+  });
+  assert.deepEqual(
+    fresh.map((finding) => finding.code),
+    ['differs_from_source'],
   );
   assert.deepEqual(
     droppedActions(phone, web).map((action) => action.layer),
@@ -1935,4 +1950,18 @@ test("the starter's tokens read as a CSS-only system, with either quote, and its
     page,
     '<head><style>/* ds/larder/tokens.css */</style><style>/* ds/larder/components.css */</style></head>',
   );
+});
+
+test('an iPhone bar and an icon button carry the actions their web source has', () => {
+  const web = board(
+    '',
+    '<main><h1>Add item</h1><div class="dl-stepper"><button aria-label="Fewer">−</button><button aria-label="More">+</button></div>' +
+      '<button class="dl-btn quiet">Cancel</button><button class="dl-btn primary">Add</button></main>',
+  );
+  const phone = board(
+    '',
+    '<header class="ds-phone-navbar"><button>Cancel</button><h1>Add item</h1><button>Add</button></header>' +
+      '<main><span class="ds-stepper"><button aria-label="Fewer"><svg></svg></button><button aria-label="More"><svg></svg></button></span></main>',
+  );
+  assert.deepEqual(droppedActions(phone, web), []);
 });
