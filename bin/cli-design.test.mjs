@@ -1780,7 +1780,8 @@ test("init copies the real starter, with its examples pointing at this project's
       terminal(root, coordinator().api, { starter: () => starter }).deps,
     );
     assert.equal(result.json.name, 'larder');
-    for (const path of Object.keys(starter)) {
+    // The kinds' files are copied only by init --kind.
+    for (const path of Object.keys(starter).filter((entry) => !entry.startsWith('kinds/'))) {
       const copied = readFileSync(join(root, 'design/ds/larder', path), 'utf8');
       assert.doesNotMatch(copied, /__DS__/, path);
     }
