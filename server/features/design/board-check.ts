@@ -781,8 +781,8 @@ export async function checkDesign(
             if (measureHeight.has(file)) heights[file] = afterShot.inspected.height;
             // Rows are compared with the same lists on sibling boards of this platform, on main.
             const siblings: { file: string; rows: Record<string, number[]> }[] = [];
+            const platform = await platformOf('branch', file);
             if (Object.keys(afterShot.inspected.rows).length) {
-              const platform = await platformOf('branch', file);
               for (const sibling of screenFamily(file, mainDisk)) {
                 if (siblings.length >= siblingLimit) break;
                 if ((await platformOf('main', sibling)) !== platform) continue;
@@ -798,7 +798,9 @@ export async function checkDesign(
                 if (drawn?.inspected) siblings.push({ file: sibling, rows: drawn.inspected.rows });
               }
             }
-            found.notes.push(...drawnNotes({ file, title, width, tokens, siblings, ...inspected }));
+            found.notes.push(
+              ...drawnNotes({ file, title, width, tokens, platform, siblings, ...inspected }),
+            );
           }
         }
         const png = await drawing.pair({

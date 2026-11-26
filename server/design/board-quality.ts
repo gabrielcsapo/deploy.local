@@ -20,6 +20,8 @@ export type Finding = CheckProblem & { code: string };
 export type DesignTokens = {
   colors: { name: string; light: string | null; dark: string | null }[];
   type: number[];
+  /** The phone's own type scale, when the design system has one; phone boards are judged by it. */
+  phoneType?: number[];
   space: number[];
 };
 
@@ -38,18 +40,24 @@ export function readTokens(json: string | null, css: string | null): DesignToken
         light: typeof token.value === 'string' ? token.value : (token.value?.light ?? null),
         dark: typeof token.value === 'string' ? token.value : (token.value?.dark ?? null),
       }));
-      const type = [
-        ...new Set<number>(
-          (tokens.type?.groups ?? [])
-            .flatMap((group: any) => group.styles ?? [])
-            .map((style: any) => px(style.fontSize))
-            .filter((size: number | null): size is number => size !== null),
-        ),
-      ].sort((a, b) => a - b);
+      const sizes = (groups: any[]) =>
+        [
+          ...new Set<number>(
+            groups
+              .flatMap((group: any) => group.styles ?? [])
+              .map((style: any) => px(style.fontSize))
+              .filter((size: number | null): size is number => size !== null),
+          ),
+        ].sort((a, b) => a - b);
+      const groups: any[] = tokens.type?.groups ?? [];
+      const isPhone = (group: any) => /phone|ios|iphone/i.test(String(group?.name ?? ''));
+      const phone = groups.filter(isPhone);
+      const type = sizes(phone.length ? groups.filter((group) => !isPhone(group)) : groups);
+      const phoneType = phone.length ? sizes(phone) : undefined;
       const space = (tokens.spacing?.tokens ?? [])
         .map((token: any) => px(token.value))
         .filter((size: number | null): size is number => size !== null);
-      return { colors, type, space };
+      return { colors, type, ...(phoneType ? { phoneType } : {}), space };
     }
   } catch {
     // Fall through to the stylesheet.
@@ -803,6 +811,8 @@ export function drawnNotes(input: {
   after: Inspection | null;
   before: Inspection | null;
   tokens: DesignTokens | null;
+  /** The board's platform; a phone board is judged by the phone's type scale. */
+  platform?: string | null;
   /** The same kinds of list on sibling boards of this platform, as main draws them. */
   siblings?: { file: string; rows: Record<string, number[]> }[];
 }): Finding[] {
@@ -812,8 +822,10 @@ export function drawnNotes(input: {
   const at = { file, board: title, width, scheme: 'light' as const };
 
   // Type sizes off the scale, one note per size.
-  if (input.tokens?.type.length) {
-    const scale = new Set(input.tokens.type);
+  const phone = input.platform ? input.platform === 'phone' : width < 600;
+  const typeScale = (phone && input.tokens?.phoneType) || input.tokens?.type || [];
+  if (typeScale.length) {
+    const scale = new Set(typeScale);
     const old = new Set((before?.texts ?? []).map((text) => `${text.layer} ${text.size}`));
     const off = new Map<number, string[]>();
     for (const text of after.texts) {
@@ -832,7 +844,7 @@ export function drawnNotes(input: {
         label: `${title} sets ${size} px type`,
         detail: `${layers.slice(0, 4).join(', ')}${layers.length > 4 ? ` and ${layers.length - 4} more` : ''}`,
         short: `${size} px type`,
-        fix: `use a size on the type scale: ${input.tokens.type.join(', ')} px`,
+        fix: `use a size on the ${phone ? 'phone ' : ''}type scale: ${typeScale.join(', ')} px`,
       });
   }
 

@@ -1277,3 +1277,34 @@ test('a new board copied from another is judged against it, named or found', asy
     repo.cleanup();
   }
 });
+
+test('type scale: a phone board is judged by the phone scale, a web board by the web one', () => {
+  const scaled = readTokens(
+    JSON.stringify({
+      color: { tokens: [{ name: 'ink', value: { light: '#1c1b1f', dark: '#f3f2f5' } }] },
+      type: {
+        groups: [
+          { name: 'App', styles: [{ fontSize: '12px' }, { fontSize: '13px' }] },
+          { name: 'Phone', styles: [{ fontSize: '11px' }, { fontSize: '17px' }] },
+        ],
+      },
+      spacing: { tokens: [{ value: '4px' }] },
+    }),
+    null,
+  ) as DesignTokens;
+  const after = inspection({ texts: [text('status-label', { size: 11 })] });
+  const codes = (platform: string, width: number) =>
+    drawnNotes({
+      file: 'Run.html',
+      title: 'Run',
+      width,
+      after,
+      before: null,
+      tokens: scaled,
+      platform,
+    })
+      .map((note) => note.code)
+      .filter((code) => code === 'type_off_scale');
+  assert.deepEqual(codes('web', 1440), ['type_off_scale']);
+  assert.deepEqual(codes('phone', 390), []);
+});
