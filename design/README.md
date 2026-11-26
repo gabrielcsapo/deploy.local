@@ -49,7 +49,7 @@ Each of these cost a design trial points. Check your board against them before y
 - **Stay on the scale.** Type, spacing and colour come from tokens and components; one primary action per view; no box inside a card.
 - **Place a new board beside its source** in a free spot, never over a note or a section title; `deploy design check --fix` places it if you don't.
 - **Never type inside a component.** A `data-component` instance is redrawn from its `data-props`; anything written inside it disappears. Set its props (`deploy design guide` lists them) or put your content outside it.
-- **A question still reads as finished copy.** The layer with `data-question` says the thing without a value ("Kept files are deleted after a period the owner will set"), never a dangling label ("Deleted on") or a placeholder.
+- **A question still reads as finished copy.** The layer with `data-question` says only what is true today, with no value ("Kept with this run." while nothing deletes them), never a dangling label ("Deleted on"), a placeholder, or a promise of a setting that doesn't exist ("after a period the owner will set").
 - **Words that describe the render must match it.** If a board says "Light" or "Web 1440", the board must show that in every scheme and width it's drawn at; pin an inner preview with `data-theme` if it must stay light.
 - **Phone boards follow the phone conventions** in `design/ds/README.md` ("Phone screens"): what a detail screen's top bar holds, where lists go, height and scroll, where the action sits.
 - **Change only what the task needs.** No unrelated edits to the board's styles, background or indentation.
