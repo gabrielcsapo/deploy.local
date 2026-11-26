@@ -327,6 +327,7 @@
 
 /* ---------- Simple bar chart: --v is the bar's share of the track, 0 to 100 ---------- */
 .ds-slide-bars {
+  margin-top: 72px;
   display: flex;
   flex-direction: column;
   gap: 36px;
@@ -388,14 +389,21 @@
 .ds-slide[data-step-at] [data-step] {
   visibility: hidden;
 }
-.ds-slide[data-step-at="1"] [data-step="1"],
-.ds-slide[data-step-at="2"] :is([data-step="1"], [data-step="2"]),
-.ds-slide[data-step-at="3"] :is([data-step="1"], [data-step="2"], [data-step="3"]),
-.ds-slide[data-step-at="4"] :is([data-step="1"], [data-step="2"], [data-step="3"], [data-step="4"]),
-.ds-slide[data-step-at="5"]
-  :is([data-step="1"], [data-step="2"], [data-step="3"], [data-step="4"], [data-step="5"]),
-.ds-slide[data-step-at="6"]
-  :is([data-step="1"], [data-step="2"], [data-step="3"], [data-step="4"], [data-step="5"], [data-step="6"]) {
+.ds-slide[data-step-at='1'] [data-step='1'],
+.ds-slide[data-step-at='2'] :is([data-step='1'], [data-step='2']),
+.ds-slide[data-step-at='3'] :is([data-step='1'], [data-step='2'], [data-step='3']),
+.ds-slide[data-step-at='4'] :is([data-step='1'], [data-step='2'], [data-step='3'], [data-step='4']),
+.ds-slide[data-step-at='5']
+  :is([data-step='1'], [data-step='2'], [data-step='3'], [data-step='4'], [data-step='5']),
+.ds-slide[data-step-at='6']
+  :is(
+    [data-step='1'],
+    [data-step='2'],
+    [data-step='3'],
+    [data-step='4'],
+    [data-step='5'],
+    [data-step='6']
+  ) {
   visibility: visible;
 }
 

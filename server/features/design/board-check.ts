@@ -1323,7 +1323,7 @@ export async function checkDesign(
           try {
             if (marks) {
               const at = (size: number) => marks.sizes.find((entry) => entry.size === size)?.png;
-              const big = at(128);
+              const big = marks.smallReference ?? at(128);
               const small = at(16);
               if (big && small) {
                 const read = markLegibility({

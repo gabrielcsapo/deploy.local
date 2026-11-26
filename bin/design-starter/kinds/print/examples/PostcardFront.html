@@ -3,7 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="design-board" content="platform=print,size=148x105mm,bleed=3mm,safe=4mm,schemes=light" />
+    <meta
+      name="design-board"
+      content="platform=print,size=148x105mm,bleed=3mm,safe=4mm,schemes=light"
+    />
     <title>Example postcard front</title>
     <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
     <link rel="stylesheet" href="../ds/__DS__/components.css" />
@@ -17,12 +20,25 @@
     </style>
   </head>
   <body>
-    <div class="ds-print-face ground-brand" style="--print-w: 148mm; --print-h: 105mm; --print-bleed: 3mm; --print-safe: 5mm">
+    <div
+      class="ds-print-face ground-brand"
+      style="--print-w: 148mm; --print-h: 105mm; --print-bleed: 3mm; --print-safe: 5mm"
+    >
       <div class="ds-print-safe">
-        <div class="ds-print-wordmark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill-rule="evenodd" fill="currentColor" d="M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z"/><circle cx="32" cy="32" r="8" fill="currentColor"/></svg> Product name</div>
+        <div class="ds-print-wordmark">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <path
+              fill-rule="evenodd"
+              fill="currentColor"
+              d="M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z"
+            />
+            <circle cx="32" cy="32" r="8" fill="currentColor" />
+          </svg>
+          Product name
+        </div>
         <div>
           <p class="ds-print-display">A short line for the front</p>
-          <p class="ds-print-body" style="margin-top: 3mm; max-width: 80mm">One sentence that says what this card is about.</p>
+          <p class="ds-print-body lead">One sentence that says what this card is about.</p>
         </div>
       </div>
     </div>

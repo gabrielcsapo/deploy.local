@@ -14,6 +14,18 @@
         margin: 0;
         background: var(--bg);
       }
+      /* The running header and footer on paper: the same words as the bars. */
+      @page {
+        @top-left {
+          content: 'Reference';
+        }
+        @top-right {
+          content: 'Settings';
+        }
+        @bottom-left {
+          content: 'Date of the last update';
+        }
+      }
     </style>
   </head>
   <body>
@@ -22,14 +34,34 @@
       <main class="ds-doc-page">
         <h1>Settings</h1>
         <p class="ds-doc-lede">Every setting, its default and what it changes.</p>
-        <table class="ds-doc-table" data-layer="settings-table" data-question="What is each setting's real default?">
+        <table
+          class="ds-doc-table"
+          data-layer="settings-table"
+          data-question="What is each setting's real default?"
+        >
           <thead>
-            <tr><th>Name</th><th>Default</th><th>What it does</th></tr>
+            <tr>
+              <th>Name</th>
+              <th>Default</th>
+              <th>What it does</th>
+            </tr>
           </thead>
           <tbody>
-            <tr><td><code>retries</code></td><td data-label="Default">Value</td><td data-label="What it does">How many times a failed step is tried again.</td></tr>
-            <tr><td><code>timeout</code></td><td data-label="Default">Value</td><td data-label="What it does">How long a step may take before it stops.</td></tr>
-            <tr><td><code>notify</code></td><td data-label="Default">Value</td><td data-label="What it does">Sends a message when a run ends.</td></tr>
+            <tr>
+              <td><code>retries</code></td>
+              <td data-label="Default">Value</td>
+              <td data-label="What it does">How many times a failed step is tried again.</td>
+            </tr>
+            <tr>
+              <td><code>timeout</code></td>
+              <td data-label="Default">Value</td>
+              <td data-label="What it does">How long a step may take before it stops.</td>
+            </tr>
+            <tr>
+              <td><code>notify</code></td>
+              <td data-label="Default">Value</td>
+              <td data-label="What it does">Sends a message when a run ends.</td>
+            </tr>
           </tbody>
         </table>
         <div class="ds-doc-callout warn">
@@ -42,10 +74,12 @@
           </div>
         </div>
         <h2>Example</h2>
-<pre><code>setting = value
+        <pre><code>setting = value
 another = value</code></pre>
       </main>
-      <footer class="ds-doc-foot"><span>Reference</span><span>Date of the last update</span></footer>
+      <footer class="ds-doc-foot">
+        <span>Reference</span><span>Date of the last update</span>
+      </footer>
     </div>
   </body>
 </html>

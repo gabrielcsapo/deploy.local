@@ -14,6 +14,18 @@
         margin: 0;
         background: var(--bg);
       }
+      /* The running header and footer on paper: the same words as the bars. */
+      @page {
+        @top-left {
+          content: 'Team handbook';
+        }
+        @top-right {
+          content: 'Working together';
+        }
+        @bottom-left {
+          content: 'Date of the last update';
+        }
+      }
     </style>
   </head>
   <body>
@@ -23,15 +35,15 @@
         <div class="ds-doc-kicker">Version</div>
         <h1>Working together</h1>
         <p class="ds-doc-lede">
-          How the team plans, decides and hands work over. It is short on purpose: read it once, then
-          come back to the part you need.
+          How the team plans, decides and hands work over. It is short on purpose: read it once,
+          then come back to the part you need.
         </p>
 
         <h2>Planning</h2>
         <p>
-          Work is planned in cycles. Before a cycle starts, each person writes down what
-          they expect to finish and what could get in the way. The plan is a list, not a document:
-          anyone should be able to read it in a minute.
+          Work is planned in cycles. Before a cycle starts, each person writes down what they expect
+          to finish and what could get in the way. The plan is a list, not a document: anyone should
+          be able to read it in a minute.
         </p>
         <ul>
           <li>Pick only the few things each person can finish.</li>
@@ -51,7 +63,11 @@
 
         <h2>Roles and hours</h2>
         <p>Each role has one place where its work is reviewed and a usual time it is reachable.</p>
-        <table class="ds-doc-table" data-layer="roles-table" data-question="Which hours is each role reachable, and what share of a cycle does it take?">
+        <table
+          class="ds-doc-table"
+          data-layer="roles-table"
+          data-question="Which hours is each role reachable, and what share of a cycle does it take?"
+        >
           <caption>
             Who to ask, and when
           </caption>
@@ -95,12 +111,39 @@
         <figure class="ds-doc-figure">
           <div class="ds-doc-figure-art">
             <svg viewBox="0 0 320 180" aria-hidden="true">
-              <rect x="40" y="70" width="64" height="40" rx="8" fill="none" stroke="currentColor" stroke-width="2" />
-              <rect x="216" y="70" width="64" height="40" rx="8" fill="none" stroke="currentColor" stroke-width="2" />
-              <path d="M112 90h96m-10-8 10 8-10 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <rect
+                x="40"
+                y="70"
+                width="64"
+                height="40"
+                rx="8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <rect
+                x="216"
+                y="70"
+                width="64"
+                height="40"
+                rx="8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <path
+                d="M112 90h96m-10-8 10 8-10 8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             </svg>
           </div>
-          <figcaption>The note goes from the person who finishes to the person who continues.</figcaption>
+          <figcaption>
+            The note goes from the person who finishes to the person who continues.
+          </figcaption>
         </figure>
         <h3>What a note contains</h3>
         <ol>
@@ -113,7 +156,9 @@
           same thread, not in a new one.
         </p>
       </main>
-      <footer class="ds-doc-foot"><span>Date of the last update</span><span>Page numbers added in print</span></footer>
+      <footer class="ds-doc-foot">
+        <span>Date of the last update</span><span>Team handbook</span>
+      </footer>
     </div>
   </body>
 </html>

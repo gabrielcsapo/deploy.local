@@ -332,6 +332,35 @@
 @page {
   size: A4;
   margin: 24mm 20mm 24mm;
+  /* The running header and footer are printed in the page's margin, on every page. Their words
+     come from the board: a <style> with @page { @top-left { content: "Document name" }
+     @top-right { content: "Section" } @bottom-left { content: "Date" } }. The page number is
+     here already. */
+  @top-left {
+    font: 8.5pt/12pt var(--font-sans);
+    color: var(--ink-secondary);
+    vertical-align: bottom;
+    padding-bottom: 6mm;
+  }
+  @top-right {
+    font: 8.5pt/12pt var(--font-sans);
+    color: var(--ink-secondary);
+    vertical-align: bottom;
+    padding-bottom: 6mm;
+  }
+  @bottom-left {
+    font: 8.5pt/12pt var(--font-sans);
+    color: var(--ink-secondary);
+    vertical-align: top;
+    padding-top: 6mm;
+  }
+  @bottom-right {
+    content: counter(page) ' of ' counter(pages);
+    font: 8.5pt/12pt var(--font-sans);
+    color: var(--ink-secondary);
+    vertical-align: top;
+    padding-top: 6mm;
+  }
 }
 @media print {
   :root {
@@ -358,20 +387,10 @@
     max-width: none;
     padding: 0;
   }
+  /* On paper the bars give way to the page's margin boxes (see @page). */
   .ds-doc-head,
   .ds-doc-foot {
-    position: fixed;
-    left: 0;
-    right: 0;
-    max-width: none;
-    padding: 0;
-    border: 0;
-  }
-  .ds-doc-head {
-    top: -14mm;
-  }
-  .ds-doc-foot {
-    bottom: -14mm;
+    display: none;
   }
   .ds-doc h2,
   .ds-doc h3 {

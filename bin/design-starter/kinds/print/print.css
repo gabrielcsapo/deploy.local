@@ -92,6 +92,11 @@
   font-size: var(--text-print-body);
   line-height: var(--leading-print-body);
 }
+/* The sentence under a headline: a step below it, kept to a readable measure. */
+.ds-print-body.lead {
+  margin-top: 3mm;
+  max-width: 80mm;
+}
 .ds-print-small {
   font-size: var(--text-print-small);
   line-height: var(--leading-print-small);

@@ -285,6 +285,9 @@
   flex-direction: column;
   gap: 4px;
 }
+.ds-mac-prop > .ds-mac-field {
+  min-width: 0;
+}
 .ds-mac-prop > label,
 .ds-mac-prop > .label {
   font-size: var(--text-mac-small);
@@ -596,6 +599,9 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-2) var(--space-3);
+}
+.ds-mac-popover-head .end {
+  margin-left: auto;
 }
 .ds-mac-popover-head .name {
   font-weight: var(--weight-semibold);

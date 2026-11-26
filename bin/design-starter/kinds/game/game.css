@@ -66,6 +66,14 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
+/* A score drawn over the stage, centred near its top edge. */
+.ds-game-score.over-stage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--space-5);
+  text-align: center;
+}
 .ds-game-label {
   font-size: var(--text-game-label);
   line-height: var(--leading-game-label);
@@ -131,6 +139,7 @@
 }
 .ds-game-btn.primary {
   border-color: transparent;
+  border: 0;
   background: var(--primary);
   color: var(--on-primary);
 }

@@ -234,30 +234,39 @@ export function readMark(doc: Document = document) {
     doc.querySelector('svg.ds-logo-mark') ??
     doc.querySelector('svg');
   if (!mark) return null;
-  const clone = mark.cloneNode(true) as SVGElement;
-  const from = [mark, ...mark.querySelectorAll('*')];
-  const to = [clone, ...clone.querySelectorAll('*')];
-  const rgb = (value: string) => value;
-  const styles = [...clone.querySelectorAll('style')];
-  to.forEach((node, at) => {
-    const computed = view.getComputedStyle(from[at]);
-    for (const name of [...node.getAttributeNames()])
-      if (name === 'class' || name === 'style' || name.startsWith('data-'))
-        node.removeAttribute(name);
-    if (at === 0) return;
-    node.setAttribute('fill', rgb(computed.fill));
-    if (computed.stroke && computed.stroke !== 'none') {
-      node.setAttribute('stroke', rgb(computed.stroke));
-      node.setAttribute('stroke-width', computed.strokeWidth);
-    }
-    if (computed.opacity !== '1') node.setAttribute('opacity', computed.opacity);
-  });
-  for (const style of styles) style.remove();
-  const box = (mark.getAttribute('viewBox') ?? '0 0 64 64').split(/[\s,]+/).map(Number);
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  clone.setAttribute('width', String(box[2] || 64));
-  clone.setAttribute('height', String(box[3] || 64));
-  clone.removeAttribute('role');
+  // The mark as drawn now, every colour resolved and what is hidden left out.
+  const serialize = () => {
+    const clone = mark.cloneNode(true) as SVGElement;
+    const from = [mark, ...mark.querySelectorAll('*')];
+    const to = [clone, ...clone.querySelectorAll('*')];
+    const rgb = (value: string) => value;
+    const styles = [...clone.querySelectorAll('style')];
+    to.forEach((node, at) => {
+      const computed = view.getComputedStyle(from[at]);
+      for (const name of [...node.getAttributeNames()])
+        if (name === 'class' || name === 'style' || name.startsWith('data-'))
+          node.removeAttribute(name);
+      if (at === 0) return;
+      if (computed.display === 'none') {
+        node.setAttribute('data-hidden-cut', '');
+        return;
+      }
+      node.setAttribute('fill', rgb(computed.fill));
+      if (computed.stroke && computed.stroke !== 'none') {
+        node.setAttribute('stroke', rgb(computed.stroke));
+        node.setAttribute('stroke-width', computed.strokeWidth);
+      }
+      if (computed.opacity !== '1') node.setAttribute('opacity', computed.opacity);
+    });
+    for (const style of styles) style.remove();
+    const box = (mark.getAttribute('viewBox') ?? '0 0 64 64').split(/[\s,]+/).map(Number);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('width', String(box[2] || 64));
+    clone.setAttribute('height', String(box[3] || 64));
+    clone.removeAttribute('role');
+    for (const node of [...clone.querySelectorAll('[data-hidden-cut]')]) node.remove();
+    return clone.outerHTML;
+  };
   let ground = 'rgb(255, 255, 255)';
   for (let at: Element | null = mark; at; at = at.parentElement) {
     const paint = view.getComputedStyle(at).backgroundColor;
@@ -266,7 +275,15 @@ export function readMark(doc: Document = document) {
       break;
     }
   }
-  return { svg: clone.outerHTML, ground, ink: view.getComputedStyle(mark).color };
+  const svg = serialize();
+  // The small cut (a <g class="small"> the kit shows at 32 px and under), when the mark has one.
+  let small: string | null = null;
+  if (mark.querySelector('.small')) {
+    mark.classList.add('small-cut');
+    small = serialize();
+    mark.classList.remove('small-cut');
+  }
+  return { svg, small, ground, ink: view.getComputedStyle(mark).color };
 }
 
 /**
@@ -405,20 +422,27 @@ export async function shootBoard(
  * and the favicon sizes. Null when the board has no SVG mark.
  */
 export async function drawMarks(tab: DrawingTab): Promise<LogoMarks | null> {
-  const mark = await tab.evaluate<{ svg: string; ground: string; ink: string } | null>(
-    run(readMark),
-  );
+  const mark = await tab.evaluate<{
+    svg: string;
+    small: string | null;
+    ground: string;
+    ink: string;
+  } | null>(run(readMark));
   if (!mark) return null;
   const crop = async (
     size: number,
     options: { ink?: string; radius?: number; inset?: number } = {},
     ground = mark.ground,
+    svg = mark.svg,
   ) => {
-    await tab.evaluate(run(showMark, mark.svg, size, ground, options));
+    await tab.evaluate(run(showMark, svg, size, ground, options));
     return tab.screenshot({ clip: { x: 0, y: 0, width: size, height: size } });
   };
   const sizes: LogoMarks['sizes'] = [];
-  for (const size of logoMarkSizes) sizes.push({ size, png: await crop(size) });
+  const cutFor = (size: number) => (size <= 32 && mark.small) || mark.svg;
+  for (const size of logoMarkSizes)
+    sizes.push({ size, png: await crop(size, {}, mark.ground, cutFor(size)) });
+  const smallReference = mark.small ? await crop(128, {}, mark.ground, mark.small) : undefined;
   const icons: LogoMarks['icons'] = [];
   for (const size of [120, 60]) {
     // Light: the mark in its ink on the ground, in a rounded square; dark: the reverse.
@@ -441,7 +465,7 @@ export async function drawMarks(tab: DrawingTab): Promise<LogoMarks | null> {
       png: await tab.screenshot({ clip: { x: 0, y: 0, width: size, height: size } }),
     });
   }
-  return { svg: mark.svg, ground: mark.ground, ink: mark.ink, sizes, icons };
+  return { svg: mark.svg, ground: mark.ground, ink: mark.ink, sizes, icons, smallReference };
 }
 
 const escapeHtml = (text: string) =>
@@ -551,8 +575,9 @@ function sheetFigure(
     )
     .join('');
   const favicons = [16, 32].map((size) => cell(size, size, '', `Favicon ${size} px`)).join('');
+  // The board itself first, as drawn (its lockups, tiles and notes), then the mark at its sizes.
   return (
-    `<div class="sheet"><div class="row" data-row="sizes">${[
+    `<div class="sheet"><div class="row" data-row="board"><img src="${dataUri(png)}" style="width:720px;height:auto"></div><div class="row" data-row="sizes">${[
       cell(512, 256, 'shown at half'),
       cell(128, 128, '1:1'),
       cell(64, 64, '1:1'),

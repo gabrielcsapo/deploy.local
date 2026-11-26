@@ -141,8 +141,10 @@ export type LogoMarks = {
   /** The colour the mark sits on, and the ink it is drawn in, as CSS colours. */
   ground: string;
   ink: string;
-  /** The mark at true pixel size: size x size px, 1:1. */
+  /** The mark at true pixel size: size x size px, 1:1 (32 px and under from the small cut, if any). */
   sizes: { size: number; png: Buffer }[];
+  /** The small cut drawn at 128 px, to read its strokes against its own 16 px drawing; absent without one. */
+  smallReference?: Buffer;
   /** The app icon, a rounded square: the mark in its ink on the ground (light) and the reverse (dark). */
   icons: { tone: 'light' | 'dark'; size: number; png: Buffer }[];
 };
