@@ -82,6 +82,9 @@
 .dz-ed .nb .t {
   font: 600 15px/24px var(--font-sans);
 }
+.dz-ed .nb .dl-btn:empty {
+  display: none;
+}
 .dz-ed .nb .dl-btn {
   height: 32px;
   padding: 0 var(--space-3);
@@ -271,7 +274,7 @@
 .dz-ed .lr.open .tw svg {
   transform: rotate(90deg);
 }
-.dz-ed .lr:not(.d0) .tw svg,
+.dz-ed .lr:not(.d0, .kids, .open) .tw svg,
 .dz-ed .lr.k-note .tw svg {
   visibility: hidden;
 }
