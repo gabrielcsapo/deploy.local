@@ -217,6 +217,123 @@ export function noteOverlapProblems(canvas: Canvas | null | undefined, main: Can
   return findings;
 }
 
+/** Words that come first in a pair or a run of boards: Front before Back, Cover before Inside. */
+const wordRank: Record<string, number> = {
+  cover: 0,
+  front: 0,
+  intro: 0,
+  light: 0,
+  inside: 1,
+  back: 2,
+  dark: 2,
+};
+
+/**
+ * Board file names in the order a person counts them: Slide2 before Slide10, Front before Back.
+ * A name's words and numbers are compared part by part; the canvas's own order wins when it lists
+ * both boards.
+ */
+export function boardOrder(a: string, b: string, order: string[] = []) {
+  const [at, bt] = [order.indexOf(a), order.indexOf(b)];
+  if (at >= 0 && bt >= 0) return at - bt;
+  const parts = (file: string) =>
+    (file.replace(/\.html$/, '').match(/\d+|[A-Z]?[a-z]+|[A-Z]+(?![a-z])/g) ?? []).map((part) =>
+      /^\d+$/.test(part) ? Number(part) : part.toLowerCase(),
+    );
+  const [pa, pb] = [parts(a), parts(b)];
+  for (let n = 0; n < Math.max(pa.length, pb.length); n++) {
+    const [x, y] = [pa[n], pb[n]];
+    if (x === y) continue;
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+    if (typeof x === 'number' && typeof y === 'number') return x - y;
+    if (typeof x === 'number') return -1;
+    if (typeof y === 'number') return 1;
+    const [rx, ry] = [wordRank[x], wordRank[y]];
+    if (rx !== undefined && ry !== undefined && rx !== ry) return rx - ry;
+    return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/** The gap boards on this canvas keep: the row at y if it has one, else the median over all rows. */
+export function canvasGap(canvas: Canvas | null | undefined, y: number, fallback = 160) {
+  const own = rowGap(canvas, y, -1);
+  if (own > 0) return own;
+  const gaps = [
+    ...new Set(
+      Object.values(canvas?.boards ?? {})
+        .map(rectOf)
+        .filter((rect): rect is Rect => Boolean(rect))
+        .map((rect) => rect.y),
+    ),
+  ]
+    .map((row) => rowGap(canvas, row, -1))
+    .filter((gap) => gap > 0)
+    .sort((a, b) => a - b);
+  return gaps.length ? gaps[Math.floor(gaps.length / 2)] : fallback;
+}
+
+/** Whether a rectangle is clear of every board and note but those named, by half a gap. */
+function isFree(
+  canvas: Canvas | null | undefined,
+  rect: Rect,
+  gap: number,
+  except: string[],
+) {
+  const padded = { x: rect.x - gap / 2, y: rect.y - gap / 2, w: rect.w + gap, h: rect.h + gap };
+  return !occupied(canvas, except).some((other) => intersects(padded, other));
+}
+
+/** Boards a row holds before the next board starts another row. */
+export const rowLength = 6;
+
+/**
+ * Beside its siblings: boards of one kind in a row in name and number order, with the canvas's
+ * gap, a new row below past six. It goes right of the sibling before it in that order, else left
+ * of the one after; a place that is taken falls back to the free place nearest that sibling.
+ * Null when it has no sibling placed.
+ */
+export function placeInRow(input: {
+  canvas: Canvas | null | undefined;
+  file: string;
+  size: { w: number; h: number };
+  siblings: string[];
+  order?: string[];
+}): { x: number; y: number; side: 'right' | 'left' | 'below' | 'bottom'; near: string } | null {
+  const placed = input.siblings
+    .filter((file) => file !== input.file && rectOf(input.canvas?.boards?.[file]))
+    .sort((a, b) => boardOrder(a, b, input.order));
+  if (!placed.length) return null;
+  const before = placed.filter((file) => boardOrder(file, input.file, input.order) < 0);
+  const anchor = before.at(-1) ?? placed[0];
+  const rect = rectOf(input.canvas?.boards?.[anchor])!;
+  const gap = canvasGap(input.canvas, rect.y);
+  const except = [input.file];
+  const { w, h } = input.size;
+  if (before.length) {
+    const row = placed
+      .map((file) => rectOf(input.canvas?.boards?.[file])!)
+      .filter((other) => Math.abs(other.y - rect.y) < 1);
+    if (row.length >= rowLength) {
+      const start = Math.min(...row.map((other) => other.x));
+      const bottom = Math.max(...row.map((other) => other.y + other.h));
+      const spot = { x: start, y: bottom + gap, w, h };
+      if (isFree(input.canvas, spot, gap, except))
+        return { x: spot.x, y: spot.y, side: 'below', near: anchor };
+    } else {
+      const spot = { x: rect.x + rect.w + gap, y: rect.y, w, h };
+      if (isFree(input.canvas, spot, gap, except))
+        return { x: spot.x, y: spot.y, side: 'right', near: anchor };
+    }
+  } else {
+    const spot = { x: rect.x - gap - w, y: rect.y, w, h };
+    if (isFree(input.canvas, spot, gap, except))
+      return { x: spot.x, y: spot.y, side: 'left', near: anchor };
+  }
+  return { ...freeSpot(input.canvas, input.size, rect, except), near: anchor };
+}
+
 /**
  * Where --fix puts a board with no place or a bad one: the free place nearest the board it came
  * from (source=, copied_from=, or the one it was found to copy), else nearest where it is.
@@ -226,7 +343,14 @@ export function placeBoard(input: {
   file: string;
   size: { w: number; h: number };
   near: string | null;
+  /** Boards of the same kind already placed: the new board goes in a row with them. */
+  siblings?: string[];
+  order?: string[];
 }) {
+  if (!input.near && input.siblings?.length) {
+    const row = placeInRow({ ...input, siblings: input.siblings });
+    if (row) return row;
+  }
   const near = (input.near && rectOf(input.canvas?.boards?.[input.near])) || null;
   const current = rectOf(input.canvas?.boards?.[input.file]);
   return {

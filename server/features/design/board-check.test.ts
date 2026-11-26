@@ -12,7 +12,12 @@ import {
   platformSchemes,
   printGeometry,
 } from '../../../shared/v2/design-platforms.ts';
-import { instanceQuestions, syncInstances, type Library } from '../../design/board-html.ts';
+import {
+  assignLayerIds,
+  instanceQuestions,
+  syncInstances,
+  type Library,
+} from '../../design/board-html.ts';
 import {
   boardWords,
   brokenLinks,
@@ -44,7 +49,7 @@ import {
   layerNameNote,
   localCopyNotes,
   meaninglessLayers,
-  renameMeaninglessLayers,
+  saysNothing,
   notATokenProblems,
   overlapProblems,
   questionFindings,
@@ -60,7 +65,7 @@ import {
   type DesignTokens,
 } from '../../design/board-quality.ts';
 import { parseBoardMeta, setBoardMetaHeight } from '../../../shared/v2/design-board-meta.ts';
-import { noteRect, placeBoard, rowGap } from '../../design/board-placement.ts';
+import { boardOrder, noteRect, placeBoard, rowGap } from '../../design/board-placement.ts';
 import { layerFates } from '../../design/board-layers.ts';
 import {
   fixedHeight,
@@ -784,32 +789,31 @@ test('new layers whose names say nothing are one note; named ones and old ones a
     '<main data-layer="page"><p data-layer="t">Old</p><span data-layer="a">x</span><span data-layer="t-2">y</span><svg data-layer="svg-3"></svg><b data-layer="item-3">z</b><i data-layer="on"></i><p data-layer="run-status">Passed</p></main>';
   const note = layerNameNote({ file: 'A.html', title: 'A', before, after });
   assert.equal(note!.code, 'layer_name_says_nothing');
-  assert.equal(note!.detail, 'a, t-2, svg-3, item-3, on');
+  assert.equal(note!.detail, 'a, t-2, svg-3, on', 'item-3 is a role with its number');
   assert.equal(layerNameNote({ file: 'A.html', title: 'A', before, after: before }), null);
 });
 
-test('a question is an open note; a layer that asks one and states a date or number is a problem', () => {
+test('a question is an open note; a layer that asks one and shows a sample value is a note, not a problem', () => {
   const before = board('', '<p data-layer="kept">Kept files</p>');
   const after = board(
     '',
     '<p data-layer="kept" data-question="How long are kept files kept?">Kept for 30 days</p><p data-layer="where" data-question="Where do they go?">Somewhere</p>',
   );
   const found = questionFindings({ file: 'Run.html', title: 'Run', before, after });
+  assert.deepEqual(found.problems, []);
   assert.deepEqual(
-    found.problems.map((problem) => [problem.code, problem.layer, problem.detail]),
+    found.notes.map((note) => [note.code, note.layer]),
     [
-      [
-        'question_invented',
-        'kept',
-        '"How long are kept files kept?" but it says "Kept for 30 days"',
-      ],
+      ['question_sample_value', 'kept'],
+      ['open_question', 'kept'],
+      ['open_question', 'where'],
     ],
   );
   assert.deepEqual(
-    found.notes.map((note) => [note.code, note.label]),
+    found.notes.filter((note) => note.code === 'open_question').map((note) => note.label),
     [
-      ['open_question', 'Run asks: How long are kept files kept?'],
-      ['open_question', 'Run asks: Where do they go?'],
+      'Run asks: How long are kept files kept?',
+      'Run asks: Where do they go?',
     ],
   );
   // Questions main already asks are not new notes.
@@ -1527,19 +1531,6 @@ test('a phone board is compared with its source without the web chrome, and a ph
   assert.deepEqual(notes(), ['Package2 leads to Package; PackagePhone has no way to reach it']);
 });
 
-test('question_invented says the thing without a value and keeps the question', () => {
-  const [problem] = questionFindings({
-    file: 'A.html',
-    title: 'A',
-    before: null,
-    after: board('', '<p data-layer="kept" data-question="How long?">Deleted after 30 days</p>'),
-  }).problems;
-  assert.equal(
-    problem!.fix,
-    "say only what is true today, with no value, e.g. 'Kept with this run.', and keep the data-question",
-  );
-});
-
 test('two primaries, meaningless names the board was written with, and cut-off text are problems', async () => {
   const repo = repository();
   try {
@@ -1594,14 +1585,26 @@ test('two primaries, meaningless names the board was written with, and cut-off t
   }
 });
 
-test('--fix names again only the new layers that say nothing', () => {
+test('role words with a number are names; --fix never replaces an ID the author wrote', () => {
   const before = '<main data-layer="page"><p data-layer="t-1">Old</p></main>';
   const after =
-    '<main data-layer="page"><p data-layer="t-1">Old</p><div class="dl-item"><span data-layer="report">report.xml</span><span data-layer="212-kb">212 KB</span></div></main>';
-  assert.deepEqual(meaninglessLayers(before, after), ['212-kb']);
-  const renamed = renameMeaninglessLayers(before, after);
-  assert.match(renamed, /data-layer="t-1"/, "main's IDs stay, even when they say nothing");
-  assert.match(renamed, /<span data-layer="file-report-xml-size">212 KB<\/span>/);
+    '<main data-layer="page"><p data-layer="t-1">Old</p><div data-layer="figure-1">a</div><div data-layer="item-2">b</div><div data-layer="row-3">c</div><div data-layer="budget-figure-2-value">d</div><div data-layer="year-figure-1">e</div><div data-layer="div-1">f</div><div data-layer="ds-card">g</div><span data-layer="212-kb">212 KB</span></main>';
+  assert.deepEqual(meaninglessLayers(before, after), ['div-1', 'ds-card', '212-kb']);
+  assert.equal(saysNothing('figure'), true, 'bare, a role says nothing');
+  // The author's IDs stay whatever the check thinks of them; only elements with none are named.
+  const named = assignLayerIds(after);
+  for (const layer of ['figure-1', 'item-2', 'row-3', 'div-1', '212-kb', 'ds-card'])
+    assert.ok(named.includes(`data-layer="${layer}"`), layer);
+});
+
+test('a new element is named for its role, with its parent and its number, never placeholder copy', () => {
+  const html = assignLayerIds(
+    '<body><main data-layer="budget"><div class="ds-figure"><span class="ds-value">The crop that grew</span></div><div class="ds-figure"><span class="ds-value">Day to be confirmed</span></div><ul class="timeline"><li>First line of text</li><li>Second line</li></ul></main></body>',
+  );
+  const ids = [...html.matchAll(/data-layer="([^"]*)"/g)].map((match) => match[1]);
+  assert.ok(ids.includes('budget-figure-2-value'), ids.join());
+  assert.ok(ids.includes('budget-timeline-item-1'), ids.join());
+  for (const id of ids) assert.ok(!/to-be|confirmed|the-crop|first-line/.test(id), id);
 });
 
 test('the check counts a link to a phone counterpart, by name or by source=, as reaching the web board', async () => {
@@ -1758,28 +1761,30 @@ test('an instance asks about its inner layers on its root; sync keeps the questi
   assert.deepEqual(found.problems, []);
 });
 
-test('question_invented flags only a value of the kind the question asks for', () => {
+test('a sample value is noted only when it is of the kind the question asks for', () => {
   const flagged = (question: string, text: string) =>
     questionFindings({
       file: 'A.html',
       title: 'A',
       before: null,
       after: board('', `<p data-layer="x" data-question="${question}">${text}</p>`),
-    }).problems.map((problem) => problem.detail);
+    }).notes
+      .filter((note) => note.code === 'question_sample_value')
+      .map((note) => note.detail);
   assert.deepEqual(flagged('Is the size the frame or the window?', 'Web 1440'), []);
   assert.deepEqual(flagged('What does this line mean?', 'Made at Web 1440 · Light'), []);
   assert.deepEqual(flagged('How long are kept files kept?', 'Made at Web 1440'), []);
   assert.deepEqual(flagged('How long are kept files kept?', 'Deleted after 30 days'), [
-    '"How long are kept files kept?" but it says "Deleted after 30 days"',
+    'its question is "How long are kept files kept?"',
   ]);
   assert.deepEqual(flagged('When are they deleted?', 'Deleted on Dec 3'), [
-    '"When are they deleted?" but it says "Deleted on Dec 3"',
+    'its question is "When are they deleted?"',
   ]);
   assert.deepEqual(flagged('How many versions are kept?', 'Keeps 5 versions'), [
-    '"How many versions are kept?" but it says "Keeps 5 versions"',
+    'its question is "How many versions are kept?"',
   ]);
   assert.deepEqual(flagged('How much can it hold?', 'Up to 500 MB'), [
-    '"How much can it hold?" but it says "Up to 500 MB"',
+    'its question is "How much can it hold?"',
   ]);
   assert.deepEqual(flagged('How many versions are kept?', 'Up to 500 MB'), []);
 });
@@ -2869,4 +2874,50 @@ test('the check draws a phone game with its safe areas and status bar, and immer
   });
   assert.deepEqual(fine.result.problems, []);
   assert.ok(!fine.result.notes.some((note) => note.code === 'no_status_bar'));
+});
+
+test('the starter page reset, in any spelling, is not an inline style; other page rules are', () => {
+  const page = (css: string) =>
+    `<html><head><style>${css}</style></head><body><div data-layer="a">x</div></body></html>`;
+  const notes = (css: string) =>
+    inlineStyleNotes({ file: 'A.html', title: 'A', before: null, after: page(css) }).length;
+  assert.equal(notes('html,body{margin:0;background:var(--bg-sunken)}'), 0);
+  assert.equal(
+    notes('html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); color-scheme: light dark }'),
+    0,
+  );
+  assert.equal(notes('body{margin:0;min-height:100vh;background:var(--bg) !important}'), 0);
+  assert.equal(notes('body{margin:0;background:#fff}'), 1);
+  assert.equal(notes('body{font-family:serif}'), 1);
+});
+
+test('new boards go in a row with their kind, in name and number order, wrapping past six', () => {
+  assert.ok(boardOrder('Slide2.html', 'Slide10.html') < 0);
+  assert.ok(boardOrder('CardFront.html', 'CardBack.html') < 0);
+  const canvas: any = {
+    boards: {
+      'Slide1.html': { x: 0, y: 0, w: 1920, h: 1080 },
+      'Slide2.html': { x: 2080, y: 0, w: 1920, h: 1080 },
+      'Slide4.html': { x: 6240, y: 0, w: 1920, h: 1080 },
+    },
+  };
+  const size = { w: 1920, h: 1080 };
+  const siblings = Object.keys(canvas.boards);
+  // Slide3 goes after Slide2 when the place is free, which it is not here (Slide4 is 2080 on).
+  const third = placeBoard({ canvas, file: 'Slide3.html', size, near: null, siblings });
+  assert.deepEqual([third.x, third.y], [4160, 0]);
+  const later = { boards: { ...canvas.boards, 'Slide3.html': { x: 4160, y: 0, ...size } } };
+  const before = placeBoard({ canvas: { boards: { 'Slide2.html': later.boards['Slide2.html'] } }, file: 'Slide1.html', size, near: null, siblings: ['Slide2.html'] });
+  assert.deepEqual([before.x, before.y], [0, 0]);
+  const row = Object.fromEntries(
+    [1, 2, 3, 4, 5, 6].map((n) => [`Slide${n}.html`, { x: (n - 1) * 2080, y: 0, ...size }]),
+  );
+  const wrapped = placeBoard({
+    canvas: { boards: row },
+    file: 'Slide7.html',
+    size,
+    near: null,
+    siblings: Object.keys(row),
+  });
+  assert.deepEqual([wrapped.x, wrapped.y], [0, 1240]);
 });

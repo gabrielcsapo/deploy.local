@@ -62,7 +62,7 @@ describe('design boards', () => {
     const edited = html.replace('</div>', '<p class="dl-meta">Added</p></div>');
     const again = assignLayerIds(edited);
     assert.deepEqual(layerIds(again).slice(0, 7), layerIds(html));
-    assert.ok(again.includes('<p data-layer="added" class="dl-meta">Added</p>'));
+    assert.ok(/<p data-layer="[a-z-]*meta" class="dl-meta">Added<\/p>/.test(again));
     assert.equal(assignLayerIds(again), again);
   });
 

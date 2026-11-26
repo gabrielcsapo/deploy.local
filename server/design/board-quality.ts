@@ -4,7 +4,6 @@
 // already had. Everything here is plain text and arithmetic, so the same code runs on deploy.local
 // and on the computer; what comes from a drawn page arrives as an Inspection.
 import {
-  assignLayerIds,
   boardElements,
   instanceQuestions,
   layerIds,
@@ -447,18 +446,38 @@ const designProperty =
 
 /** The selectors of a <style> block that are the design system's to set: html, body, :root and its classes. */
 const pageSelector = /(^|[\s,>+~])(html|body|:root)(?=$|[\s,.:#[>+~])/;
-/** What the starter's own boards write for the page: no margin, the ground colour. */
+/**
+ * What the starter's own boards write for the page: no margin or padding, the ground colour and
+ * text colour from tokens, the colour scheme, a page as tall as the window. Only tokens and zeros:
+ * a reset sets nothing the design system has not decided.
+ */
 const pageIdiom = (body: string) => {
   const parts = body
+    .replace(/\/\*[\s\S]*?\*\//g, '')
     .split(';')
-    .map((part) => part.trim().replace(/\s+/g, ' ').toLowerCase())
+    .map((part) =>
+      part
+        .trim()
+        .replace(/\s*!important$/i, '')
+        .replace(/\s+/g, ' ')
+        .toLowerCase(),
+    )
     .filter(Boolean);
-  return parts.every(
-    (part) =>
-      part === 'margin: 0' ||
-      /^background(-color)?: var\(--[\w-]+\)$/.test(part) ||
-      /^color-scheme: [a-z ]+$/.test(part),
-  );
+  const token = /^var\(--[\w-]+(?:, ?[^)]*)?\)$/;
+  const zeroOrToken =
+    /^(?:0(?:px)?|var\(--[\w-]+(?:, ?[^)]*)?\))(?: (?:0(?:px)?|var\(--[\w-]+(?:, ?[^)]*)?\)|auto))*$/;
+  return parts.every((part) => {
+    const at = part.indexOf(':');
+    if (at < 0) return false;
+    const property = part.slice(0, at).trim();
+    const value = part.slice(at + 1).trim();
+    if (/^(?:margin|padding)(?:-[a-z]+)?$/.test(property)) return zeroOrToken.test(value);
+    if (/^background(?:-color)?$/.test(property)) return token.test(value);
+    if (property === 'color') return token.test(value);
+    if (property === 'color-scheme') return /^[a-z ]+$/.test(value);
+    if (/^(?:min-)?height$/.test(property)) return /^(?:100%|100d?vh)$/.test(value);
+    return false;
+  });
 };
 
 /**
@@ -588,14 +607,20 @@ export function heightProblem(input: {
 
 // ── Layers ──────────────────────────────────────────────────────────────────────────────────────
 
+/** Names that say nothing even with a number after them: a letter, a tag, a wrapper. */
 const empty =
-  /^(?:[a-z]|t|c|v|x|on|off|end|start|layer|el|element|item|row|box|wrap|wrapper|inner|outer|container|group|block|text|label|content|span|div|svg|path|g|p|a|i|b|em|strong|small|button|img|ul|ol|li|figure)(?:-\d+)?$/;
+  /^(?:[a-z]|t|c|v|x|on|off|end|start|layer|el|element|box|wrap|wrapper|inner|outer|container|group|block|span|div|svg|path|g|p|a|i|b|em|strong|small|img|ul|ol|li)(?:-\d+)?$/;
+/** Role words that name a thing once they say which one: figure-1, item-2, row-3 (bare, they do not). */
+const roleBare = /^(?:item|row|text|label|content|figure|button)$/;
 /**
- * Whether a layer ID says nothing about what the element is: a, a-2, t-2, svg-3, item-3, on.
- * Landmarks (main, nav, header, footer, aside, section) say where they are, so they pass.
+ * Whether a layer ID says nothing about what the element is: a, a-2, t-2, svg-3, div-1, on.
+ * Landmarks (main, nav, header, footer, aside, section) say where they are, so they pass, and so
+ * does a role word with its number (figure-1, item-2, row-3). Names from the design system's own
+ * classes (ds-card) say nothing either.
  */
 /** A name that is only a value says nothing about the element either: 212-kb, 3, 41-s. */
-export const saysNothing = (layer: string) => empty.test(layer) || /^\d/.test(layer);
+export const saysNothing = (layer: string) =>
+  empty.test(layer) || roleBare.test(layer) || /^ds-/.test(layer) || /^\d/.test(layer);
 
 /** New layer IDs on the branch whose names say nothing, as one note for the board. */
 /** New layer IDs on the branch, outside component instances, whose names say nothing. */
@@ -622,19 +647,6 @@ export function meaninglessLayers(before: string | null, after: string | null) {
   ];
 }
 
-/**
- * The board with those layers named again for what they are (deploy design check --fix): only IDs
- * main does not have, so nothing on deploy.local points at them yet.
- */
-export function renameMeaninglessLayers(before: string | null, after: string) {
-  const bad = new Set(meaninglessLayers(before, after));
-  if (!bad.size) return after;
-  const stripped = after.replace(/\sdata-layer="([^"]*)"/g, (whole, layer: string) =>
-    bad.has(layer) ? '' : whole,
-  );
-  return assignLayerIds(stripped);
-}
-
 export function layerNameNote(input: {
   file: string;
   title: string;
@@ -651,7 +663,7 @@ export function layerNameNote(input: {
     label: `${input.title} has ${bad.length} new layer${bad.length === 1 ? '' : 's'} whose name says nothing`,
     detail: `${bad.slice(0, 6).join(', ')}${bad.length > 6 ? ` and ${bad.length - 6} more` : ''}`,
     short: 'layer names say nothing',
-    fix: 'rename each data-layer for what it is, like file-report-xml-size, or run deploy design check --fix (only IDs main does not have)',
+    fix: 'rename each data-layer for what it is, like file-report-xml-size or budget-figure-2-value (a role word with a number, figure-1, is fine); --fix never changes an ID you wrote',
   };
 }
 
@@ -756,16 +768,19 @@ export function questionFindings(input: {
       // Words around the fact, so the agent sees what it said.
       const { at } = fact;
       const words = entry.text.slice(Math.max(0, at - 20), at + 30).trim();
-      problems.push({
-        code: 'question_invented',
-        file: input.file,
-        board: input.title,
-        ...(entry.layer ? { layer: entry.layer } : {}),
-        label: `${input.title} answers its own question in ${entry.layer || 'a layer'}`,
-        detail: `"${entry.question}" but it says "${words}"`,
-        short: 'question answered with a made-up fact',
-        fix: "say only what is true today, with no value, e.g. 'Kept with this run.', and keep the data-question",
-      });
+      // A plausible sample on the layer that asks for it is the intended case: drawn at real
+      // density, and flagged by its own question. It stays a note so the owner sees the value.
+      if (!old.has(`${entry.layer} ${entry.question}`))
+        notes.push({
+          code: 'question_sample_value',
+          file: input.file,
+          board: input.title,
+          ...(entry.layer ? { layer: entry.layer } : {}),
+          label: `${input.title} shows a sample in ${entry.layer || 'a layer'}: "${words}"`,
+          detail: `its question is "${entry.question}"`,
+          short: 'sample value, flagged by its question',
+          fix: 'fine while the data-question stays; the owner answers it in a comment',
+        });
     }
     if (old.has(`${entry.layer} ${entry.question}`)) continue;
     notes.push({
@@ -1535,7 +1550,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     problem: true,
     means: 'data-theme on the page, its root or an instance root',
   },
-  { code: 'question_invented', problem: true, means: 'a layer asks a question and states a value' },
+  {
+    code: 'question_sample_value',
+    problem: false,
+    means: 'a layer states a sample value and its own data-question asks for it (allowed)',
+  },
   { code: 'height_differs', problem: true, means: 'canvas.json and the head disagree; --fix' },
   {
     code: 'lost_layer',

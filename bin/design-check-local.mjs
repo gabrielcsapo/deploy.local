@@ -213,15 +213,34 @@ export async function openLocalDrawing({
       }
     },
     /** A board as a PDF on its paper: one page when its frame is fixed, as many as it needs otherwise. */
-    async pdf({ commit, file, width, height, paperWidth, paperHeight, fixed, css }) {
+    async pdf({ commit, file, width, height, paperWidth, paperHeight, fixed, css, cropMarks }) {
       const html = read(commit, `boards/${file}`);
       if (!html) return null;
       let built = await page(commit, html.toString());
       // A fixed frame is one page: nothing runs on to a second sheet for a fraction of a pixel.
-      const style = `<style>html,body{margin:0}${fixed ? `html,body{max-height:${paperHeight}px;overflow:hidden}` : ''}</style>`;
+      let marksSvg = '';
+      if (cropMarks) {
+        // The slug round the bleed holds the marks: fine black lines at each trim corner, starting
+        // a millimetre outside the bleed so none prints in it, and running to the slug's edge.
+        const { slug, bleed, trimW, trimH } = cropMarks;
+        const gap = 96 / 25.4;
+        const [left, right] = [slug + bleed, slug + bleed + trimW];
+        const [top, bottom] = [slug + bleed, slug + bleed + trimH];
+        const lines = [];
+        const reach = bleed + gap;
+        for (const x of [left, right]) {
+          lines.push(`M${x} ${top - reach}V${gap / 2}`, `M${x} ${bottom + reach}V${paperHeight - gap / 2}`);
+        }
+        for (const y of [top, bottom]) {
+          lines.push(`M${left - reach} ${y}H${gap / 2}`, `M${right + reach} ${y}H${paperWidth - gap / 2}`);
+        }
+        marksSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${paperWidth}" height="${paperHeight}" style="position:absolute;left:0;top:0;pointer-events:none"><path d="${lines.join('')}" stroke="#000" stroke-width="0.35" fill="none"/></svg>`;
+      }
+      const style = `<style>html,body{margin:0}${cropMarks ? `html{padding:${cropMarks.slug}px;box-sizing:border-box;position:relative;background:#fff}@page{size:${paperWidth}px ${paperHeight}px;margin:0}` : ''}${fixed ? `html,body{max-height:${paperHeight}px;overflow:hidden}` : ''}</style>`;
       built = /<head[^>]*>/i.test(built)
         ? built.replace(/<head[^>]*>/i, (head) => head + style)
         : style + built;
+      if (marksSvg) built = /<\/body>/i.test(built) ? built.replace(/<\/body>/i, `${marksSvg}</body>`) : built + marksSvg;
       const tab = await browser.newTab({ width, height, scheme: 'light', media: 'print' });
       try {
         await tab.setContent(built);
@@ -237,7 +256,8 @@ export async function openLocalDrawing({
         await tab.setContent(
           pairPage({ before, after, width, scheme, questions, layout, ...drawn }),
         );
-        return await tab.screenshot({ fullPage: true });
+        // A new board has no Before beside it: the picture is as wide as the board and its margins.
+        return await tab.screenshot({ fullPage: true, fitWidth: true });
       } finally {
         await tab.close();
       }
