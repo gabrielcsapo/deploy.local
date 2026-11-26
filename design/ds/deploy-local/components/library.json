@@ -161,6 +161,20 @@
       "html": "<div class=\"dl-group\"><div class=\"dl-item\"><svg class=\"dl-fail\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Failed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15 9l-6 6M9 9l6 6\"/></svg><span class=\"dl-t\"><span>Job name</span><span class=\"dl-cmd\">command --flag</span></span><span class=\"dl-c\">Failed · 00 s</span></div><div class=\"dl-nest\"><div class=\"dl-nest-caption\">Caption from the job</div><div class=\"dl-nest-row dl-file\"><span class=\"dl-file-name\" title=\"path/to/file.ext\"><span>path/to/file.ext</span></span><span class=\"dl-file-size\">00 KB</span><button type=\"button\" class=\"dl-btn quiet\">Download</button></div><div class=\"dl-nest-row dl-file missing\"><span class=\"dl-file-name\"><span>path/to/*.ext</span></span><span class=\"dl-file-why\">No files matched</span></div></div><div class=\"dl-item\"><svg class=\"dl-ok\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg><span class=\"dl-t\"><span>Job name</span><span class=\"dl-cmd\">command --flag</span></span><span class=\"dl-c\">Passed · 00 s</span></div></div>"
     },
     {
+      "id": "nested-rows-setting",
+      "name": "Rows inside a setting row",
+      "group": "Lists and feedback",
+      "description": "What a setting row holds, like the files a pipeline job kept under its job in a Jobs list: a fragment to insert directly after an existing .dl-setting (in its .dl-inset), not a group of its own. It hangs from a hairline at the row's text edge, its rows indented 16 px; the row's separator moves after it. End with .dl-nest-note for one line about all the rows.",
+      "props": [
+        {
+          "id": "note",
+          "label": "Note",
+          "default": "Closing line about these rows"
+        }
+      ],
+      "html": "<div class=\"dl-nest\"><div class=\"dl-nest-row dl-file\"><span class=\"dl-file-name\" title=\"path/to/folder/file-name.ext\"><span>path/to/folder/</span><span>file-name.ext</span></span><span class=\"dl-file-size\">00 KB</span><button type=\"button\" class=\"dl-btn quiet\">Download</button></div><div class=\"dl-nest-row dl-file missing\"><span class=\"dl-file-name\"><span>path/to/*.ext</span></span><span class=\"dl-file-why\">No files matched</span></div><div class=\"dl-nest-note\">{{note}}</div></div>"
+    },
+    {
       "id": "nested-rows-phone",
       "name": "Phone rows inside a row",
       "group": "Lists and feedback",
@@ -239,7 +253,7 @@
       "id": "command-row-phone",
       "name": "Phone row with a command",
       "group": "Lists and feedback",
-      "description": "A phone row whose second line is a command: 13 px mono that wraps; the glyph and time stay with the first line.",
+      "description": "A phone row whose second line is a command: 13 px mono that wraps; the glyph and time stay with the first line. The markup is one row: put it inside a .dl-ph-group with the list’s other rows.",
       "props": [
         {
           "id": "title",
@@ -257,21 +271,32 @@
           "default": "00 s"
         }
       ],
-      "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-ok\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg></span><span class=\"dl-t\"><span>{{title}}</span><span class=\"dl-cmd\">{{command}}</span></span><span class=\"dl-c\">{{time}}</span></div></div>"
+      "html": "<div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-ok\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg></span><span class=\"dl-t\"><span>{{title}}</span><span class=\"dl-cmd\">{{command}}</span></span><span class=\"dl-c\">{{time}}</span></div>"
     },
     {
       "id": "phone-status",
       "name": "Phone status",
       "group": "Lists and feedback",
-      "description": "The web’s status glyphs at 18 px leading a phone row: passed (dl-ok), failed (dl-fail), running (dl-run), skipped (dl-skip).",
-      "props": [],
-      "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-ok\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg></span><span class=\"dl-t\"><span>Job name</span></span><span class=\"dl-c\">00 s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-fail\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Failed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15 9l-6 6M9 9l6 6\"/></svg></span><span class=\"dl-t\"><span>Job name</span></span><span class=\"dl-c\">00 s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-run\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Running\"><path d=\"M12 3a9 9 0 1 0 9 9\"/></svg></span><span class=\"dl-t\"><span>Job name</span></span><span class=\"dl-c\">00 s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-skip\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Skipped\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12h8\"/></svg></span><span class=\"dl-t\"><span>Job name</span></span><span class=\"dl-c\">Skipped</span></div></div>"
+      "description": "One phone row led by the web’s status glyph at 18 px. The sample is passed (dl-ok); swap the svg’s class and path for failed (dl-fail), running (dl-run) or skipped (dl-skip), as on DesignSystemRows. The markup is one row: put it inside a .dl-ph-group with the list’s other rows.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Job name"
+        },
+        {
+          "id": "time",
+          "label": "Time",
+          "default": "00 s"
+        }
+      ],
+      "html": "<div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-ok\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg></span><span class=\"dl-t\"><span>{{title}}</span></span><span class=\"dl-c\">{{time}}</span></div>"
     },
     {
       "id": "phone-row-mono",
       "name": "Phone row · mono first line",
       "group": "Lists and feedback",
-      "description": "A phone row whose first line is code, like a package and its version: 15 px mono, which reads at the weight of 17 px text.",
+      "description": "A phone row whose first line is code, like a package and its version: 15 px mono, which reads at the weight of 17 px text. The markup is one row: put it inside a .dl-ph-group with the list’s other rows.",
       "props": [
         {
           "id": "name",
@@ -284,7 +309,7 @@
           "default": "Secondary line"
         }
       ],
-      "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-t\"><span class=\"dl-mono\">{{name}}</span><span>{{detail}}</span></span></div></div>"
+      "html": "<div class=\"dl-ph-row\"><span class=\"dl-t\"><span class=\"dl-mono\">{{name}}</span><span>{{detail}}</span></span></div>"
     },
     {
       "id": "worklog",
@@ -636,12 +661,17 @@
           "default": "Item name"
         },
         {
+          "id": "state",
+          "label": "State",
+          "default": "State"
+        },
+        {
           "id": "meta",
           "label": "Meta",
           "default": "Kind · part of Project · 0000000"
         }
       ],
-      "html": "<div class=\"dl-ph-head\"><h2 class=\"dl-ph-head-title\">{{title}}</h2><p class=\"dl-ph-head-meta\"><span class=\"dl-status\"><span class=\"dl-dot\"></span>Healthy</span><span>{{meta}}</span></p></div>"
+      "html": "<div class=\"dl-ph-head\"><h2 class=\"dl-ph-head-title\">{{title}}</h2><p class=\"dl-ph-head-meta\"><span class=\"dl-status\"><span class=\"dl-dot\"></span>{{state}}</span><span>{{meta}}</span></p></div>"
     },
     {
       "id": "phone-actions",
