@@ -3,8 +3,10 @@
    Light first, with a matching dark theme: it follows the system (prefers-color-scheme)
    unless a page pins it with data-theme="light" or data-theme="dark".
    Names are read by tools: --text-* type sizes, --leading-* line heights, --space-*,
-   --radius-*, and colour tokens with hex values in the light and dark blocks. */
+   --radius-*, and colour tokens with hex values in the light and dark blocks. Those tools match
+   the theme selectors with double quotes, so the formatter is told to leave them as they are. */
 
+/* prettier-ignore */
 :root,
 [data-theme="light"] {
   --brand: #2f5bb7;
@@ -36,6 +38,7 @@
   color-scheme: light;
 }
 
+/* prettier-ignore */
 [data-theme="dark"] {
   --accent: color-mix(in srgb, var(--brand) 50%, #ffffff);
   --on-accent: #111013;
@@ -65,6 +68,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  /* prettier-ignore */
   :root:not([data-theme="light"]) {
     --accent: color-mix(in srgb, var(--brand) 50%, #ffffff);
     --on-accent: #111013;
