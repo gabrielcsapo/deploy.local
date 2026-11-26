@@ -106,9 +106,37 @@ The design-system board `DesignSystemRows` shows them in light and dark, on web 
   </div>
   ```
 
+## Phone screens
+
+How the iPhone app (native/Apple, `V2*` views) is built, for phone boards. Where the app has no answer, it says not decided; ask rather than invent.
+
+- **Tab roots.** Work, Projects, Live, Computers and Settings are the tab bar (`.dl-tabbar`), which takes the sidebar's place; a phone has no sidebar. A root opens with its 28 px large title (`.dl-ph-large`) and no back. Search and New message live only on Work: search at the top left opens full screen, the compose icon at the top right opens the composer as a sheet. Waiting on you opens from Work as a sheet.
+- **Pushed details.** Inside a tab, tapping a row pushes a screen: Projects → a project → Releases → a release, or → an app. The tab bar stays. The top bar (`.dl-ph-top`) has back on the left and an inline 17 px title, with nothing on the right. The title names what the screen shows: the item ("home-gym", "Release 7f3b2d4", the app's name), or for a list, the list with its owner ("home-gym releases", "Pull requests"). A project's page also repeats its name as the large title.
+- **Sheets.** Tasks and agent conversations, a decision, Packages and a package's versions, Ship, Backups and Artifacts open as sheets over the tab bar (`.dl-ph-sheet` with `.dl-ph-sheet-top`): the title in the middle and Done at the right, or ✕ when creating something (New agent). Inside a sheet, rows push further screens as above.
+- **List and detail.** The app has no split view and no switcher: where the web shows a list beside a detail, the phone list is its own screen and each row pushes the detail. The detail never embeds the list.
+- **Height and scroll.** A phone board is 390 × 844 (`.dl-phone`); never grow it. Content scrolls in `.dl-ph-body`, under the top bar and above the tab bar, with no scroll bar. Draw the first screenful in order and let the rest run under the tab bar; the body scrolls when the board is opened.
+- **Header.** A detail's top bar names it, so the content starts with its state: the app page's first line is a status and its facts ("Healthy · Web app · part of home-gym · 9c3e1fa"), `.dl-ph-head` with `.dl-ph-head-meta`. Add `.dl-ph-head-title` (22) only when the bar does not already name the item. A release opens with a summary row in a group instead.
+- **Actions.** A screen's actions are full-width buttons (44 high, 17 px) after its content, the last thing in the scroll, primary first (`.dl-ph-actions`): "Roll back to 81be0d2…" ends Releases, "Ask for a fix" ends a failed release. Pushed details put no action in the top bar. A bar pinned above the tab bar is not decided; the app does not do it.
+- **From web to phone.** A button that opens something (Log, Versions) becomes a row that opens its screen, with `.dl-chev`. A status word becomes the state at the row's end (`.dl-status`: a dot and a short label, as the app's `V2Status`), or a status glyph leading a run's row (`.dl-ph-status`). A kind glyph stays a `.dl-tile` (a package stays a package tile). A link to a web detail goes to that detail's phone board: Package → PackageVersionsPhone. Tabs inside a web page (Overview, Requests, Settings) become rows on the item's phone screen that push each part; a tab strip on phone is not decided.
+
+  ```html
+  <div class="dl-phone">
+    <header class="dl-ph-top">
+      …back… <span class="dl-t">home-gym releases</span><span style="width:44px"></span>
+    </header>
+    <div class="dl-ph-body">
+      …groups…
+      <div class="dl-ph-actions">
+        <button class="dl-btn secondary">Roll back to 81be0d2…</button>
+      </div>
+    </div>
+    <nav class="dl-tabbar">…</nav>
+  </div>
+  ```
+
 ## Components
 
-Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settings rows, Rows inside a row, File row, Row with a command, Status, Phone status, Phone row with a mono first line, Dialog, Phone. Each card shows its markup; class names live in `components/bundle.css`.
+Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settings rows, Rows inside a row, File row, Row with a command, Status, Phone status, Phone row with a mono first line, Phone sheet top bar, Phone detail header, Phone actions, Dialog, Phone. Each card shows its markup; class names live in `components/bundle.css`.
 
 ## States and trust moments
 

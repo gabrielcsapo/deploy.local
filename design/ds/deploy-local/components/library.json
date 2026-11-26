@@ -611,6 +611,58 @@
       "html": "<header class=\"dl-ph-top\"><a href=\"HomePhone.html\" class=\"dl-ph-btn\" aria-label=\"Back\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 6l-6 6 6 6\"/></svg></a><span class=\"dl-t\"><a href=\"AgentInfoPhone.html\" style=\"display:flex;flex-direction:column;align-items:center;line-height:1.2\"><span>Scout</span><span style=\"font-size:12px;line-height:16px;font-weight:400;color:var(--muted)\">2 tasks running ›</span></a></span><button type=\"button\" class=\"dl-ph-btn\" aria-label=\"More\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"5\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/></svg></button></header>"
     },
     {
+      "id": "phone-sheet-top",
+      "name": "Phone sheet top bar",
+      "group": "Navigation",
+      "description": "A sheet over a phone screen (Packages, a package's versions, Ship, Artifacts): the screen behind shows above it, its title in the middle and Done at the right. The tab bar is covered.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Sheet title"
+        }
+      ],
+      "html": "<div class=\"dl-phone\" style=\"height:200px\"><div class=\"dl-ph-sheet\"><header class=\"dl-ph-sheet-top\"><h1 class=\"dl-t\">{{title}}</h1><button type=\"button\" class=\"dl-ph-done\">Done</button></header><div class=\"dl-ph-body\"></div></div></div>"
+    },
+    {
+      "id": "phone-head",
+      "name": "Phone detail header",
+      "group": "Navigation",
+      "description": "Under a detail screen's top bar: the item's state and facts in one line, as the iPhone app opens an app's page. Add the 22 px title only when the top bar does not already name the item.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Item name"
+        },
+        {
+          "id": "meta",
+          "label": "Meta",
+          "default": "Kind · part of Project · 0000000"
+        }
+      ],
+      "html": "<div class=\"dl-ph-head\"><h2 class=\"dl-ph-head-title\">{{title}}</h2><p class=\"dl-ph-head-meta\"><span class=\"dl-status\"><span class=\"dl-dot\"></span>Healthy</span><span>{{meta}}</span></p></div>"
+    },
+    {
+      "id": "phone-actions",
+      "name": "Phone actions",
+      "group": "Input",
+      "description": "A phone screen's actions: full-width buttons after its content, the primary first. The last thing in the scroll, not a bar.",
+      "props": [
+        {
+          "id": "primary",
+          "label": "Primary",
+          "default": "Primary action"
+        },
+        {
+          "id": "secondary",
+          "label": "Secondary",
+          "default": "Secondary action"
+        }
+      ],
+      "html": "<div class=\"dl-phone\" style=\"height:auto\"><div class=\"dl-ph-actions\"><button type=\"button\" class=\"dl-btn primary\">{{primary}}</button><button type=\"button\" class=\"dl-btn secondary\">{{secondary}}</button></div></div>"
+    },
+    {
       "id": "phone-group",
       "name": "Phone list group",
       "group": "Navigation",
