@@ -79,6 +79,43 @@
   align-items: center;
   gap: var(--space-1);
 }
+.dz-ed .nb-page {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--sidebar);
+  color: var(--ink-soft);
+}
+.dz-ed .nb-page .np {
+  display: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.dz-ed-shell.page-1 .np1,
+.dz-ed-shell.page-2 .np2,
+.dz-ed-shell.page-3 .np3,
+.dz-ed-shell.page-4 .np4,
+.dz-ed-shell.page-5 .np5,
+.dz-ed-shell.page-6 .np6 {
+  display: inline;
+}
+/* One primary button: while a comment is being written, Comment is it and Propose steps back. */
+.dz-ed .propose-quiet,
+.dz-ed-shell.panel-comments:has(.draft-text:not(:empty)) .propose-main {
+  display: none;
+}
+.dz-ed-shell.panel-comments:has(.draft-text:not(:empty)) .propose-quiet {
+  display: inline-flex;
+}
+.dz-ed-shell.mode-reviewing .propose-quiet {
+  display: none;
+}
 .dz-ed .nb .t {
   font: 600 15px/24px var(--font-sans);
 }
@@ -381,7 +418,7 @@
   background: var(--paper);
   border-bottom: 1px solid var(--line);
 }
-.dz-ed .bar a {
+.dz-ed .bar a:not(.dl-btn, .dl-seg a) {
   display: flex;
   align-items: center;
   min-height: 44px;
@@ -410,6 +447,18 @@
   align-items: center;
   gap: var(--space-2);
   flex: none;
+}
+.dz-ed .review-note:empty {
+  display: none;
+}
+.dz-ed .review-note {
+  white-space: nowrap;
+}
+.dz-ed .rv-bar-end.decided .dl-btn {
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+  border-color: transparent;
 }
 .dz-ed .rv-bar-end .dl-seg a {
   min-height: 0;
@@ -833,6 +882,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.dz-ed .comment .comment-line {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.dz-ed .comment .comment-line:empty,
+.dz-ed .comment .on-layer:empty {
+  display: none;
+}
 .dz-ed .comments-empty {
   margin: 0;
   color: var(--muted);
@@ -858,6 +916,62 @@
 }
 .dz-ed .comment-form .dl-btn {
   align-self: flex-end;
+}
+/* The comment being written: where it is, what it says and who it goes to. */
+.dz-ed .comment-form .draft-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.dz-ed .comment-form .draft-where:has(.on-layer:empty) {
+  display: none;
+}
+.dz-ed .comment-form .on-layer {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--sidebar);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.dz-ed .comment-form .draft-tag {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dz-ed .comment-form .draft-tag:empty {
+  display: none;
+}
+.dz-ed .comment-form .draft-tag + .draft-tag::before {
+  content: "· ";
+}
+.dz-ed .comment-form .draft-text {
+  color: var(--ink);
+}
+.dz-ed .comment-form .draft-text:empty,
+.dz-ed .comment-form .field:has(.draft-text:not(:empty)) .draft-placeholder {
+  display: none;
+}
+.dz-ed .comment-form .field:has(.draft-text:not(:empty)) {
+  border-color: var(--accent);
+}
+.dz-ed .comment-form .draft-to {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.dz-ed .comment-form .draft-to b {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.dz-ed .comment-form .draft-to:has(b:empty) {
+  display: none;
+}
+/* Comment stays the form's button; with nothing written it cannot send yet. */
+.dz-ed .comment-form:has(.draft-text:empty) .dl-btn {
+  opacity: 0.5;
 }
 
 /* A review's notes: numbered, with their screen and whether they are sent */
@@ -1049,6 +1163,10 @@
   font: 600 12px/20px var(--font-sans);
   white-space: nowrap;
 }
+/* Pins on the canvas. `.pn` is a pin at a point: a teardrop with a number (a review note) or an
+ * initial (a comment), placed with left and top in the board's frame. `.pn-area` marks an area, a
+ * dashed box with left, top, width and height. `.pn.comment-pin` is a comment's pin; `.pn.draft` is the
+ * one being written, an open ring until it is sent. `.pn-box` is the box a pin is written in. */
 /* Review marks: a changed area, a pin, the box a pin is written in */
 .dz-ed-stage .rvm {
   position: absolute;
@@ -1071,6 +1189,16 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 0 1.5px var(--surface), var(--shadow-sm);
+}
+.dz-ed-stage .pn.comment-pin {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-sm);
+}
+.dz-ed-stage .pn.draft {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .dz-ed-stage .pn-area {
   position: absolute;
