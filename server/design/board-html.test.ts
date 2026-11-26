@@ -348,6 +348,26 @@ describe('board edits', () => {
     assert.ok(synced.includes('<li data-layer="first-row" class="row wide">One</li>'));
     assert.equal(syncInstances(synced, library), synced);
   });
+
+  it('counts a board as its instances drawn again whatever IDs the instance gave its insides', async () => {
+    const { syncInstances, syncsTo } = await import('./board-html.ts');
+    const library = (label: string) => ({
+      components: [
+        { id: 'side', name: 'Side', props: [], html: `<nav class="side"><b>${label}</b></nav>` },
+      ],
+    });
+    const draw = (label: string) =>
+      syncInstances(
+        '<main data-layer="page"><nav data-layer="side" data-component="side">x</nav><p data-layer="body">Hi</p></main>',
+        library(label),
+      );
+    const main = draw('Old');
+    // Drawn afresh, the instance names its insides for its new words; synced, it keeps main's.
+    assert.ok(syncsTo(main, draw('New'), library('New')));
+    assert.ok(syncsTo(main, syncInstances(main, library('New')), library('New')));
+    // A change outside the instance is the board's own.
+    assert.ok(!syncsTo(main, draw('New').replace('>Hi<', '>Hello<'), library('New')));
+  });
 });
 
 describe('board links', () => {

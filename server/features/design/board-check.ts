@@ -21,7 +21,7 @@ import {
   layerChanges,
   layerIds,
   layerSnippet,
-  syncInstances,
+  syncsTo,
   type Library,
 } from '../../design/board-html.ts';
 import { layerLabel } from '../../../shared/v2/design.ts';
@@ -244,7 +244,7 @@ export function instanceOnly(
       before &&
       before !== after &&
       before.includes(' data-component="') &&
-      syncInstances(before, library).trimEnd() === after.trimEnd(),
+      syncsTo(before, after, library),
   );
 }
 

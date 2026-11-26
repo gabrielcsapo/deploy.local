@@ -49,6 +49,7 @@ import {
   layerIds,
   layerSnippet,
   syncInstances,
+  syncsTo,
   type Library,
 } from '../../design/board-html.ts';
 import { currentTaskBranch } from '../../workspace/follow-up.ts';
@@ -457,7 +458,7 @@ async function readSharedParts(
         keptFile(repo, commit, path),
       ]);
       if (!before || !after || !before.includes(' data-component="')) continue;
-      if (syncInstances(before, library).trimEnd() === after.trimEnd()) instanceOnly.push(path);
+      if (syncsTo(before, after, library)) instanceOnly.push(path);
     }
   };
   await Promise.all(Array.from({ length: Math.min(sharedPartsWidth, boards.length) }, worker));

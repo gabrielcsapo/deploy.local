@@ -699,6 +699,34 @@ export function syncInstances(html: string, library: Library) {
   return out === html ? html : assignLayerIds(out);
 }
 
+/**
+ * Whether a board's whole change from `before` is its instances drawn again from `library`. The
+ * layer IDs inside an instance do not count: syncing keeps the ones a board had, while a board
+ * whose instance was drawn afresh names them anew, and landing syncs main's board either way.
+ */
+export function syncsTo(before: string, after: string, library: Library) {
+  const synced = syncInstances(before, library).trimEnd();
+  const drawn = after.trimEnd();
+  return synced === drawn || withoutInstanceLayers(synced) === withoutInstanceLayers(drawn);
+}
+
+/** A board with the layer IDs inside its instances taken out; each instance keeps its own. */
+function withoutInstanceLayers(html: string) {
+  let out = html;
+  const starts = [...out.matchAll(/\sdata-component="[a-z0-9-]+"/g)].map((match) => match.index!);
+  for (const at of starts.reverse()) {
+    const open = out.lastIndexOf('<', at);
+    const close = out.indexOf('>', at);
+    const layer = /\sdata-layer="([^"]*)"/.exec(out.slice(open, close + 1))?.[1];
+    const snippet = layer ? layerSnippet(out, layer) : null;
+    if (!snippet || !out.startsWith(snippet, open)) continue;
+    const head = out.slice(open, close + 1);
+    const inner = snippet.slice(head.length).replace(/\sdata-layer="[^"]*"/g, '');
+    out = out.slice(0, open) + head + inner + out.slice(open + snippet.length);
+  }
+  return out;
+}
+
 /** Children of a layer's inner markup, as [start, end) offsets: elements only, text skipped. */
 function childSpans(inner: string) {
   const spans: [number, number][] = [];
