@@ -13,7 +13,7 @@ Version 2 holds deploy.local to the restraint of [hob](https://github.com/Frigad
 
 ## Visual foundations
 
-- **Type: Hanken Grotesk, five sizes in the app.** `meta` 12 (times, hints, secondary lines) · `ui` 13 (rows, steps, buttons) · `body` 15 (your messages, the composer, card titles) · `title` 22 (detail pages, dialogs, the empty-state question) · `display` 28 (`.dl-display`: the title of a top-level page, such as Waiting on you, Projects, Live, Computers or Settings, and the new-task greeting; once per screen). Agent replies read at `reply` 16/26. Nothing in the app is larger than 28. Phone: 17 for rows and prose, 13 for secondary lines.
+- **Type: Hanken Grotesk, five sizes in the app.** `meta` 12 (times, hints, secondary lines) · `ui` 13 (rows, steps, buttons) · `body` 15 (your messages, the composer, card titles) · `title` 22 (detail pages, dialogs, the empty-state question) · `display` 28 (`.dl-display`: the title of a top-level page, such as Waiting on you, Projects, Live, Computers or Settings, and the new-task greeting; once per screen). Agent replies read at `reply` 16/26. Nothing in the app is larger than 28. Phone follows what the iPhone app draws, and `tokens.json` (group Phone) lists it: `phone-large` 28 (a tab's large title), `phone-sheet-title` 22 (a sheet or detail header), 17 for the top bar title (600), rows and prose, `phone-value` 15 (a row's value, and a mono first line), `phone-meta` 13 (secondary lines, group labels, notes), `phone-status` 11 (the label beside a status dot) and `phone-tab` 10 (tab bar labels only, as iOS draws them). Nothing else on a phone board.
 - **Group labels read as labels.** A label over a group of rows (`.dl-group-label`, the sidebar's section labels, panel and list-group heads) is 13 (12 in the sidebar) at weight 600 in `ink-soft`, with a quiet count beside it in `muted` at 400: "Review designs 6". Never uppercase, never in a pill.
 - **Color: light first, quiet greys.** `ink`, `ink-soft`, `muted` for three levels of text (all ≥4.5:1 on every ground). `action` is near-black in light and near-white in dark: one per pane, for the next decision (a list and the item open beside it are two panes). `accent` violet is the brand mark, links and the active project; it never fills a button. A matching dark theme ships in the same tokens.
 - **Three grounds.** `sidebar` (lowest: the sidebar, code and log wells, the review canvas) → `paper` (the page) → `surface` (raised: list groups, cards, the composer, panels, dialogs, menus). Each step is visible in both themes; dark separates them by lightness (#111013 → #18171b → #24222a) rather than by lines alone.
@@ -52,26 +52,30 @@ Version 2 holds deploy.local to the restraint of [hob](https://github.com/Frigad
 
 ## Rows inside a row, files and commands
 
-The design-system board `DesignSystemRows` shows all four in light and dark, on web and iPhone.
+The design-system board `DesignSystemRows` shows them in light and dark, on web and iPhone. Specimen text is placeholder; take real names from the product and fixtures.
 
-- **Rows inside a row** (`.dl-nest` on web, `.dl-ph-nest` on phone): what a row holds, such as the files a pipeline job kept, sits directly after that row in the same group. It indents to the row's text (44 px web, 46 px phone, after a 16 or 18 px glyph) on a hairline from the glyph; the separator falls after the last nested row. Nested rows (`.dl-nest-row`, `.dl-ph-nest-row`) are 32 px on web and 44 px on phone. Never a box or a second card inside the group, and never nest twice.
+- **Rows inside a row** (`.dl-nest` on web, `.dl-ph-nest` on phone): what a row holds, such as the files a pipeline job kept, sits directly after that row in the same group. It indents to the row's text (44 px web, 46 px phone, after a 16 or 18 px glyph) on a hairline from the glyph; the separator falls after the last nested row. Nested rows (`.dl-nest-row`, `.dl-ph-nest-row`) are 32 px on web and 44 px on phone. Never a box or a second card inside the group, and never nest twice. When the job gave its declared files a caption (`caption:` beside `path:` in the pipeline file, such as “Browser screenshots”), the caption heads that path's rows: `.dl-nest-caption` (12/16, 600, ink-soft) on web, `.dl-ph-nest-caption` (13/18) on phone. Files without a caption come first, with no heading.
 
   ```html
   <div class="dl-item">…job…</div>
-  <div class="dl-nest"><div class="dl-nest-row dl-file">…</div></div>
+  <div class="dl-nest">
+    <div class="dl-nest-row dl-file">…</div>
+    <div class="dl-nest-caption">Caption from the job</div>
+    <div class="dl-nest-row dl-file">…</div>
+  </div>
   ```
 
-- **File row** (`.dl-file` on a `.dl-nest-row`, `.dl-ph-nest-row` or `.dl-item`): the name in mono (`.dl-file-name`), the size (`.dl-file-size`) and a quiet Download (`.dl-btn.quiet` on web, a 44 px `.dl-ph-btn` download icon on phone). Put the folder and the file in two spans to truncate in the middle and keep the file name; one span truncates at the end. Give the full path as `title`. A file that was not kept is `.dl-file.missing`: the name muted and its reason (`.dl-file-why`: "Unsupported file type", "No files matched") in place of size and Download.
+- **File row** (`.dl-file` on a `.dl-nest-row`, `.dl-ph-nest-row` or `.dl-item`): the name in mono (`.dl-file-name`), the size (`.dl-file-size`) and a quiet Download (`.dl-btn.quiet` on web, a 44 px `.dl-ph-btn` download icon on phone). Put the folder and the file in two spans to truncate in the middle and keep the file name; one span truncates at the end. Give the full path as `title`. A file that was not kept is `.dl-file.missing`: the name muted and its reason (`.dl-file-why`) in place of size and Download. A file that matched but was refused shows its real path ("Unsupported file type"); only a pattern that matched nothing shows the pattern ("No files matched").
 
   ```html
   <div class="dl-nest-row dl-file">
-    <span class="dl-file-name" title="test-results/…/output.log"
-      ><span>test-results/…/</span><span>output.log</span></span
-    ><span class="dl-file-size">12 KB</span
+    <span class="dl-file-name" title="path/to/folder/file-name.ext"
+      ><span>path/to/folder/</span><span>file-name.ext</span></span
+    ><span class="dl-file-size">00 KB</span
     ><button type="button" class="dl-btn quiet">Download</button>
   </div>
   <div class="dl-nest-row dl-file missing">
-    <span class="dl-file-name"><span>coverage/*.lcov</span></span
+    <span class="dl-file-name"><span>path/to/*.ext</span></span
     ><span class="dl-file-why">No files matched</span>
   </div>
   ```
@@ -80,8 +84,15 @@ The design-system board `DesignSystemRows` shows all four in light and dark, on 
 
   ```html
   <span class="dl-t"
-    ><span>flight-router-e2e</span
-    ><span class="dl-cmd">pnpm --filter react-flight-router-e2e test</span></span
+    ><span>Job name</span><span class="dl-cmd">command --option value path/to/input.ext</span></span
+  >
+  ```
+
+- **A mono first line on phone** (`.dl-mono` on the first span of a `.dl-ph-row`): for a row whose name is code, such as a package and its version. It is 15/22, which reads at the weight of the row's 17 px text; never set a local size.
+
+  ```html
+  <span class="dl-t"
+    ><span class="dl-mono">package-name 0.0.0</span><span>Secondary line</span></span
   >
   ```
 
@@ -97,7 +108,7 @@ The design-system board `DesignSystemRows` shows all four in light and dark, on 
 
 ## Components
 
-Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settings rows, Rows inside a row, File row, Row with a command, Status, Phone status, Dialog, Phone. Each card shows its markup; class names live in `components/bundle.css`.
+Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settings rows, Rows inside a row, File row, Row with a command, Status, Phone status, Phone row with a mono first line, Dialog, Phone. Each card shows its markup; class names live in `components/bundle.css`.
 
 ## States and trust moments
 

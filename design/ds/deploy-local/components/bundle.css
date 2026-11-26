@@ -889,3 +889,6 @@ a.dl-asks-row:hover{background:color-mix(in srgb,var(--line) 35%,transparent)}
 .dl-ph-status > svg{width:18px;height:18px}
 .dl-ph-row:has(.dl-cmd){align-items:flex-start;padding-top:12px;padding-bottom:12px}
 .dl-ph-row:has(.dl-cmd) > :is(.dl-ph-status,.dl-c){margin-top:2px}
+.dl-nest-caption{padding:8px 0 4px;font-size:12px;line-height:16px;font-weight:600;color:var(--ink-soft)}
+.dl-ph-nest-caption{padding:12px 0 4px;font-size:13px;line-height:18px;font-weight:600;color:var(--ink-soft)}
+.dl-ph-row .dl-t > span.dl-mono:first-child{font-size:15px;line-height:22px}

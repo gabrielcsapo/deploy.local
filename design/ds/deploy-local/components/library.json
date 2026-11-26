@@ -156,17 +156,17 @@
       "id": "nested-rows",
       "name": "Rows inside a row",
       "group": "Lists and feedback",
-      "description": "What a row holds, like the files a pipeline job kept, under that row: indented to its text on a hairline from its glyph, 32 px rows. Never a box inside the card.",
+      "description": "What a row holds, like the files a pipeline job kept, under that row: indented to its text on a hairline from its glyph, 32 px rows. Never a box inside the card. A caption the job gave its declared files heads their rows (.dl-nest-caption).",
       "props": [],
-      "html": "<div class=\"dl-group\"><div class=\"dl-item\"><svg class=\"dl-fail\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Failed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15 9l-6 6M9 9l6 6\"/></svg><span class=\"dl-t\"><span>test</span><span class=\"dl-cmd\">pnpm test</span></span><span class=\"dl-c\">Failed · 1m 52s</span></div><div class=\"dl-nest\"><div class=\"dl-nest-row dl-file\"><span class=\"dl-file-name\" title=\"reports/junit.xml\"><span>reports/junit.xml</span></span><span class=\"dl-file-size\">86 KB</span><button type=\"button\" class=\"dl-btn quiet\">Download</button></div><div class=\"dl-nest-row dl-file missing\"><span class=\"dl-file-name\"><span>coverage/*.lcov</span></span><span class=\"dl-file-why\">No files matched</span></div></div><div class=\"dl-item\"><svg class=\"dl-ok\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg><span class=\"dl-t\"><span>typecheck</span><span class=\"dl-cmd\">pnpm typecheck</span></span><span class=\"dl-c\">Passed · 41 s</span></div></div>"
+      "html": "<div class=\"dl-group\"><div class=\"dl-item\"><svg class=\"dl-fail\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Failed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15 9l-6 6M9 9l6 6\"/></svg><span class=\"dl-t\"><span>Job name</span><span class=\"dl-cmd\">command --flag</span></span><span class=\"dl-c\">Failed · 00 s</span></div><div class=\"dl-nest\"><div class=\"dl-nest-caption\">Caption from the job</div><div class=\"dl-nest-row dl-file\"><span class=\"dl-file-name\" title=\"path/to/file.ext\"><span>path/to/file.ext</span></span><span class=\"dl-file-size\">00 KB</span><button type=\"button\" class=\"dl-btn quiet\">Download</button></div><div class=\"dl-nest-row dl-file missing\"><span class=\"dl-file-name\"><span>path/to/*.ext</span></span><span class=\"dl-file-why\">No files matched</span></div></div><div class=\"dl-item\"><svg class=\"dl-ok\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg><span class=\"dl-t\"><span>Job name</span><span class=\"dl-cmd\">command --flag</span></span><span class=\"dl-c\">Passed · 00 s</span></div></div>"
     },
     {
       "id": "nested-rows-phone",
       "name": "Phone rows inside a row",
       "group": "Lists and feedback",
-      "description": "Rows inside a phone row: indented to its text on a hairline from its status glyph, 44 px rows.",
+      "description": "Rows inside a phone row: indented to its text on a hairline from its status glyph, 44 px rows. A caption the job gave its declared files heads their rows (.dl-ph-nest-caption).",
       "props": [],
-      "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-fail\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Failed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15 9l-6 6M9 9l6 6\"/></svg></span><span class=\"dl-t\"><span>test</span><span class=\"dl-cmd\">pnpm test</span></span><span class=\"dl-c\">1m 52s</span></div><div class=\"dl-ph-nest\"><div class=\"dl-ph-nest-row dl-file\"><span class=\"dl-file-name\" title=\"reports/junit.xml\"><span>reports/junit.xml</span></span><span class=\"dl-file-size\">86 KB</span><button type=\"button\" class=\"dl-ph-btn\" aria-label=\"Download junit.xml\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 4v12M6 10l6 6 6-6M5 20h14\"/></svg></button></div><div class=\"dl-ph-nest-row dl-file missing\"><span class=\"dl-file-name\"><span>coverage/*.lcov</span></span><span class=\"dl-file-why\">No files matched</span></div></div></div>"
+      "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-fail\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Failed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15 9l-6 6M9 9l6 6\"/></svg></span><span class=\"dl-t\"><span>Job name</span><span class=\"dl-cmd\">command --flag</span></span><span class=\"dl-c\">00 s</span></div><div class=\"dl-ph-nest\"><div class=\"dl-ph-nest-caption\">Caption from the job</div><div class=\"dl-ph-nest-row dl-file\"><span class=\"dl-file-name\" title=\"path/to/file.ext\"><span>path/to/file.ext</span></span><span class=\"dl-file-size\">00 KB</span><button type=\"button\" class=\"dl-ph-btn\" aria-label=\"Download file.ext\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 4v12M6 10l6 6 6-6M5 20h14\"/></svg></button></div><div class=\"dl-ph-nest-row dl-file missing\"><span class=\"dl-file-name\"><span>path/to/*.ext</span></span><span class=\"dl-file-why\">No files matched</span></div></div></div>"
     },
     {
       "id": "file-row",
@@ -177,17 +177,17 @@
         {
           "id": "folder",
           "label": "Folder",
-          "default": "test-results/server/release/activate-rolls-back-when-the-health-check-fails/"
+          "default": "path/to/folder/"
         },
         {
           "id": "file",
           "label": "File",
-          "default": "output.log"
+          "default": "file-name.ext"
         },
         {
           "id": "size",
           "label": "Size",
-          "default": "12 KB"
+          "default": "00 KB"
         }
       ],
       "html": "<div class=\"dl-group\"><div class=\"dl-item dl-file\"><span class=\"dl-file-name\" title=\"{{folder}}{{file}}\"><span>{{folder}}</span><span>{{file}}</span></span><span class=\"dl-file-size\">{{size}}</span><button type=\"button\" class=\"dl-btn quiet\">Download</button></div></div>"
@@ -196,12 +196,12 @@
       "id": "file-row-missing",
       "name": "File row · not kept",
       "group": "Lists and feedback",
-      "description": "A file the job asked to keep but could not: the name muted, the reason in place of size and Download.",
+      "description": "A file the job declared but did not keep: the name muted, the reason in place of size and Download. A matched file that was refused shows its real path (“Unsupported file type”); only “No files matched” shows the pattern.",
       "props": [
         {
           "id": "name",
           "label": "Name",
-          "default": "test-results/**/trace.zip"
+          "default": "path/to/refused-file.ext"
         },
         {
           "id": "reason",
@@ -220,17 +220,17 @@
         {
           "id": "title",
           "label": "Title",
-          "default": "flight-router-e2e"
+          "default": "Job name"
         },
         {
           "id": "command",
           "label": "Command",
-          "default": "pnpm --filter react-flight-router-e2e test"
+          "default": "command --option value path/to/input.ext"
         },
         {
           "id": "state",
           "label": "State",
-          "default": "Passed · 38 s"
+          "default": "Passed · 00 s"
         }
       ],
       "html": "<div class=\"dl-group\"><div class=\"dl-item\"><svg class=\"dl-ok\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg><span class=\"dl-t\"><span>{{title}}</span><span class=\"dl-cmd\">{{command}}</span></span><span class=\"dl-c\">{{state}}</span><button type=\"button\" class=\"dl-btn quiet\">Log</button></div></div>"
@@ -244,17 +244,17 @@
         {
           "id": "title",
           "label": "Title",
-          "default": "flight-router-e2e"
+          "default": "Job name"
         },
         {
           "id": "command",
           "label": "Command",
-          "default": "pnpm --filter react-flight-router-e2e test"
+          "default": "command --option value path/to/input.ext"
         },
         {
           "id": "time",
           "label": "Time",
-          "default": "38 s"
+          "default": "00 s"
         }
       ],
       "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-ok\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg></span><span class=\"dl-t\"><span>{{title}}</span><span class=\"dl-cmd\">{{command}}</span></span><span class=\"dl-c\">{{time}}</span></div></div>"
@@ -265,7 +265,26 @@
       "group": "Lists and feedback",
       "description": "The web’s status glyphs at 18 px leading a phone row: passed (dl-ok), failed (dl-fail), running (dl-run), skipped (dl-skip).",
       "props": [],
-      "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-ok\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg></span><span class=\"dl-t\"><span>typecheck</span></span><span class=\"dl-c\">41 s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-fail\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Failed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15 9l-6 6M9 9l6 6\"/></svg></span><span class=\"dl-t\"><span>test</span></span><span class=\"dl-c\">1m 52s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-run\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Running\"><path d=\"M12 3a9 9 0 1 0 9 9\"/></svg></span><span class=\"dl-t\"><span>flight-router-e2e</span></span><span class=\"dl-c\">38 s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-skip\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Skipped\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12h8\"/></svg></span><span class=\"dl-t\"><span>publish</span></span><span class=\"dl-c\">Skipped</span></div></div>"
+      "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-ok\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Passed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12l3 3 5-6\"/></svg></span><span class=\"dl-t\"><span>Job name</span></span><span class=\"dl-c\">00 s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-fail\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Failed\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15 9l-6 6M9 9l6 6\"/></svg></span><span class=\"dl-t\"><span>Job name</span></span><span class=\"dl-c\">00 s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-run\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Running\"><path d=\"M12 3a9 9 0 1 0 9 9\"/></svg></span><span class=\"dl-t\"><span>Job name</span></span><span class=\"dl-c\">00 s</span></div><div class=\"dl-ph-row\"><span class=\"dl-ph-status\"><svg class=\"dl-skip\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Skipped\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12h8\"/></svg></span><span class=\"dl-t\"><span>Job name</span></span><span class=\"dl-c\">Skipped</span></div></div>"
+    },
+    {
+      "id": "phone-row-mono",
+      "name": "Phone row · mono first line",
+      "group": "Lists and feedback",
+      "description": "A phone row whose first line is code, like a package and its version: 15 px mono, which reads at the weight of 17 px text.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Name",
+          "default": "package-name 0.0.0"
+        },
+        {
+          "id": "detail",
+          "label": "Detail",
+          "default": "Secondary line"
+        }
+      ],
+      "html": "<div class=\"dl-ph-group\" style=\"margin:0\"><div class=\"dl-ph-row\"><span class=\"dl-t\"><span class=\"dl-mono\">{{name}}</span><span>{{detail}}</span></span></div></div>"
     },
     {
       "id": "worklog",
