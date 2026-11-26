@@ -3374,6 +3374,7 @@ export function checkDrawing(repo: string): CheckDrawing {
       scale,
       media,
       fullPage,
+      logo,
     }) => {
       const html = await readFile(repo, commit, `${designFolder()}/boards/${file}`);
       if (!html) return null;
@@ -3398,13 +3399,14 @@ export function checkDrawing(repo: string): CheckDrawing {
             measure,
             inspect,
             fullPage,
+            logo,
           });
         } finally {
           await context.close();
         }
       });
     },
-    pair: async ({ before, after, width, height, scheme, questions, layout }) =>
+    pair: async ({ before, after, width, height, scheme, questions, layout, ...drawn }) =>
       withBoardChromium(await drawingChromium(), async (browser) => {
         const context = await browser.newContext({
           viewport: { width: width * 2 + 48, height: height + 64 },
@@ -3412,10 +3414,13 @@ export function checkDrawing(repo: string): CheckDrawing {
         });
         try {
           const tab = await context.newPage();
-          await tab.setContent(pairPage({ before, after, width, scheme, questions, layout }), {
-            waitUntil: 'load',
-            timeout: 15000,
-          });
+          await tab.setContent(
+            pairPage({ before, after, width, scheme, questions, layout, ...drawn }),
+            {
+              waitUntil: 'load',
+              timeout: 15000,
+            },
+          );
           return await tab.screenshot({ fullPage: true });
         } finally {
           await context.close();
@@ -3429,7 +3434,10 @@ function playwrightTab(tab: import('playwright').Page): DrawingTab {
   return {
     setContent: (html) => tab.setContent(html, { waitUntil: 'load', timeout: 15000 }),
     evaluate: (expression) => tab.evaluate(expression),
-    screenshot: (options) => tab.screenshot({ fullPage: Boolean(options?.fullPage) }),
+    screenshot: (options) =>
+      tab.screenshot(
+        options?.clip ? { clip: options.clip } : { fullPage: Boolean(options?.fullPage) },
+      ),
   };
 }
 

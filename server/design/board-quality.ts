@@ -1405,7 +1405,12 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   {
     code: 'logo_small_unreadable',
     problem: false,
-    means: 'logo: contrast under 3:1 at 16 px on a ground',
+    means: 'logo: contrast under 3:1, or strokes and gaps under 1.5 px, at 16 px',
+  },
+  {
+    code: 'logo_ground_follows_scheme',
+    problem: false,
+    means: 'logo: a tile labelled light, dark, reversed or brand changes ground between schemes',
   },
   { code: 'spacing_off_scale', problem: false, means: 'a margin, padding or gap off the scale' },
   { code: 'nearly_aligned', problem: false, means: 'left edges 1 to 4 px apart' },

@@ -181,19 +181,39 @@ export async function openLocalDrawing({
     return inlined.page;
   };
   const drawing = {
-    async shoot({ commit, file, width, height, scheme, measure, inspect, scale, media, fullPage }) {
+    async shoot({
+      commit,
+      file,
+      width,
+      height,
+      scheme,
+      measure,
+      inspect,
+      scale,
+      media,
+      fullPage,
+      printed,
+      logo,
+    }) {
       const html = read(commit, `boards/${file}`);
       if (!html) return null;
       const built = await page(commit, html.toString());
       const tab = await browser.newTab({ width, height, scheme, scale, media });
       try {
-        return await shootBoard(tab, built, { scheme, measure, inspect, fullPage });
+        return await shootBoard(tab, built, {
+          scheme,
+          measure,
+          inspect,
+          fullPage,
+          printed,
+          logo,
+        });
       } finally {
         await tab.close();
       }
     },
     /** A board as a PDF on its paper: one page when its frame is fixed, as many as it needs otherwise. */
-    async pdf({ commit, file, width, height, paperWidth, paperHeight, fixed }) {
+    async pdf({ commit, file, width, height, paperWidth, paperHeight, fixed, css }) {
       const html = read(commit, `boards/${file}`);
       if (!html) return null;
       let built = await page(commit, html.toString());
@@ -206,15 +226,17 @@ export async function openLocalDrawing({
       try {
         await tab.setContent(built);
         await tab.evaluate('document.fonts.ready.then(() => true)');
-        return await tab.pdf({ paperWidth, paperHeight });
+        return await tab.pdf({ paperWidth, paperHeight, css });
       } finally {
         await tab.close();
       }
     },
-    async pair({ before, after, width, height, scheme, questions, layout }) {
+    async pair({ before, after, width, height, scheme, questions, layout, ...drawn }) {
       const tab = await browser.newTab({ width: width * 2 + 48, height: height + 64 });
       try {
-        await tab.setContent(pairPage({ before, after, width, scheme, questions, layout }));
+        await tab.setContent(
+          pairPage({ before, after, width, scheme, questions, layout, ...drawn }),
+        );
         return await tab.screenshot({ fullPage: true });
       } finally {
         await tab.close();

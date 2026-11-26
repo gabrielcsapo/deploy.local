@@ -3,11 +3,20 @@
 // Chromium or Edge. It is driven over the DevTools protocol on a pipe (no port, no network), so the
 // CLI needs no Playwright of its own: the standalone binary and a fresh worktree draw the same way,
 // and so does a sandbox that forbids sockets.
-import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { execFile, spawn } from 'node:child_process';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { decodePng } from '../server/design/kind-checks.ts';
 
 /** Where Playwright keeps its browsers on this computer. */
 export function playwrightCache(env = process.env, platform = process.platform, home = homedir()) {
@@ -166,6 +175,79 @@ const withTimeout = (promise, ms, message) =>
     }),
   ]);
 
+/** How many sheets a PDF written by Chromium has. */
+export function pdfPageCount(pdf) {
+  return (pdf.toString('latin1').match(/\/Type\s*\/Page\b(?!s)/g) ?? []).length;
+}
+
+/** The first sheet's size in CSS px, from its MediaBox (points). */
+export function pdfSize(pdf) {
+  const match = /\/MediaBox\s*\[\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)\s*\]/.exec(
+    pdf.toString('latin1'),
+  );
+  return match
+    ? { width: (Number(match[1]) * 96) / 72, height: (Number(match[2]) * 96) / 72 }
+    : { width: 0, height: 0 };
+}
+
+/** Whether a Chromium can show a PDF (its viewer): the headless shell cannot, Chrome and Chromium can. */
+export const canShowPdf = (executable) => !/headless/i.test(executable);
+
+/**
+ * The box a PDF page takes in a screenshot of Chromium's viewer: everything that is not the
+ * viewer's own background (the colour of the picture's corner), in device pixels, or null.
+ */
+export function pageBox(png) {
+  const { width, height, rgba } = decodePng(png);
+  const bg = [rgba[0], rgba[1], rgba[2]];
+  const differs = (x, y) => {
+    const at = (y * width + x) * 4;
+    return (
+      Math.abs(rgba[at] - bg[0]) + Math.abs(rgba[at + 1] - bg[1]) + Math.abs(rgba[at + 2] - bg[2]) >
+      24
+    );
+  };
+  let left = width;
+  let right = -1;
+  let top = height;
+  let bottom = -1;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++)
+      if (differs(x, y)) {
+        if (x < left) left = x;
+        if (x > right) right = x;
+        if (y < top) top = y;
+        if (y > bottom) bottom = y;
+      }
+  if (right < 0) return null;
+  // The viewer frames the sheet with a dark line: the paper is the bright run along a line just
+  // inside its edge (a sheet's margin is paper).
+  const bright = (x, y) => {
+    const at = (y * width + x) * 4;
+    return Math.min(rgba[at], rgba[at + 1], rgba[at + 2]) > 225;
+  };
+  const inset = Math.min(8, Math.floor((right - left) / 4), Math.floor((bottom - top) / 4));
+  const x = left + inset;
+  const y = top + inset;
+  let paperTop = top;
+  let paperBottom = bottom;
+  let paperLeft = left;
+  let paperRight = right;
+  while (paperTop < bottom && !bright(x, paperTop)) paperTop++;
+  while (paperBottom > paperTop && !bright(x, paperBottom)) paperBottom--;
+  while (paperLeft < right && !bright(paperLeft, y)) paperLeft++;
+  while (paperRight > paperLeft && !bright(paperRight, y)) paperRight--;
+  return {
+    left: paperLeft,
+    top: paperTop,
+    width: paperRight - paperLeft + 1,
+    height: paperBottom - paperTop + 1,
+  };
+}
+
+const run = (file, args) =>
+  new Promise((resolve) => execFile(file, args, { timeout: 30000 }, (error) => resolve(!error)));
+
 /**
  * Starts a headless browser. Resolves to { executable, newTab({ width, height, scheme }), close },
  * where a tab can setContent(html), evaluate(expression), screenshot({ fullPage }) and close().
@@ -200,7 +282,7 @@ export const sandboxFlags = [
  */
 export async function launchChromium(
   executable,
-  { timeoutMs = 20000, workDir = null, sandboxed = false } = {},
+  { timeoutMs = 20000, workDir = null, sandboxed = false, viewer = null } = {},
 ) {
   const root = workDir ?? tmpdir();
   mkdirSync(root, { recursive: true });
@@ -272,6 +354,84 @@ export async function launchChromium(
   const pages = mkdtempSync(join(root, 'pages-'));
   let pageCount = 0;
 
+  let viewerBrowser = null;
+  let poppler;
+  /** One PDF sheet as a PNG, at `scale` device pixels per CSS pixel. */
+  async function rasterise(pdf, density) {
+    const file = join(pages, `sheet-${++pageCount}.pdf`);
+    writeFileSync(file, pdf);
+    try {
+      if (poppler === undefined) poppler = await run('pdftoppm', ['-v']).then((ok) => ok || false);
+      if (poppler) {
+        const base = join(pages, `sheet-${pageCount}`);
+        if (await run('pdftoppm', ['-png', '-r', String(96 * density), '-singlefile', file, base]))
+          return readFileSync(`${base}.png`);
+      }
+      const shown = await viaViewer(file, density);
+      if (shown) return shown;
+      if (process.platform === 'darwin') {
+        // sips draws a PDF at 72 dpi, so it is the last choice: softer than the others.
+        const out = join(pages, `sheet-${pageCount}.png`);
+        const { width } = pdfSize(pdf);
+        if (
+          width &&
+          (await run('sips', [
+            '-s',
+            'format',
+            'png',
+            '--resampleWidth',
+            String(Math.round(width * density)),
+            file,
+            '--out',
+            out,
+          ]))
+        )
+          return readFileSync(out);
+      }
+      return null;
+    } finally {
+      rmSync(file, { force: true });
+    }
+  }
+  /** Chromium's PDF viewer on the sheet, cropped to the paper. */
+  async function viaViewer(file, density) {
+    if (!viewer) return null;
+    try {
+      viewerBrowser ??= await launchChromium(viewer, { timeoutMs, workDir, sandboxed });
+      const tab = await viewerBrowser.newTab({ width: 1400, height: 1800, scale: density });
+      try {
+        await tab.goto(`${pathToFileURL(file).href}#toolbar=0&navpanes=0&scrollbar=0&zoom=100`);
+        // The viewer draws the sheet a moment after it loads: wait until its box stops changing.
+        let last = null;
+        for (let tries = 0; tries < 12; tries++) {
+          await new Promise((resolve) => setTimeout(resolve, 350));
+          const box = pageBox(await tab.screenshot());
+          if (
+            box &&
+            last &&
+            box.width === last.width &&
+            box.height === last.height &&
+            box.width > 100
+          )
+            return await tab.screenshot({
+              clip: {
+                x: box.left / density,
+                y: box.top / density,
+                width: box.width / density,
+                height: box.height / density,
+              },
+            });
+          last = box;
+        }
+        return null;
+      } finally {
+        await tab.close();
+      }
+    } catch {
+      return null;
+    }
+  }
+
   async function newTab({ width, height, scheme = 'light', scale = 1, media = null }) {
     // A context of its own per tab; one process (in a sandbox) has only the default one.
     const { browserContextId } = sandboxed
@@ -331,9 +491,10 @@ export async function launchChromium(
           );
         return result.result.value;
       },
-      async screenshot({ fullPage = false } = {}) {
+      async screenshot({ fullPage = false, clip: area = null } = {}) {
         let clip;
-        if (fullPage) {
+        if (area) clip = { ...area, scale: 1 };
+        else if (fullPage) {
           const size = await this.evaluate(
             '({ width: document.documentElement.scrollWidth, height: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) })',
           );
@@ -341,26 +502,50 @@ export async function launchChromium(
         }
         const { data } = await send('Page.captureScreenshot', {
           format: 'png',
-          ...(clip ? { clip, captureBeyondViewport: true } : {}),
+          ...(clip ? { clip, captureBeyondViewport: !area } : {}),
         });
         return Buffer.from(data, 'base64');
       },
       /**
        * The page as a PDF with backgrounds, on paper `paperWidth` x `paperHeight` CSS px with no
-       * margins; a page taller than the paper continues on the next sheet (a document).
+       * margins; a page taller than the paper continues on the next sheet (a document). With
+       * `css`, the page's own @page size and margins win, as a printer's dialog would have them,
+       * and `pageRanges` ("2") prints only those sheets.
        */
-      async pdf({ paperWidth, paperHeight }) {
+      async pdf({ paperWidth, paperHeight, css = false, pageRanges = '' }) {
         const { data } = await send('Page.printToPDF', {
           printBackground: true,
-          preferCSSPageSize: false,
+          preferCSSPageSize: css,
           paperWidth: paperWidth / 96,
           paperHeight: paperHeight / 96,
           marginTop: 0,
           marginBottom: 0,
           marginLeft: 0,
           marginRight: 0,
+          ...(pageRanges ? { pageRanges } : {}),
         });
         return Buffer.from(data, 'base64');
+      },
+      /**
+       * The printed sheets of the page as pictures: Chromium prints the page to a PDF with its
+       * @page size and margins, running header and footer and page breaks, and each sheet is
+       * drawn from it (poppler if the computer has it, else Chromium's own PDF viewer, else
+       * macOS's). Null when nothing here can draw a PDF.
+       */
+      async printedPages({ paperWidth, paperHeight, scale: density = 1 }) {
+        const whole = await this.pdf({ paperWidth, paperHeight, css: true });
+        const count = Math.max(1, pdfPageCount(whole));
+        const sheets = [];
+        for (let at = 1; at <= count; at++) {
+          const one =
+            count === 1
+              ? whole
+              : await this.pdf({ paperWidth, paperHeight, css: true, pageRanges: String(at) });
+          const png = await rasterise(one, density);
+          if (!png) return null;
+          sheets.push(png);
+        }
+        return sheets;
       },
       async close() {
         await (
@@ -377,6 +562,7 @@ export async function launchChromium(
     executable,
     newTab,
     async close() {
+      await viewerBrowser?.close().catch(() => {});
       await withTimeout(cdp.send('Browser.close'), 3000, 'closing').catch(() => {});
       cdp.close();
       cleanup();
@@ -401,7 +587,11 @@ export async function openChromium(options = {}) {
     for (const sandboxed of attempts) {
       try {
         return {
-          browser: await launchChromium(executable, { ...options, sandboxed }),
+          browser: await launchChromium(executable, {
+            ...options,
+            sandboxed,
+            viewer: candidates.find(canShowPdf) ?? null,
+          }),
           sandboxed,
         };
       } catch (error) {

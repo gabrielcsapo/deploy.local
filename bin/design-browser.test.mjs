@@ -595,3 +595,134 @@ test("Chromium's PDFs of boards at different sizes join into one, a page each, a
     await browser.close();
   }
 });
+
+test('a document is printed to real sheets: white paper, the @page margins, page breaks and a repeated header, and a stranded heading is found from them', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  const { headingsEndingPages, pngSize, decodePng } =
+    await import('../server/design/kind-checks.ts');
+  try {
+    const doc = (heading) =>
+      `<!doctype html><html><head><style>@page{size:A4;margin:20mm}html,body{margin:0}body{background:#eee;font:16px serif}
+      .page{background:#eee}.head{position:fixed;top:0;left:0;right:0;font-size:12px}
+      h2{margin:0;height:36px;${heading}}.fill{height:900px;background:#cde}.keep{height:200px;break-inside:avoid;background:#ecd}
+      .cut{break-after:page;height:0}</style></head><body><div class="page"><div class="head">Running head</div>
+      <div class="fill">First sheet</div><h2>Ends the sheet</h2><div class="keep">Needs room</div>
+      <div class="cut"></div><div>Third sheet</div></div></body></html>`;
+    const sheetsOf = async (html, probe) => {
+      const tab = await browser.newTab({
+        width: 794,
+        height: 100,
+        scheme: 'light',
+        media: 'print',
+      });
+      try {
+        await tab.setContent(html);
+        const shot = await shootBoard(tab, html, {
+          scheme: 'light',
+          measure: false,
+          inspect: true,
+          fullPage: true,
+          printed: { paperWidth: 794, paperHeight: 1123 },
+        });
+        return { shot, probe };
+      } finally {
+        await tab.close();
+      }
+    };
+    const { shot } = await sheetsOf(doc(''));
+    if (!shot.pages) return t.skip('nothing here can draw a PDF');
+    // Sheet 1 (fill + heading), sheet 2 (the box that did not fit), sheet 3 (after the page break).
+    assert.equal(shot.pages.length, 3, 'page breaks and overflow make three sheets');
+    for (const png of shot.pages) {
+      const size = pngSize(png);
+      assert.ok(
+        Math.abs(size.width - 794) <= 3 && Math.abs(size.height - 1123) <= 3,
+        JSON.stringify(size),
+      );
+    }
+    // White paper: the screen's grey ground is not printed, and the margin is paper.
+    const first = decodePng(shot.pages[0]);
+    const at = (x, y) => [
+      ...first.rgba.slice((y * first.width + x) * 4, (y * first.width + x) * 4 + 3),
+    ];
+    assert.deepEqual(at(40, 40), [255, 255, 255]);
+    assert.deepEqual(at(400, 500 + 0), [204, 221, 238], 'the box is drawn where it is');
+    assert.deepEqual(shot.stranded, [{ page: 1, heading: 0 }]);
+    // Kept with its text: nothing is stranded and the heading moves to the next sheet.
+    const kept = await sheetsOf(doc('break-after:avoid'));
+    assert.deepEqual(kept.shot.stranded, []);
+    assert.equal(headingsEndingPages([]).length, 0);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a logo mark is drawn from the mark itself at true size, and its thin or crowded drawing is read at 16 px', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  const { markLegibility, logoSmallNote, pngSize } =
+    await import('../server/design/kind-checks.ts');
+  try {
+    const board = (svg) =>
+      `<!doctype html><body style="margin:0;background:#fff;color:#111"><div style="width:1024px;height:1024px"><svg viewBox="0 0 64 64" data-layer="mark" style="width:384px;height:384px"><style>.a{fill:currentColor}</style>${svg}</svg></div></body>`;
+    const read = async (svg) => {
+      const tab = await browser.newTab({ width: 1024, height: 1024, scheme: 'light' });
+      try {
+        const shot = await shootBoard(tab, board(svg), {
+          scheme: 'light',
+          measure: false,
+          logo: true,
+        });
+        const png = (size) => shot.marks.sizes.find((entry) => entry.size === size).png;
+        for (const entry of shot.marks.sizes)
+          assert.deepEqual(pngSize(entry.png), { width: entry.size, height: entry.size });
+        assert.ok(shot.marks.svg.startsWith('<svg') && !/class=|<style/.test(shot.marks.svg));
+        assert.ok(/(fill|stroke)="rgb\(17, 17, 17\)"/.test(shot.marks.svg));
+        assert.deepEqual(
+          shot.marks.icons.map((icon) => [icon.tone, icon.size]),
+          [
+            ['light', 120],
+            ['dark', 120],
+            ['light', 60],
+            ['dark', 60],
+          ],
+        );
+        const result = markLegibility({
+          big: png(128),
+          small: png(16),
+          size: 16,
+          ground: shot.marks.ground,
+          ink: shot.marks.ink,
+        });
+        return logoSmallNote({
+          file: 'Mark.html',
+          title: 'Mark',
+          results: [{ scheme: 'light', ...result }],
+        });
+      } finally {
+        await tab.close();
+      }
+    };
+    // A bold, simple mark holds; a hairline ring and a mark of 6-unit shapes 1.5 units apart do not.
+    assert.equal(await read('<circle class="a" cx="32" cy="32" r="26"/>'), null);
+    assert.equal(
+      await read(
+        '<rect class="a" x="8" y="8" width="20" height="48"/><rect class="a" x="36" y="8" width="20" height="48"/>',
+      ),
+      null,
+    );
+    const ring = await read(
+      '<circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+    );
+    assert.equal(ring?.code, 'logo_small_unreadable');
+    assert.match(ring.label, /16 px/);
+    const crowded = await read(
+      '<rect class="a" x="6" y="10" width="52" height="10"/><rect class="a" x="6" y="22" width="52" height="10"/><rect class="a" x="6" y="34" width="52" height="10"/>',
+    );
+    assert.equal(crowded?.code, 'logo_small_unreadable');
+    assert.match(crowded.detail, /gaps/);
+  } finally {
+    await browser.close();
+  }
+});

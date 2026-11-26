@@ -1146,6 +1146,7 @@ export async function runDesign(sub, args, options, deps) {
           4,
         );
       let merged;
+      const marks = [];
       try {
         const pdfs = [];
         for (const file of files) {
@@ -1155,6 +1156,20 @@ export async function runDesign(sub, args, options, deps) {
           if (!pdf) throw cliError(`${file} could not be printed.`, 'deploy design check', 1);
           pdfs.push(pdf);
           step('✓', `Printed ${screenName(file)}`, board.platform);
+          if (board.platform === 'logo') {
+            // The mark as SVG, so it leaves the design as artwork, not as a picture of a board.
+            const drawn = await opened.drawing.shoot({
+              commit: WORKTREE,
+              file,
+              width: paper.width,
+              height: paper.height,
+              scheme: 'light',
+              measure: false,
+              logo: true,
+            });
+            if (drawn?.marks?.svg)
+              marks.push({ board: file.replace(/\.html$/, ''), svg: drawn.marks.svg });
+          }
         }
         merged = mergePdfs(pdfs);
       } finally {
@@ -1168,6 +1183,13 @@ export async function runDesign(sub, args, options, deps) {
       mkdirSync(folder, { recursive: true });
       const path = join(folder, `${name}.pdf`);
       writeFileSync(path, merged.pdf);
+      const markFiles = [];
+      for (const mark of marks) {
+        const markFile = `${mark.board}-mark.svg`;
+        writeFileSync(join(top, 'output', 'design', markFile), `${mark.svg}\n`);
+        markFiles.push(`output/design/${markFile}`);
+        step('✓', 'Wrote', `output/design/${markFile}`);
+      }
       out();
       step('✓', 'Wrote', `output/design/export/${name}.pdf · ${plural(merged.pages, 'page')}`);
       return {
@@ -1178,6 +1200,7 @@ export async function runDesign(sub, args, options, deps) {
           file: `output/design/export/${name}.pdf`,
           boards: files,
           pages: merged.pages,
+          ...(markFiles.length ? { marks: markFiles } : {}),
         },
       };
     }

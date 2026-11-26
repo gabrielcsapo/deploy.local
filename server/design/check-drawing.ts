@@ -9,14 +9,35 @@ import { syncInstances, type Library } from './board-html.ts';
 import { measureOverflow, type Overflow } from '../../shared/v2/design-overflow.ts';
 import { inspectBoard, type Inspection } from '../../shared/v2/design-inspect.ts';
 import type { PairLayout } from '../../shared/v2/design-platforms.ts';
-import { pngSize } from './kind-checks.ts';
+import {
+  headingsEndingPages,
+  logoMarkSizes,
+  pngSize,
+  type LogoMarks,
+  type LogoGround,
+  type StrandedHeading,
+} from './kind-checks.ts';
 
 /** A browser tab, as either driver gives it. */
 export type DrawingTab = {
   setContent(html: string): Promise<void>;
   /** A JavaScript expression run in the page; a promise it returns is awaited. */
   evaluate<T = unknown>(expression: string): Promise<T>;
-  screenshot(options?: { fullPage?: boolean }): Promise<Buffer>;
+  screenshot(options?: {
+    fullPage?: boolean;
+    /** Just this box of the page, in CSS px. */
+    clip?: { x: number; y: number; width: number; height: number };
+  }): Promise<Buffer>;
+  /**
+   * The page as printed: one picture per sheet, from the browser's own print path (the board's
+   * @page size and margins, running header and footer, page breaks). Absent when the driver
+   * cannot print; null when it could not draw the sheets.
+   */
+  printedPages?(options: {
+    paperWidth: number;
+    paperHeight: number;
+    scale?: number;
+  }): Promise<Buffer[] | null>;
 };
 
 /** Where a board's page gets what it links to, at one commit (or the working copy). */
@@ -82,6 +103,7 @@ export function markQuestions(doc: Document = document): BoardQuestion[] {
   const found: BoardQuestion[] = [];
   const layer = doc.createElement('div');
   layer.setAttribute('aria-hidden', 'true');
+  layer.setAttribute('data-check-marks', '');
   layer.style.cssText =
     'position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:2147483647;pointer-events:none';
   // Questions on layers, and an instance root's questions about its inner layers.
@@ -154,24 +176,184 @@ export function markQuestions(doc: Document = document): BoardQuestion[] {
   return found;
 }
 
-const run = (fn: (...args: any[]) => unknown) => `(${fn.toString()})()`;
+/**
+ * Runs in the page before it is printed: the paper is white. A page's ground colour (on the page,
+ * the body or the one wrapper that spans it) is the screen's; on paper it is not printed, as a
+ * browser's own print dialog leaves it out by default.
+ */
+export function whitePaper(doc: Document = document) {
+  const view = doc.defaultView!;
+  const style = doc.createElement('style');
+  style.textContent = '@media print{html,body{background:#fff!important}}';
+  doc.head.append(style);
+  const paint = (element: Element) => {
+    const color = view.getComputedStyle(element).backgroundColor;
+    return color === 'transparent' || /rgba\(.*,\s*0\)$/.test(color) ? null : color;
+  };
+  // The ground is the page's colour, the body's, or else that of the wrapper that spans it; only
+  // that colour is the screen's ground. A tinted block inside the page is the design's own.
+  let ground = paint(doc.documentElement) ?? paint(doc.body);
+  const clear = (element: Element, depth: number) => {
+    const color = paint(element);
+    const wide = element.getBoundingClientRect().width >= doc.body.clientWidth * 0.9;
+    if (color && wide && (ground ??= color) === color)
+      (element as HTMLElement).style.setProperty('background', 'transparent', 'important');
+    if (wide && depth < 2) for (const child of element.children) clear(child, depth + 1);
+  };
+  for (const child of doc.body.children) clear(child, 0);
+}
+
+/**
+ * Runs in the page for the probe print: headings are solid magenta, and what a printer repeats
+ * from the page edge (fixed elements, a running header and footer) is hidden, so the last ink
+ * on a sheet is its body and the colour of that ink says whether it is a heading.
+ */
+export function probeHeadings(doc: Document = document) {
+  const style = doc.createElement('style');
+  style.textContent =
+    'h1,h2,h3,h4,h5,h6,h1 *,h2 *,h3 *,h4 *,h5 *,h6 *{background:#f0f!important;color:#f0f!important;border-color:#f0f!important;text-shadow:none!important}';
+  doc.head.append(style);
+  const view = doc.defaultView!;
+  for (const element of doc.body.querySelectorAll('*'))
+    if (view.getComputedStyle(element).position === 'fixed')
+      (element as HTMLElement).style.setProperty('visibility', 'hidden', 'important');
+}
+
+/**
+ * Runs in the page: the mark of a logo board as a self-contained SVG (every colour resolved to
+ * what it is drawn with), the colour it sits on, and the ink it is drawn in. The mark is the
+ * layer named "mark", else the first .ds-logo-mark, else the first SVG.
+ */
+export function readMark(doc: Document = document) {
+  const view = doc.defaultView!;
+  const mark =
+    doc.querySelector('svg[data-layer="mark"]') ??
+    doc.querySelector('svg.ds-logo-mark') ??
+    doc.querySelector('svg');
+  if (!mark) return null;
+  const clone = mark.cloneNode(true) as SVGElement;
+  const from = [mark, ...mark.querySelectorAll('*')];
+  const to = [clone, ...clone.querySelectorAll('*')];
+  const rgb = (value: string) => value;
+  const styles = [...clone.querySelectorAll('style')];
+  to.forEach((node, at) => {
+    const computed = view.getComputedStyle(from[at]);
+    for (const name of [...node.getAttributeNames()])
+      if (name === 'class' || name === 'style' || name.startsWith('data-'))
+        node.removeAttribute(name);
+    if (at === 0) return;
+    node.setAttribute('fill', rgb(computed.fill));
+    if (computed.stroke && computed.stroke !== 'none') {
+      node.setAttribute('stroke', rgb(computed.stroke));
+      node.setAttribute('stroke-width', computed.strokeWidth);
+    }
+    if (computed.opacity !== '1') node.setAttribute('opacity', computed.opacity);
+  });
+  for (const style of styles) style.remove();
+  const box = (mark.getAttribute('viewBox') ?? '0 0 64 64').split(/[\s,]+/).map(Number);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', String(box[2] || 64));
+  clone.setAttribute('height', String(box[3] || 64));
+  clone.removeAttribute('role');
+  let ground = 'rgb(255, 255, 255)';
+  for (let at: Element | null = mark; at; at = at.parentElement) {
+    const paint = view.getComputedStyle(at).backgroundColor;
+    if (paint !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(paint)) {
+      ground = paint;
+      break;
+    }
+  }
+  return { svg: clone.outerHTML, ground, ink: view.getComputedStyle(mark).color };
+}
+
+/**
+ * Runs in the page: every element labelled for one fixed ground (light, dark, reversed, brand,
+ * on-light, on-dark in its layer name or class) with the colour it is drawn on, so the same
+ * labels can be compared between schemes.
+ */
+export function readGrounds(doc: Document = document): LogoGround[] {
+  const view = doc.defaultView!;
+  const label =
+    /(^|[\s_-])(on-light|on-dark|light|dark|reversed|reverse|brand|inverse|inverted)([\s_-]|$)/i;
+  const found: LogoGround[] = [];
+  for (const element of doc.body.querySelectorAll('*')) {
+    const layer = element.getAttribute('data-layer') ?? '';
+    const said = `${layer} ${typeof element.className === 'string' ? element.className : ''}`;
+    const match = label.exec(said);
+    if (!match) continue;
+    const paint = view.getComputedStyle(element).backgroundColor;
+    if (paint === 'transparent' || /rgba\(.*,\s*0\)$/.test(paint)) continue;
+    found.push({
+      layer: layer || element.tagName.toLowerCase(),
+      label: match[2].toLowerCase(),
+      ground: paint,
+    });
+  }
+  return found;
+}
+
+/** Runs in the page: only the mark, at a size, in a box, on a ground; nothing else. */
+export function showMark(
+  svg: string,
+  size: number,
+  ground: string,
+  options: { ink?: string; radius?: number; inset?: number } = {},
+  doc: Document = document,
+) {
+  doc.body.innerHTML = '';
+  doc.body.setAttribute('style', 'margin:0;background:' + ground);
+  doc.documentElement.setAttribute('style', 'background:' + ground);
+  const box = doc.createElement('div');
+  const inset = options.inset ?? 0;
+  box.setAttribute(
+    'style',
+    `position:fixed;left:0;top:0;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-sizing:border-box;background:${options.ink ?? ground};border-radius:${options.radius ?? 0}px${options.radius ? ';box-shadow:inset 0 0 0 1px rgba(128,128,128,.45)' : ''}`,
+  );
+  box.innerHTML = svg;
+  const mark = box.firstElementChild as SVGElement;
+  const inner = Math.max(1, size - inset * 2);
+  mark.setAttribute('width', String(inner));
+  mark.setAttribute('height', String(inner));
+  mark.setAttribute('style', 'display:block;flex:none');
+  doc.body.append(box);
+}
+
+const run = (fn: (...args: any[]) => unknown, ...args: unknown[]) =>
+  `(${fn.toString()})(${args.map((arg) => (arg === undefined ? 'undefined' : JSON.stringify(arg))).join(', ')})`;
 
 export type BoardShot = {
   png: Buffer;
   measured: Overflow | null;
   inspected: Inspection | null;
   questions?: BoardQuestion[];
+  /** A document's printed sheets, one picture each (the browser's print path), when asked for. */
+  pages?: Buffer[];
+  /** The headings that end a printed sheet with nothing after them on it. */
+  stranded?: StrandedHeading[];
+  /** A logo's mark rendered from the mark itself at each size, when asked for. */
+  marks?: LogoMarks | null;
+  /** The labelled grounds of a logo board, to compare between schemes. */
+  grounds?: LogoGround[];
 };
 
 /**
  * One drawing: the page in a scheme (dark as the design system and the page's own colour scheme
  * both see it), measured for what leaves the page when `measure`, inspected for the other checks
- * when `inspect`, then pictured with its questions marked.
+ * when `inspect`, then pictured with its questions marked. With `printed` a document is also
+ * printed (white paper, its @page size and margins, running header and footer, page breaks) and
+ * each sheet pictured; with `logo` the mark is drawn from the mark itself at true size.
  */
 export async function shootBoard(
   tab: DrawingTab,
   page: string,
-  options: { scheme: 'light' | 'dark'; measure: boolean; inspect?: boolean; fullPage?: boolean },
+  options: {
+    scheme: 'light' | 'dark';
+    measure: boolean;
+    inspect?: boolean;
+    fullPage?: boolean;
+    printed?: { paperWidth: number; paperHeight: number };
+    logo?: boolean;
+  },
 ): Promise<BoardShot> {
   await tab.setContent(page);
   if (options.scheme === 'dark')
@@ -182,12 +364,81 @@ export async function shootBoard(
   const questions = /data-questions?=/.test(page)
     ? await tab.evaluate<BoardQuestion[]>(run(markQuestions))
     : [];
-  return {
-    png: await tab.screenshot(options.fullPage ? { fullPage: true } : undefined),
-    measured,
-    inspected,
-    questions,
+  const png = await tab.screenshot(options.fullPage ? { fullPage: true } : undefined);
+  const shot: BoardShot = { png, measured, inspected, questions };
+  if (options.logo) {
+    shot.grounds = await tab.evaluate<LogoGround[]>(run(readGrounds));
+    shot.marks = await drawMarks(tab);
+  }
+  if (options.printed && tab.printedPages) {
+    // After the picture and the measuring: printing changes the page, so it comes last.
+    // The numbered badges are for the screen picture; paper has none.
+    await tab.evaluate(
+      "document.querySelectorAll('[data-check-marks]').forEach((node) => node.remove())",
+    );
+    await tab.evaluate(run(whitePaper));
+    const pages = await tab.printedPages({ ...options.printed, scale: 1 });
+    if (pages?.length) {
+      shot.pages = pages;
+      shot.png = pages[0];
+      await tab.evaluate(run(probeHeadings));
+      const probe = await tab.printedPages({ ...options.printed, scale: 1 });
+      if (probe?.length === pages.length) {
+        try {
+          shot.stranded = headingsEndingPages(probe);
+        } catch {
+          // A picture that cannot be read says nothing about breaks.
+        }
+      }
+    }
+  }
+  return shot;
+}
+
+/**
+ * A logo's mark drawn at each size from the mark itself (never the artboard shrunk): the SVG is
+ * put alone in a box of that many CSS px and the box is pictured at 1:1. Also the app icon
+ * (a rounded square, the mark in the ground on the ink and the mark in the ink on the ground)
+ * and the favicon sizes. Null when the board has no SVG mark.
+ */
+export async function drawMarks(tab: DrawingTab): Promise<LogoMarks | null> {
+  const mark = await tab.evaluate<{ svg: string; ground: string; ink: string } | null>(
+    run(readMark),
+  );
+  if (!mark) return null;
+  const crop = async (
+    size: number,
+    options: { ink?: string; radius?: number; inset?: number } = {},
+    ground = mark.ground,
+  ) => {
+    await tab.evaluate(run(showMark, mark.svg, size, ground, options));
+    return tab.screenshot({ clip: { x: 0, y: 0, width: size, height: size } });
   };
+  const sizes: LogoMarks['sizes'] = [];
+  for (const size of logoMarkSizes) sizes.push({ size, png: await crop(size) });
+  const icons: LogoMarks['icons'] = [];
+  for (const size of [120, 60]) {
+    // Light: the mark in its ink on the ground, in a rounded square; dark: the reverse.
+    const radius = Math.round(size * 0.2237);
+    icons.push({
+      tone: 'light',
+      size,
+      png: await crop(size, { radius, inset: Math.round(size * 0.16), ink: mark.ground }),
+    });
+    await tab.evaluate(
+      run(showMark, mark.svg.replace(/fill="[^"]*"/g, `fill="${mark.ground}"`), size, mark.ground, {
+        radius,
+        inset: Math.round(size * 0.16),
+        ink: mark.ink,
+      }),
+    );
+    icons.push({
+      tone: 'dark',
+      size,
+      png: await tab.screenshot({ clip: { x: 0, y: 0, width: size, height: size } }),
+    });
+  }
+  return { svg: mark.svg, ground: mark.ground, ink: mark.ink, sizes, icons };
 }
 
 const escapeHtml = (text: string) =>
@@ -211,6 +462,17 @@ function pagesFigure(png: Buffer, layout: Extract<PairLayout, { kind: 'pages' }>
       `<div class="pg"><div class="sheet-page" style="width:${layout.pageWidth}px;height:${layout.pageHeight}px"><div class="${id}" style="left:${margin.left}px;top:${margin.top}px;width:${Math.max(1, layout.pageWidth - margin.left - margin.right)}px;height:${Math.min(room, height - at * room)}px;background-position:0 -${at * room}px"></div></div><span>Page ${at + 1} of ${count}</span></div>`,
   ).join('');
   return `<style>.${id}{position:absolute;background:url(${dataUri(png)}) no-repeat}</style><div class="pages" style="grid-template-columns:repeat(${Math.min(count, 3)},max-content)">${tiles}</div>`;
+}
+
+/** The printed sheets themselves, white paper side by side, three to a row. */
+function sheetsFigure(pages: Buffer[], scale = 1) {
+  const tiles = pages
+    .map((png, at) => {
+      const { width, height } = pngSize(png);
+      return `<div class="pg"><img class="paper" src="${dataUri(png)}" width="${Math.round(width / scale)}" height="${Math.round(height / scale)}" style="background:#fff"><span>Page ${at + 1} of ${pages.length}</span></div>`;
+    })
+    .join('');
+  return `<div class="pages" style="grid-template-columns:repeat(${Math.min(pages.length, 3)},max-content)">${tiles}</div>`;
 }
 
 /** A print piece with its trim and safe marks in the margin around it, never over it. */
@@ -249,14 +511,55 @@ function printFigure(png: Buffer, layout: Extract<PairLayout, { kind: 'print' }>
   );
 }
 
-/** A mark at the sizes it is used at, side by side on the drawn ground. */
-function sheetFigure(png: Buffer, layout: Extract<PairLayout, { kind: 'sheet' }>) {
-  return `<div class="sheet">${layout.sizes
+/** The mark's pictures as an image of a size, pixel for pixel or magnified without smoothing. */
+const markImage = (png: Buffer, size: number, shown = size) =>
+  `<img src="${dataUri(png)}" width="${shown}" height="${shown}" style="border:0;image-rendering:${shown > size ? 'pixelated' : 'auto'};display:block">`;
+
+/**
+ * A mark at the sizes it is used at. With the mark drawn from itself: each size at true pixel
+ * size (1:1, 512 shown at a quarter), the small ones magnified eight times beside it so a
+ * reviewer can see what survives, the app icon rounded on light and on dark, and the favicon
+ * sizes. Without it (a mark that is no SVG), the whole picture shrunk to each size.
+ */
+function sheetFigure(
+  png: Buffer,
+  layout: Extract<PairLayout, { kind: 'sheet' }>,
+  marks?: LogoMarks | null,
+) {
+  if (!marks)
+    return `<div class="sheet">${layout.sizes
+      .map(
+        (size) =>
+          `<figure><img src="${dataUri(png)}" width="${size}" height="${size}" style="border:0"><figcaption>${size} px</figcaption></figure>`,
+      )
+      .join('')}</div>`;
+  const ground = `background:${marks.ground}`;
+  const cell = (size: number, shown: number, note: string, label = `${size} px`) => {
+    const entry = marks.sizes.find((candidate) => candidate.size === size);
+    return entry
+      ? `<figure><div class="chip" style="${ground}">${markImage(entry.png, size, shown)}</div><figcaption>${label}${note ? ` · ${note}` : ''}</figcaption></figure>`
+      : '';
+  };
+  const small = marks.sizes.filter((entry) => entry.size <= 32);
+  const icons = marks.icons
     .map(
-      (size) =>
-        `<figure><img src="${dataUri(png)}" width="${size}" height="${size}" style="border:0"><figcaption>${size} px</figcaption></figure>`,
+      (entry) =>
+        `<figure><div class="chip" style="${ground}">${markImage(entry.png, entry.size)}</div><figcaption>App icon, ${entry.tone}, ${entry.size} px</figcaption></figure>`,
     )
-    .join('')}</div>`;
+    .join('');
+  const favicons = [16, 32].map((size) => cell(size, size, '', `Favicon ${size} px`)).join('');
+  return (
+    `<div class="sheet"><div class="row" data-row="sizes">${[
+      cell(512, 256, 'shown at half'),
+      cell(128, 128, '1:1'),
+      cell(64, 64, '1:1'),
+      ...layout.sizes.filter((size) => size <= 32).map((size) => cell(size, size, '1:1')),
+    ].join('')}</div>` +
+    `<div class="row" data-row="enlarged">${small
+      .map((entry) => cell(entry.size, entry.size * 8, '', `${entry.size} px, enlarged 8×`))
+      .join('')}</div>` +
+    `<div class="row" data-row="icons">${icons}${favicons}</div></div>`
+  );
 }
 
 /** Before beside After, captioned, as one page to picture in full. A new board has only an After. */
@@ -269,6 +572,12 @@ export function pairPage(input: {
   questions?: BoardQuestion[];
   /** How the picture is laid out when it is more than a screen: pages, a print piece, a sheet. */
   layout?: PairLayout;
+  /** A document's printed sheets, as the browser printed them (Before and After). */
+  beforePages?: Buffer[];
+  afterPages?: Buffer[];
+  /** A logo's mark drawn from the mark itself (Before and After). */
+  beforeMarks?: LogoMarks | null;
+  afterMarks?: LogoMarks | null;
 }) {
   const { before, after, width, scheme, layout } = input;
   const questions = input.questions?.length
@@ -276,15 +585,17 @@ export function pairPage(input: {
     : '';
   const image = (png: Buffer, id: string) =>
     layout?.kind === 'pages'
-      ? pagesFigure(png, layout, id)
+      ? (id === 'pgA' ? input.beforePages : input.afterPages)?.length
+        ? sheetsFigure((id === 'pgA' ? input.beforePages : input.afterPages)!)
+        : pagesFigure(png, layout, id)
       : layout?.kind === 'print'
         ? printFigure(png, layout)
         : layout?.kind === 'sheet'
-          ? sheetFigure(png, layout)
+          ? sheetFigure(png, layout, id === 'pgA' ? input.beforeMarks : input.afterMarks)
           : `<img src="${dataUri(png)}">`;
   const caption = (label: string) => `${label} · ${width} · ${scheme}`;
   return (
-    `<style>body{margin:0;display:flex;gap:16px;padding:16px;align-items:flex-start;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${Math.max(240, width - 24)}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}.pages{display:grid;gap:16px}.sheet-page{position:relative;background:#fff;border:1px solid #888;box-sizing:content-box;overflow:hidden}.pg span{display:block;margin-top:4px;opacity:.6}.legend{margin:8px 0 0;width:auto;opacity:.7}.sheet{display:flex;align-items:flex-end;gap:24px;padding:12px}.sheet figure{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.sheet figcaption{margin:0;opacity:.6}</style>` +
+    `<style>body{margin:0;display:flex;gap:16px;padding:16px;align-items:flex-start;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${Math.max(240, width - 24)}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}.pages{display:grid;gap:16px}.sheet-page{position:relative;background:#fff;border:1px solid #888;box-sizing:content-box;overflow:hidden}.pg span{display:block;margin-top:4px;opacity:.6}.legend{margin:8px 0 0;width:auto;opacity:.7}.sheet{display:flex;flex-direction:column;gap:20px;padding:12px}.sheet .row{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}.chip{display:inline-block;padding:12px;border:1px solid #8886}.paper{border:1px solid #888;background:#fff}.sheet figure{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.sheet figcaption{margin:0;opacity:.6}</style>` +
     (before
       ? `<figure><figcaption>${caption('Before · main')}</figcaption>${image(before, 'pgA')}</figure>`
       : '') +
