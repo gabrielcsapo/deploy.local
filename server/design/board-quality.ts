@@ -519,7 +519,7 @@ export function questionFindings(input: {
         label: `${input.title} answers its own question in ${entry.layer || 'a layer'}`,
         detail: `"${entry.question}" but it says "${words}"`,
         short: 'question answered with a made-up fact',
-        fix: "say the thing without a value, e.g. 'Kept files are deleted after a period the owner will set', and keep the data-question",
+        fix: "say only what is true today, with no value, e.g. 'Kept with this run.', and keep the data-question",
       });
     }
     if (old.has(`${entry.layer} ${entry.question}`)) continue;
@@ -1201,6 +1201,16 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     problem: true,
     means: "text cut by a frame's bottom or under a bottom bar",
   },
+  {
+    code: 'scheme_dropped',
+    problem: true,
+    means: 'drawn in fewer schemes than its source or siblings',
+  },
+  {
+    code: 'scheme_pinned_page',
+    problem: true,
+    means: 'data-theme on the page, its root or an instance root',
+  },
   { code: 'question_invented', problem: true, means: 'a layer asks a question and states a value' },
   { code: 'height_differs', problem: true, means: 'canvas.json and the head disagree; --fix' },
   {
@@ -1374,5 +1384,112 @@ export function cutOffBottomProblems(input: {
         entry.by === 'bar'
           ? 'leave room above the bar (padding at the foot of the scrolling content), or end the content sooner'
           : 'make the board taller (deploy design check --fix measures it), show fewer rows, or end on a whole row',
+    }));
+}
+
+// ── Schemes ─────────────────────────────────────────────────────────────────────────────────────
+
+const schemeFix =
+  'draw it in every scheme its siblings draw; to keep a preview light, pin the inner preview, not the page';
+
+/** The schemes a board is drawn in: what its head says, else light and dark. */
+export const boardSchemes = (meta: { schemes: ('light' | 'dark')[] | null }) =>
+  meta.schemes ?? (['light', 'dark'] as ('light' | 'dark')[]);
+
+/**
+ * A board drawn in fewer schemes than the board it comes from or its siblings: its dark pairs
+ * vanish. A source that is itself single-scheme sets the bar for it.
+ */
+export function schemeDroppedProblem(input: {
+  file: string;
+  title: string;
+  schemes: string[];
+  /** The board it came from (source= or copied_from=), with its schemes, when it names one. */
+  from?: { file: string; schemes: string[] } | null;
+  /** Its siblings' schemes, one list per sibling of the same platform. */
+  siblings?: { file: string; schemes: string[] }[];
+}): Finding | null {
+  let expected: string[] | null = null;
+  let because = '';
+  if (input.from) {
+    if (input.from.schemes.length < 2) return null;
+    expected = input.from.schemes;
+    because = input.from.file.replace(/\.html$/, '');
+  } else if (input.siblings?.length) {
+    // The usual set among siblings: the most common one.
+    const counts = new Map<string, { schemes: string[]; count: number }>();
+    for (const sibling of input.siblings) {
+      const set = [...sibling.schemes].sort().join(' ');
+      counts.set(set, { schemes: sibling.schemes, count: (counts.get(set)?.count ?? 0) + 1 });
+    }
+    const usual = [...counts.values()].sort((a, b) => b.count - a.count)[0];
+    expected = usual.schemes;
+    because = `its siblings (${input.siblings
+      .slice(0, 3)
+      .map((sibling) => sibling.file.replace(/\.html$/, ''))
+      .join(', ')})`;
+  }
+  const missing = (expected ?? []).filter((scheme) => !input.schemes.includes(scheme));
+  if (!missing.length) return null;
+  return {
+    code: 'scheme_dropped',
+    file: input.file,
+    board: input.title,
+    label: `${input.title} is drawn only in ${input.schemes.join(' and ')}`,
+    detail: `${because} ${because.startsWith('its') ? 'draw' : 'draws'} ${expected!.join(' and ')}; ${missing.join(' and ')} is not drawn`,
+    short: `no ${missing.join(' and ')}`,
+    fix: schemeFix,
+  };
+}
+
+/**
+ * Where a board pins its scheme for the whole page: data-theme on <html> or <body>, on the
+ * board's root element, or on a component instance's root. An inner preview (a frame on a canvas)
+ * may pin itself; the page may not, or its dark pairs show a light page.
+ */
+export function pinnedSchemes(html: string | null | undefined) {
+  if (!html) return [];
+  const found: { layer: string | null; where: string; theme: string }[] = [];
+  for (const match of html.matchAll(/<(html|body)\b[^>]*\sdata-theme="([^"]*)"/gi))
+    found.push({ layer: null, where: `<${match[1].toLowerCase()}>`, theme: match[2] });
+  const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
+  const elements = boardElements(body);
+  elements.forEach((element, index) => {
+    const tag = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
+    const theme = /\sdata-theme="([^"]*)"/.exec(tag)?.[1];
+    if (!theme) return;
+    const root = element.parent < 0 && index === elements.findIndex((entry) => entry.parent < 0);
+    const instance = /\sdata-component="([^"]*)"/.exec(tag)?.[1];
+    if (root || instance)
+      found.push({
+        layer: element.layer,
+        where: instance ? `the ${instance} instance` : 'the board root',
+        theme,
+      });
+  });
+  return found;
+}
+
+/** Pins the branch added: main's board already pinning the same place is not new. */
+export function schemePinnedProblems(input: {
+  file: string;
+  title: string;
+  before: string | null;
+  after: string | null;
+}): Finding[] {
+  const pin = (entry: { layer: string | null; where: string; theme: string }) =>
+    `${entry.layer} ${entry.where} ${entry.theme}`;
+  const old = new Set(pinnedSchemes(input.before).map(pin));
+  return pinnedSchemes(input.after)
+    .filter((entry) => !old.has(pin(entry)))
+    .map((entry) => ({
+      code: 'scheme_pinned_page',
+      file: input.file,
+      board: input.title,
+      ...(entry.layer ? { layer: entry.layer } : {}),
+      label: `${input.title} pins ${entry.where}${entry.layer ? ` (${entry.layer})` : ''} to ${entry.theme}`,
+      detail: `data-theme="${entry.theme}" there makes every scheme's pair show ${entry.theme}`,
+      short: `pinned to ${entry.theme}`,
+      fix: schemeFix,
     }));
 }

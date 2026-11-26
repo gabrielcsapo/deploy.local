@@ -37,6 +37,8 @@ import {
   overlapProblems,
   questionFindings,
   readTokens,
+  schemeDroppedProblem,
+  schemePinnedProblems,
   screenFamily,
   sourceNotes,
   spacingNotes,
@@ -1474,7 +1476,7 @@ test('question_invented says the thing without a value and keeps the question', 
   }).problems;
   assert.equal(
     problem!.fix,
-    "say the thing without a value, e.g. 'Kept files are deleted after a period the owner will set', and keep the data-question",
+    "say only what is true today, with no value, e.g. 'Kept with this run.', and keep the data-question",
   );
 });
 
@@ -1720,4 +1722,107 @@ test('question_invented flags only a value of the kind the question asks for', (
     '"How much can it hold?" but it says "Up to 500 MB"',
   ]);
   assert.deepEqual(flagged('How many versions are kept?', 'Up to 500 MB'), []);
+});
+
+test('a board drawn in fewer schemes than its source or siblings, or a page pinned to one, is a problem', async () => {
+  assert.deepEqual(
+    schemeDroppedProblem({
+      file: 'DesignNew.html',
+      title: 'Design New',
+      schemes: ['light'],
+      siblings: [
+        { file: 'DesignCanvas.html', schemes: ['light', 'dark'] },
+        { file: 'DesignBoard.html', schemes: ['light', 'dark'] },
+      ],
+    })?.detail,
+    'its siblings (DesignCanvas, DesignBoard) draw light and dark; dark is not drawn',
+  );
+  // A single-scheme source sets the bar; a board as wide as its siblings is fine.
+  assert.equal(
+    schemeDroppedProblem({
+      file: 'A.html',
+      title: 'A',
+      schemes: ['light'],
+      from: { file: 'Slide.html', schemes: ['light'] },
+    }),
+    null,
+  );
+  assert.equal(
+    schemeDroppedProblem({
+      file: 'A.html',
+      title: 'A',
+      schemes: ['light', 'dark'],
+      siblings: [{ file: 'B.html', schemes: ['light', 'dark'] }],
+    }),
+    null,
+  );
+
+  const pinned = schemePinnedProblems({
+    file: 'A.html',
+    title: 'A',
+    before: null,
+    after: board(
+      '',
+      '<div data-layer="editor" class="dz-ed" data-component="design-editor" data-theme="light"><div data-layer="preview" data-theme="light">Board</div></div>',
+    ).replace('<body>', '<body data-theme="light">'),
+  });
+  assert.deepEqual(
+    pinned.map((problem) => [problem.code, problem.label]),
+    [
+      ['scheme_pinned_page', 'A pins <body> to light'],
+      ['scheme_pinned_page', 'A pins the design-editor instance (editor) to light'],
+    ],
+  );
+  assert.equal(
+    pinned[0]!.fix,
+    'draw it in every scheme its siblings draw; to keep a preview light, pin the inner preview, not the page',
+  );
+
+  // In a check: a new Design board with schemes=light beside siblings that draw both.
+  const repo = repository();
+  try {
+    repo.write('design/boards/DesignCanvas.html', board('', '<main>Canvas</main>'));
+    repo.write('design/boards/DesignBoard.html', board('', '<main>Board</main>'));
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        boards: {
+          'DesignCanvas.html': { x: 0, y: 0, w: 1440, h: 900 },
+          'DesignBoard.html': { x: 1600, y: 0, w: 1440, h: 900 },
+        },
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'comment']);
+    repo.write(
+      'design/boards/DesignComment.html',
+      board('', '<main>Comment</main>').replace(
+        'width=1440,height=900',
+        'width=1440,height=900,schemes=light',
+      ),
+    );
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        boards: {
+          'DesignCanvas.html': { x: 0, y: 0, w: 1440, h: 900 },
+          'DesignBoard.html': { x: 1600, y: 0, w: 1440, h: 900 },
+          'DesignComment.html': { x: 3200, y: 0, w: 1440, h: 900 },
+        },
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Comment']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const { drawer } = drawing();
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.deepEqual(
+      result.problems.map((problem) => [problem.code, problem.file]),
+      [['scheme_dropped', 'DesignComment.html']],
+    );
+  } finally {
+    repo.cleanup();
+  }
 });
