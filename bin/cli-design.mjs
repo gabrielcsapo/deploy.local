@@ -916,7 +916,15 @@ export async function runDesign(sub, args, options, deps) {
       }
       const shown = new Map();
       return {
-        result: { notes: [], heights: {}, places: {}, renames: {}, removed: [], titles: {}, ...result },
+        result: {
+          notes: [],
+          heights: {},
+          places: {},
+          renames: {},
+          removed: [],
+          titles: {},
+          ...result,
+        },
         where: 'deploy.local',
         reason,
         sent: (file) => {

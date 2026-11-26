@@ -275,12 +275,7 @@ export function canvasGap(canvas: Canvas | null | undefined, y: number, fallback
 }
 
 /** Whether a rectangle is clear of every board and note but those named, by half a gap. */
-function isFree(
-  canvas: Canvas | null | undefined,
-  rect: Rect,
-  gap: number,
-  except: string[],
-) {
+function isFree(canvas: Canvas | null | undefined, rect: Rect, gap: number, except: string[]) {
   const padded = { x: rect.x - gap / 2, y: rect.y - gap / 2, w: rect.w + gap, h: rect.h + gap };
   return !occupied(canvas, except).some((other) => intersects(padded, other));
 }

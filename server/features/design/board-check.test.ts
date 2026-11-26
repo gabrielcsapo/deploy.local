@@ -811,10 +811,7 @@ test('a question is an open note; a layer that asks one and shows a sample value
   );
   assert.deepEqual(
     found.notes.filter((note) => note.code === 'open_question').map((note) => note.label),
-    [
-      'Run asks: How long are kept files kept?',
-      'Run asks: Where do they go?',
-    ],
+    ['Run asks: How long are kept files kept?', 'Run asks: Where do they go?'],
   );
   // Questions main already asks are not new notes.
   assert.equal(
@@ -1768,8 +1765,8 @@ test('a sample value is noted only when it is of the kind the question asks for'
       title: 'A',
       before: null,
       after: board('', `<p data-layer="x" data-question="${question}">${text}</p>`),
-    }).notes
-      .filter((note) => note.code === 'question_sample_value')
+    })
+      .notes.filter((note) => note.code === 'question_sample_value')
       .map((note) => note.detail);
   assert.deepEqual(flagged('Is the size the frame or the window?', 'Web 1440'), []);
   assert.deepEqual(flagged('What does this line mean?', 'Made at Web 1440 · Light'), []);
@@ -2883,7 +2880,9 @@ test('the starter page reset, in any spelling, is not an inline style; other pag
     inlineStyleNotes({ file: 'A.html', title: 'A', before: null, after: page(css) }).length;
   assert.equal(notes('html,body{margin:0;background:var(--bg-sunken)}'), 0);
   assert.equal(
-    notes('html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); color-scheme: light dark }'),
+    notes(
+      'html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); color-scheme: light dark }',
+    ),
     0,
   );
   assert.equal(notes('body{margin:0;min-height:100vh;background:var(--bg) !important}'), 0);
@@ -2907,7 +2906,13 @@ test('new boards go in a row with their kind, in name and number order, wrapping
   const third = placeBoard({ canvas, file: 'Slide3.html', size, near: null, siblings });
   assert.deepEqual([third.x, third.y], [4160, 0]);
   const later = { boards: { ...canvas.boards, 'Slide3.html': { x: 4160, y: 0, ...size } } };
-  const before = placeBoard({ canvas: { boards: { 'Slide2.html': later.boards['Slide2.html'] } }, file: 'Slide1.html', size, near: null, siblings: ['Slide2.html'] });
+  const before = placeBoard({
+    canvas: { boards: { 'Slide2.html': later.boards['Slide2.html'] } },
+    file: 'Slide1.html',
+    size,
+    near: null,
+    siblings: ['Slide2.html'],
+  });
   assert.deepEqual([before.x, before.y], [0, 0]);
   const row = Object.fromEntries(
     [1, 2, 3, 4, 5, 6].map((n) => [`Slide${n}.html`, { x: (n - 1) * 2080, y: 0, ...size }]),

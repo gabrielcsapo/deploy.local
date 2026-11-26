@@ -229,10 +229,16 @@ export async function openLocalDrawing({
         const lines = [];
         const reach = bleed + gap;
         for (const x of [left, right]) {
-          lines.push(`M${x} ${top - reach}V${gap / 2}`, `M${x} ${bottom + reach}V${paperHeight - gap / 2}`);
+          lines.push(
+            `M${x} ${top - reach}V${gap / 2}`,
+            `M${x} ${bottom + reach}V${paperHeight - gap / 2}`,
+          );
         }
         for (const y of [top, bottom]) {
-          lines.push(`M${left - reach} ${y}H${gap / 2}`, `M${right + reach} ${y}H${paperWidth - gap / 2}`);
+          lines.push(
+            `M${left - reach} ${y}H${gap / 2}`,
+            `M${right + reach} ${y}H${paperWidth - gap / 2}`,
+          );
         }
         marksSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${paperWidth}" height="${paperHeight}" style="position:absolute;left:0;top:0;pointer-events:none"><path d="${lines.join('')}" stroke="#000" stroke-width="0.35" fill="none"/></svg>`;
       }
@@ -240,7 +246,10 @@ export async function openLocalDrawing({
       built = /<head[^>]*>/i.test(built)
         ? built.replace(/<head[^>]*>/i, (head) => head + style)
         : style + built;
-      if (marksSvg) built = /<\/body>/i.test(built) ? built.replace(/<\/body>/i, `${marksSvg}</body>`) : built + marksSvg;
+      if (marksSvg)
+        built = /<\/body>/i.test(built)
+          ? built.replace(/<\/body>/i, `${marksSvg}</body>`)
+          : built + marksSvg;
       const tab = await browser.newTab({ width, height, scheme: 'light', media: 'print' });
       try {
         await tab.setContent(built);

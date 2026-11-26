@@ -1000,8 +1000,10 @@ export async function checkDesign(
         const otherText = await after(other);
         if (
           otherText &&
-          boardPlatform(parseBoardMeta(otherText), Number(placing.boards[other]?.w) || undefined) ===
-            platform
+          boardPlatform(
+            parseBoardMeta(otherText),
+            Number(placing.boards[other]?.w) || undefined,
+          ) === platform
         )
           sameKind.push(other);
       }

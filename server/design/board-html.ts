@@ -144,9 +144,7 @@ function roleOf(tag: string, name: string): { role: string; indexed: boolean } |
   const named = slug(firstClass.replace(/^(?:ds|dl)-/, ''));
   if (named && !isPlaceholder(named) && !/^(?:[a-z]|t|c|v|x)$/.test(named))
     return { role: named, indexed: true };
-  return tagRoles[name]
-    ? { role: tagRoles[name], indexed: name === 'li' || name === 'tr' }
-    : null;
+  return tagRoles[name] ? { role: tagRoles[name], indexed: name === 'li' || name === 'tr' } : null;
 }
 
 /** The name a layer gets from its markup alone: its role, its text, its first class, or its tag. */
@@ -311,7 +309,8 @@ export function assignLayerIds(html: string): string {
         const found = roleOf(tag, name);
         // A role from the markup (a class, a data-role) is the parent's name, then the role, then
         // which of its kind it is: budget-figure-2, and what is in it budget-figure-2-value.
-        const fromRole = !kind && name !== 'svg' && Boolean(found?.indexed) && plain === found!.role;
+        const fromRole =
+          !kind && name !== 'svg' && Boolean(found?.indexed) && plain === found!.role;
         const number = siblingNumber.get(lt);
         const role = kind
           ? kind
