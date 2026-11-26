@@ -292,7 +292,7 @@ a.dl-item:hover{background:color-mix(in srgb,var(--line) 35%,transparent)}
 .dl-ph-top .dl-t{flex:1;min-width:0;text-align:center;font-size:17px;line-height:22px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dl-ph-btn{width:44px;height:44px;flex:none;border:0;background:transparent;color:var(--ink);display:inline-flex;align-items:center;justify-content:center}
 .dl-ph-large{padding:4px 20px 8px;font-size:28px;line-height:34px;font-weight:700;letter-spacing:-.02em}
-.dl-ph-body{flex:1;min-height:0;overflow:hidden}
+.dl-ph-body{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}
 .dl-ph-label{padding:20px 32px 6px;font-size:13px;line-height:18px;color:var(--muted)}
 .dl-ph-group{margin:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--surface);overflow:hidden}
 .dl-ph-row{display:flex;align-items:center;gap:12px;min-height:52px;box-sizing:border-box;padding:8px 16px;border-bottom:1px solid var(--line)}
@@ -892,3 +892,18 @@ a.dl-asks-row:hover{background:color-mix(in srgb,var(--line) 35%,transparent)}
 .dl-nest-caption{padding:8px 0 4px;font-size:12px;line-height:16px;font-weight:600;color:var(--ink-soft)}
 .dl-ph-nest-caption{padding:12px 0 4px;font-size:13px;line-height:18px;font-weight:600;color:var(--ink-soft)}
 .dl-ph-row .dl-t > span.dl-mono:first-child{font-size:15px;line-height:22px}
+
+/* ---------- Phone screens: a sheet's top bar, a detail's header line, the screen's actions ----------
+   Detail screens name their item in the top bar (.dl-ph-top); .dl-ph-head is the status and facts
+   under it. A sheet slides over the screen with Done at its top right. Actions are full-width
+   buttons after the content, as the iPhone app draws them. */
+.dl-phone:has(> .dl-ph-sheet){background:var(--selection)}
+.dl-ph-sheet{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:54px;border-radius:var(--radius-dialog) var(--radius-dialog) 0 0;background:var(--paper);overflow:hidden}
+.dl-ph-sheet-top{flex:none;display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;min-height:52px;padding:0 8px}
+.dl-ph-sheet-top .dl-t{grid-column:2;margin:0;text-align:center;font-size:17px;line-height:22px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-ph-sheet-top .dl-ph-done{grid-column:3;justify-self:end;min-width:44px;min-height:44px;padding:0 8px;border:0;background:none;display:inline-flex;align-items:center;justify-content:flex-end;font-size:17px;line-height:22px;color:var(--ink)}
+.dl-ph-head{display:flex;flex-direction:column;gap:4px;padding:4px 20px 8px}
+.dl-ph-head-title{margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.01em}
+.dl-ph-head-meta{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin:0;font-size:13px;line-height:18px;color:var(--muted)}
+.dl-ph-head-meta .dl-status{font-size:13px;line-height:18px}
+.dl-ph-actions{display:flex;flex-direction:column;gap:8px;padding:12px 16px}
