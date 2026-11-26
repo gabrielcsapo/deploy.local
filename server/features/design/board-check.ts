@@ -41,6 +41,9 @@ import {
   overlapProblems,
   questionFindings,
   readTokens,
+  boardSchemes,
+  schemeDroppedProblem,
+  schemePinnedProblems,
   renameMeaninglessLayers,
   removedLayersNote,
   boardContent,
@@ -526,6 +529,16 @@ export async function checkDesign(
   const problems: CheckProblem[] = [];
   const notes: CheckProblem[] = [];
   const comparedWith = new Map<string, string>();
+  // The boards a board's schemes are compared with: its screen, else the boards sharing its first
+  // word (DesignComment with the other Design boards).
+  const schemeSiblings = (file: string) => {
+    const family = screenFamily(file, disk);
+    if (family.length) return family;
+    const word = /^[A-Z][a-z0-9]+/.exec(file)?.[0];
+    return word
+      ? disk.filter((other) => other !== file && new RegExp(`^${word}(?![a-z])`).test(other))
+      : [];
+  };
   // Phone boards by the board their head says they were drawn from, read once when needed.
   let phoneSourceIndex: Map<string, string[]> | null = null;
   const phoneSources = async () => {
@@ -679,6 +692,37 @@ export async function checkDesign(
       const baseline = { ...board, before: before ?? origin };
       problems.push(...notATokenProblems({ ...board, tokens, library: branchLibrary, origin }));
       problems.push(...editedInstanceProblems({ ...board, library: branchLibrary }));
+      // Every scheme its source or siblings draw, and no page pinned to one.
+      const schemes = boardSchemes(meta);
+      const mainSchemes = before ? boardSchemes(parseBoardMeta(before)).join(' ') : null;
+      if (schemes.join(' ') !== mainSchemes && schemes.length < 2) {
+        const drawnFrom = meta.source ?? meta.copiedFrom;
+        const fromText = drawnFrom && drawnFrom !== file ? await after(drawnFrom) : null;
+        const platform = boardPlatform(meta, Number(canvas?.boards?.[file]?.w) || undefined);
+        const siblings: { file: string; schemes: string[] }[] = [];
+        if (!fromText)
+          for (const sibling of schemeSiblings(file)) {
+            const html = await after(sibling);
+            const siblingMeta = parseBoardMeta(html);
+            if (
+              html &&
+              boardPlatform(siblingMeta, Number(canvas?.boards?.[sibling]?.w) || undefined) ===
+                platform
+            )
+              siblings.push({ file: sibling, schemes: boardSchemes(siblingMeta) });
+          }
+        const narrower = schemeDroppedProblem({
+          file,
+          title,
+          schemes,
+          from: fromText
+            ? { file: drawnFrom!, schemes: boardSchemes(parseBoardMeta(fromText)) }
+            : null,
+          siblings,
+        });
+        if (narrower) problems.push(narrower);
+      }
+      problems.push(...schemePinnedProblems(board));
       const asked = questionFindings(board);
       problems.push(...asked.problems);
       notes.push(...asked.notes);

@@ -1353,6 +1353,8 @@ test('status says where to start: platform, sizes, current or replaced, source, 
     assert.match(guide.text(), /\n {2}list-group {13}Rows in a group\n/);
     assert.match(guide.text(), /\n {2}low_contrast +problem {2}/);
     assert.match(guide.text(), /data-question=/);
+    assert.match(guide.text(), /'Kept with this run\.'/);
+    assert.doesNotMatch(guide.text(), /owner will set/);
     assert.match(guide.text(), /\n {2}3\. deploy design check --fix/);
   } finally {
     repo.cleanup();

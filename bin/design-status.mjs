@@ -537,10 +537,10 @@ export function guideLines({ top, designSystem }) {
   }
   section('When the product does not say');
   lines.push(
-    '  Mark the layer with data-question="How long are kept files kept?" and say the thing without',
+    '  Mark the layer with data-question="How long are kept files kept?" and say only what is',
   );
   lines.push(
-    "  a value: 'Kept files are deleted after a period the owner will set'. No placeholder, no guess.",
+    "  true today, with no value: 'Kept with this run.' No placeholder, no guess, no promised setting.",
   );
   lines.push('  The check lists it for the owner; a date or number on that layer is a problem.');
   lines.push(
