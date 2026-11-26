@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=game,device=phone,schemes=light dark" />
+    <title>Example game title</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/game.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-game">
+      <div class="ds-game-hud"><button type="button" class="ds-game-btn small" aria-label="Close"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button><span class="grow"></span><button type="button" class="ds-game-btn small" aria-label="Sound"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10zM16.5 9a4 4 0 0 1 0 6"/></svg></button></div>
+      <div class="ds-game-center">
+        <svg width="72" height="72" viewBox="0 0 64 64" aria-hidden="true"><path fill-rule="evenodd" fill="currentColor" d="M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z"/><circle cx="32" cy="32" r="8" fill="var(--accent)"/></svg>
+        <h1 class="ds-game-display">Game name</h1>
+        <p class="ds-game-label">Best score 12,480</p>
+      </div>
+      <div class="ds-game-actions">
+        <button type="button" class="ds-game-play" style="border: 0"><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Play</button>
+        <button type="button" class="ds-game-play secondary">Levels</button>
+      </div>
+    </div>
+  </body>
+</html>

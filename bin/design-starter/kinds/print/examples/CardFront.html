@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=print,size=85x55mm,bleed=3mm,safe=4mm,schemes=light" />
+    <title>Example card front</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/print.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: var(--surface);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-print-face ground-quiet" style="--print-w: 85mm; --print-h: 55mm; --print-bleed: 3mm; --print-safe: 4mm">
+      <div class="ds-print-safe">
+        <div>
+          <p class="ds-print-name">Person Name</p>
+          <p class="ds-print-small ds-print-muted">Role or title</p>
+        </div>
+        <div class="ds-print-contact">
+          <span>name@example.com</span>
+          <span>+00 000 000 000</span>
+          <span>example.com</span>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

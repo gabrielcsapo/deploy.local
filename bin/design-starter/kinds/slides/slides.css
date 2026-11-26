@@ -1,0 +1,305 @@
+/* Slides kind: a 1920 x 1080 frame for projection. Load tokens.css and components.css first.
+   One idea per slide. Everything is sized in px at 1920: body never under 32, titles 64 to 96,
+   a big number up to 160. Colours come from tokens, so a deck is light (the default) or dark
+   with data-theme on the slide. */
+
+:root {
+  --text-slide-footer: 28px;
+  --leading-slide-footer: 36px;
+  --text-slide-body: 36px;
+  --leading-slide-body: 52px;
+  --text-slide-lede: 44px;
+  --leading-slide-lede: 60px;
+  --text-slide-heading: 64px;
+  --leading-slide-heading: 76px;
+  --text-slide-title: 88px;
+  --leading-slide-title: 100px;
+  --text-slide-display: 112px;
+  --leading-slide-display: 120px;
+  --text-slide-number: 160px;
+  --leading-slide-number: 160px;
+  --size-slide-pad: 120px;
+}
+
+.ds-slide {
+  position: relative;
+  box-sizing: border-box;
+  width: 1920px;
+  height: 1080px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--size-slide-pad) var(--size-slide-pad) 168px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-slide-body);
+  line-height: var(--leading-slide-body);
+  -webkit-font-smoothing: antialiased;
+}
+.ds-slide p {
+  margin: 0;
+}
+
+/* ---------- Footer: deck name left, slide number right ---------- */
+.ds-slide-foot {
+  position: absolute;
+  left: var(--size-slide-pad);
+  right: var(--size-slide-pad);
+  bottom: 56px;
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-slide-footer);
+  line-height: var(--leading-slide-footer);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Text roles ---------- */
+.ds-slide-eyebrow {
+  margin-bottom: 32px;
+  font-size: var(--text-slide-footer);
+  line-height: var(--leading-slide-footer);
+  font-weight: var(--weight-semibold);
+  color: var(--accent);
+}
+.ds-slide-display,
+.ds-slide-title,
+.ds-slide-heading {
+  margin: 0;
+  font-weight: var(--weight-semibold);
+  text-wrap: balance;
+}
+.ds-slide-display {
+  font-size: var(--text-slide-display);
+  line-height: var(--leading-slide-display);
+  letter-spacing: -0.03em;
+}
+.ds-slide-title {
+  font-size: var(--text-slide-title);
+  line-height: var(--leading-slide-title);
+  letter-spacing: -0.025em;
+}
+.ds-slide-heading {
+  font-size: var(--text-slide-heading);
+  line-height: var(--leading-slide-heading);
+  letter-spacing: -0.02em;
+}
+.ds-slide-lede {
+  font-size: var(--text-slide-lede);
+  line-height: var(--leading-slide-lede);
+  color: var(--ink-secondary);
+}
+
+/* ---------- Layout 1: title ---------- */
+.ds-slide.title {
+  justify-content: flex-end;
+}
+.ds-slide.title .ds-slide-lede {
+  margin-top: 40px;
+  max-width: 1200px;
+}
+
+/* ---------- Layout 2: statement (one sentence, nothing else) ---------- */
+.ds-slide.statement {
+  justify-content: center;
+}
+.ds-slide.statement .ds-slide-display {
+  max-width: 1500px;
+}
+
+/* ---------- Layout 3: list (three to five items, one line each) ---------- */
+.ds-slide.list .ds-slide-heading {
+  margin-bottom: 72px;
+}
+.ds-slide-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+.ds-slide-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 32px;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-slide-lede);
+  line-height: var(--leading-slide-lede);
+}
+.ds-slide-list li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.ds-slide-list .n {
+  flex: none;
+  width: 64px;
+  font-size: var(--text-slide-body);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ds-slide-list .sub {
+  margin-left: auto;
+  font-size: var(--text-slide-body);
+  color: var(--ink-secondary);
+}
+
+/* ---------- Layout 4: picture (the picture takes the right half to the edge) ---------- */
+.ds-slide.picture {
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+}
+.ds-slide.picture .ds-slide-text {
+  flex: none;
+  width: 840px;
+  box-sizing: border-box;
+  padding: var(--size-slide-pad);
+}
+.ds-slide.picture .ds-slide-text .ds-slide-lede {
+  margin-top: 32px;
+}
+.ds-slide-picture {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fill);
+  color: var(--ink-tertiary);
+  overflow: hidden;
+}
+.ds-slide-picture > svg {
+  width: 100%;
+  height: 100%;
+}
+.ds-slide.picture .ds-slide-foot {
+  right: auto;
+  width: 600px;
+}
+.ds-slide-foot .ds-slide-foot-num {
+  margin-left: auto;
+}
+
+/* ---------- Layout 5: two columns ---------- */
+.ds-slide.two .ds-slide-heading {
+  margin-bottom: 72px;
+}
+.ds-slide-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 96px;
+}
+.ds-slide-col h3 {
+  margin: 0 0 24px;
+  font-size: var(--text-slide-lede);
+  line-height: var(--leading-slide-lede);
+  font-weight: var(--weight-semibold);
+}
+.ds-slide-col p {
+  color: var(--ink-secondary);
+}
+
+/* ---------- Big number ---------- */
+.ds-slide.number {
+  justify-content: center;
+}
+.ds-slide-bignumber {
+  font-size: var(--text-slide-number);
+  line-height: var(--leading-slide-number);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.ds-slide-bignumber .unit {
+  margin-left: 16px;
+  font-size: var(--text-slide-heading);
+  letter-spacing: 0;
+  color: var(--ink-secondary);
+}
+.ds-slide-numlabel {
+  margin-top: 32px;
+  font-size: var(--text-slide-lede);
+  line-height: var(--leading-slide-lede);
+  color: var(--ink-secondary);
+  max-width: 1200px;
+}
+
+/* ---------- Simple bar chart: --v is the bar's share of the track, 0 to 100 ---------- */
+.ds-slide-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+.ds-slide-bar {
+  display: grid;
+  grid-template-columns: 320px 1fr 140px;
+  align-items: center;
+  gap: 32px;
+  font-size: var(--text-slide-body);
+  line-height: var(--leading-slide-body);
+}
+.ds-slide-bar-track {
+  height: 48px;
+  border-radius: var(--radius-control);
+  background: var(--fill);
+}
+.ds-slide-bar-fill {
+  width: calc(var(--v) * 1%);
+  height: 100%;
+  border-radius: var(--radius-control);
+  background: var(--ink-secondary);
+}
+.ds-slide-bar.focus .ds-slide-bar-fill {
+  background: var(--accent);
+}
+.ds-slide-bar-value {
+  text-align: right;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Table ---------- */
+.ds-slide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-slide-body);
+  line-height: var(--leading-slide-body);
+  font-variant-numeric: tabular-nums;
+}
+.ds-slide-table th {
+  padding: 0 24px 20px 0;
+  border-bottom: 2px solid var(--line-strong);
+  text-align: left;
+  font-weight: var(--weight-semibold);
+  color: var(--ink-secondary);
+}
+.ds-slide-table td {
+  padding: 24px 24px 24px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ds-slide-table .num {
+  text-align: right;
+  padding-right: 0;
+}
+
+/* ---------- Builds: data-step="1", "2"… appear one step at a time.
+   Set data-step-at="N" on the slide to draw it at step N; with no data-step-at, every step shows. ---------- */
+.ds-slide[data-step-at] [data-step] {
+  visibility: hidden;
+}
+.ds-slide[data-step-at="1"] [data-step="1"],
+.ds-slide[data-step-at="2"] :is([data-step="1"], [data-step="2"]),
+.ds-slide[data-step-at="3"] :is([data-step="1"], [data-step="2"], [data-step="3"]),
+.ds-slide[data-step-at="4"] :is([data-step="1"], [data-step="2"], [data-step="3"], [data-step="4"]),
+.ds-slide[data-step-at="5"]
+  :is([data-step="1"], [data-step="2"], [data-step="3"], [data-step="4"], [data-step="5"]),
+.ds-slide[data-step-at="6"]
+  :is([data-step="1"], [data-step="2"], [data-step="3"], [data-step="4"], [data-step="5"], [data-step="6"]) {
+  visibility: visible;
+}
+
+/* ---------- Speaker notes: never drawn on the slide ---------- */
+.ds-slide aside[data-notes] {
+  display: none;
+}

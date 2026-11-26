@@ -1,0 +1,233 @@
+{
+  "name": "Slides kind",
+  "components": [
+    {
+      "id": "slide-title",
+      "name": "Title slide",
+      "group": "Slide layouts",
+      "platform": "slide",
+      "description": "The first slide: the display title bottom-left with one line under it.",
+      "props": [
+        {
+          "id": "eyebrow",
+          "label": "Eyebrow",
+          "default": "Event or date"
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Deck title"
+        },
+        {
+          "id": "lede",
+          "label": "Line",
+          "default": "One line of context."
+        },
+        {
+          "id": "notes",
+          "label": "Speaker notes",
+          "default": "Notes"
+        }
+      ],
+      "html": "<section class=\"ds-slide title\"><div class=\"ds-slide-eyebrow\">{{eyebrow}}</div><h1 class=\"ds-slide-display\">{{title}}</h1><p class=\"ds-slide-lede\">{{lede}}</p><aside data-notes>{{notes}}</aside></section>"
+    },
+    {
+      "id": "slide-statement",
+      "name": "Statement slide",
+      "group": "Slide layouts",
+      "platform": "slide",
+      "description": "One sentence, centred vertically, nothing else.",
+      "props": [
+        {
+          "id": "text",
+          "label": "Sentence",
+          "default": "One sentence that is the whole slide."
+        },
+        {
+          "id": "notes",
+          "label": "Speaker notes",
+          "default": "Notes"
+        },
+        {
+          "id": "deck",
+          "label": "Deck name",
+          "default": "Deck name"
+        },
+        {
+          "id": "n",
+          "label": "Slide number",
+          "default": "1"
+        }
+      ],
+      "html": "<section class=\"ds-slide statement\"><h2 class=\"ds-slide-display\">{{text}}</h2><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+    },
+    {
+      "id": "slide-list",
+      "name": "List slide",
+      "group": "Slide layouts",
+      "platform": "slide",
+      "description": "A heading and three to five one-line items; each can be a build step.",
+      "props": [
+        {
+          "id": "heading",
+          "label": "Heading",
+          "default": "Heading"
+        },
+        {
+          "id": "notes",
+          "label": "Speaker notes",
+          "default": "Notes"
+        },
+        {
+          "id": "deck",
+          "label": "Deck name",
+          "default": "Deck name"
+        },
+        {
+          "id": "n",
+          "label": "Slide number",
+          "default": "1"
+        }
+      ],
+      "html": "<section class=\"ds-slide list\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><ol class=\"ds-slide-list\"><li data-step=\"1\"><span class=\"n\">01</span>First item</li><li data-step=\"2\"><span class=\"n\">02</span>Second item</li><li data-step=\"3\"><span class=\"n\">03</span>Third item</li></ol><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+    },
+    {
+      "id": "slide-picture",
+      "name": "Picture slide",
+      "group": "Slide layouts",
+      "platform": "slide",
+      "description": "Text at the left, a picture to the right edge.",
+      "props": [
+        {
+          "id": "heading",
+          "label": "Heading",
+          "default": "Heading"
+        },
+        {
+          "id": "lede",
+          "label": "Line",
+          "default": "One line."
+        },
+        {
+          "id": "notes",
+          "label": "Speaker notes",
+          "default": "Notes"
+        },
+        {
+          "id": "deck",
+          "label": "Deck name",
+          "default": "Deck name"
+        }
+      ],
+      "html": "<section class=\"ds-slide picture\"><div class=\"ds-slide-text\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><p class=\"ds-slide-lede\">{{lede}}</p></div><div class=\"ds-slide-picture\"></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span></div></section>"
+    },
+    {
+      "id": "slide-two",
+      "name": "Two columns slide",
+      "group": "Slide layouts",
+      "platform": "slide",
+      "description": "Two short columns under a heading: before and after, this and that.",
+      "props": [
+        {
+          "id": "heading",
+          "label": "Heading",
+          "default": "Heading"
+        },
+        {
+          "id": "notes",
+          "label": "Speaker notes",
+          "default": "Notes"
+        },
+        {
+          "id": "deck",
+          "label": "Deck name",
+          "default": "Deck name"
+        },
+        {
+          "id": "n",
+          "label": "Slide number",
+          "default": "1"
+        }
+      ],
+      "html": "<section class=\"ds-slide two\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><div class=\"ds-slide-cols\"><div class=\"ds-slide-col\"><h3>Left</h3><p>A short line.</p></div><div class=\"ds-slide-col\"><h3>Right</h3><p>A short line.</p></div></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+    },
+    {
+      "id": "slide-number",
+      "name": "Big number slide",
+      "group": "Slide layouts",
+      "platform": "slide",
+      "description": "One number at 160 px and what it means.",
+      "props": [
+        {
+          "id": "number",
+          "label": "Number",
+          "default": "00"
+        },
+        {
+          "id": "unit",
+          "label": "Unit",
+          "default": "%"
+        },
+        {
+          "id": "label",
+          "label": "Meaning",
+          "default": "What this number means."
+        },
+        {
+          "id": "notes",
+          "label": "Speaker notes",
+          "default": "Notes"
+        },
+        {
+          "id": "deck",
+          "label": "Deck name",
+          "default": "Deck name"
+        },
+        {
+          "id": "n",
+          "label": "Slide number",
+          "default": "1"
+        }
+      ],
+      "html": "<section class=\"ds-slide number\"><div class=\"ds-slide-bignumber\">{{number}}<span class=\"unit\">{{unit}}</span></div><p class=\"ds-slide-numlabel\">{{label}}</p><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+    },
+    {
+      "id": "slide-bars",
+      "name": "Bar chart",
+      "group": "Slide blocks",
+      "platform": "slide",
+      "description": "Horizontal bars; --v is 0 to 100; .focus puts the accent on the one that matters.",
+      "props": [],
+      "html": "<div class=\"ds-slide-bars\"><div class=\"ds-slide-bar\"><span>Group one</span><div class=\"ds-slide-bar-track\"><div class=\"ds-slide-bar-fill\" style=\"--v: 40\"></div></div><span class=\"ds-slide-bar-value\">40</span></div><div class=\"ds-slide-bar focus\"><span>Group two</span><div class=\"ds-slide-bar-track\"><div class=\"ds-slide-bar-fill\" style=\"--v: 80\"></div></div><span class=\"ds-slide-bar-value\">80</span></div></div>"
+    },
+    {
+      "id": "slide-table",
+      "name": "Table",
+      "group": "Slide blocks",
+      "platform": "slide",
+      "description": "Three to five rows, three columns at most.",
+      "props": [],
+      "html": "<table class=\"ds-slide-table\"><thead><tr><th>Name</th><th>Detail</th><th class=\"num\">Number</th></tr></thead><tbody><tr><td>Row one</td><td>Detail</td><td class=\"num\">00</td></tr><tr><td>Row two</td><td>Detail</td><td class=\"num\">00</td></tr></tbody></table>"
+    },
+    {
+      "id": "slide-footer",
+      "name": "Footer",
+      "group": "Slide blocks",
+      "platform": "slide",
+      "description": "Deck name at the left, slide number at the right; on every slide but the title.",
+      "props": [
+        {
+          "id": "deck",
+          "label": "Deck name",
+          "default": "Deck name"
+        },
+        {
+          "id": "n",
+          "label": "Slide number",
+          "default": "1"
+        }
+      ],
+      "html": "<div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div>"
+    }
+  ]
+}

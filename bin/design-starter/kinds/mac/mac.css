@@ -1,0 +1,642 @@
+/* Mac kind: a macOS window, drawn the way the system draws it. Load tokens.css and components.css first.
+   Window with traffic lights and a unified toolbar, a sidebar of sections, a list and a detail pane,
+   an inspector, a settings window with toolbar tabs, a menu-bar extra popover, sheets and native
+   controls. Type is --text-mac-*: 13 body, 11 secondary. Light and dark come from the tokens. */
+
+:root {
+  --text-mac-small: 11px;
+  --leading-mac-small: 14px;
+  --text-mac-body: 13px;
+  --leading-mac-body: 16px;
+  --text-mac-headline: 15px;
+  --leading-mac-headline: 20px;
+  --text-mac-title: 20px;
+  --leading-mac-title: 26px;
+  --text-mac-large: 26px;
+  --leading-mac-large: 32px;
+  --size-mac-titlebar: 52px;
+  --size-mac-row: 24px;
+  --size-mac-sidebar: 220px;
+  --size-mac-inspector: 260px;
+  --size-mac-control: 22px;
+}
+
+.ds-mac-desk {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-sunken);
+}
+.ds-mac-window,
+.ds-mac-popover,
+.ds-mac-sheet,
+.ds-mac-menubar {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-mac-body);
+  line-height: var(--leading-mac-body);
+  -webkit-font-smoothing: antialiased;
+}
+.ds-mac-window :where(button, input, select) {
+  font: inherit;
+  color: inherit;
+}
+.ds-mac-window svg,
+.ds-mac-popover svg {
+  flex: none;
+}
+
+/* ---------- Window: fills the board; the board is the window's size ---------- */
+.ds-mac-window {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dialog);
+}
+.ds-mac-lights {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.ds-mac-lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.ds-mac-lights i:nth-child(1) {
+  background: color-mix(in srgb, var(--danger) 80%, var(--surface));
+}
+.ds-mac-lights i:nth-child(2) {
+  background: color-mix(in srgb, var(--warning) 60%, var(--surface));
+}
+.ds-mac-lights i:nth-child(3) {
+  background: color-mix(in srgb, var(--success) 70%, var(--surface));
+}
+.ds-mac-window.inactive .ds-mac-lights i {
+  background: var(--fill-strong);
+}
+
+/* ---------- Title bar and toolbar (unified): lights, title, items ---------- */
+.ds-mac-titlebar {
+  flex: none;
+  height: var(--size-mac-titlebar);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.ds-mac-title {
+  font-weight: var(--weight-semibold);
+}
+.ds-mac-subtitle {
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+  color: var(--ink-secondary);
+}
+.ds-mac-titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ds-mac-spacer {
+  flex: 1;
+}
+.ds-mac-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  min-width: 32px;
+  padding: 0 var(--space-2);
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink-secondary);
+}
+.ds-mac-tool:hover {
+  background: var(--fill);
+}
+.ds-mac-tool.on {
+  background: var(--fill-strong);
+  color: var(--ink);
+}
+.ds-mac-tool .ds-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- Body: sidebar | list | detail | inspector ---------- */
+.ds-mac-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.ds-mac-sidebar {
+  flex: none;
+  width: var(--size-mac-sidebar);
+  box-sizing: border-box;
+  padding: var(--space-3) var(--space-2);
+  background: var(--bg-sunken);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+.ds-mac-section {
+  padding: var(--space-3) var(--space-2) var(--space-1);
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-secondary);
+}
+.ds-mac-sideitem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+}
+.ds-mac-sideitem .ds-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+.ds-mac-sideitem .count {
+  margin-left: auto;
+  font-size: var(--text-mac-small);
+  color: var(--ink-secondary);
+}
+.ds-mac-sideitem.on {
+  background: var(--fill-strong);
+  font-weight: var(--weight-medium);
+}
+.ds-mac-list {
+  flex: none;
+  width: 320px;
+  box-sizing: border-box;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+}
+.ds-mac-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.ds-mac-item .name {
+  font-weight: var(--weight-semibold);
+}
+.ds-mac-item .sub {
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+  color: var(--ink-secondary);
+}
+.ds-mac-item.on {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-bottom-color: transparent;
+}
+.ds-mac-item.on .sub {
+  color: inherit;
+  opacity: 0.85;
+}
+.ds-mac-detail {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--space-8);
+  background: var(--surface);
+  overflow: hidden;
+}
+.ds-mac-detail h1 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-mac-large);
+  line-height: var(--leading-mac-large);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+.ds-mac-detail h2 {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--text-mac-headline);
+  line-height: var(--leading-mac-headline);
+  font-weight: var(--weight-semibold);
+}
+.ds-mac-detail p {
+  margin: 0 0 var(--space-3);
+  max-width: 62ch;
+}
+.ds-mac-secondary {
+  color: var(--ink-secondary);
+}
+.ds-mac-small {
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+}
+.ds-mac-inspector {
+  flex: none;
+  width: var(--size-mac-inspector);
+  box-sizing: border-box;
+  padding: var(--space-4);
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow: hidden;
+}
+.ds-mac-prop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ds-mac-prop > label,
+.ds-mac-prop > .label {
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-secondary);
+}
+
+/* ---------- Controls ---------- */
+.ds-mac-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--size-mac-control);
+  padding: 0 var(--space-3);
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-control);
+  white-space: nowrap;
+}
+.ds-mac-btn.default {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.ds-mac-popup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--size-mac-control);
+  padding: 0 var(--space-1) 0 var(--space-2);
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-control);
+  min-width: 140px;
+}
+.ds-mac-popup > span:first-child {
+  flex: 1;
+}
+.ds-mac-popup .arrows {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ds-mac-popup .arrows svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ds-mac-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ds-mac-check .box {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: var(--shadow-control);
+}
+.ds-mac-check.on .box {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ds-mac-check .box svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ds-mac-seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  height: var(--size-mac-control);
+  box-sizing: border-box;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+}
+.ds-mac-seg span {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border-radius: 4px;
+  color: var(--ink-secondary);
+}
+.ds-mac-seg span.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-control);
+}
+.ds-mac-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  box-sizing: border-box;
+  border-radius: var(--radius-control);
+  background: var(--fill);
+  color: var(--ink-secondary);
+}
+.ds-mac-search .ds-icon {
+  width: 14px;
+  height: 14px;
+}
+.ds-mac-field {
+  display: flex;
+  align-items: center;
+  height: var(--size-mac-control);
+  padding: 0 var(--space-2);
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  min-width: 200px;
+}
+.ds-mac-slider {
+  position: relative;
+  width: 160px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--fill-strong);
+}
+.ds-mac-slider::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--v, 50%);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.ds-mac-slider::after {
+  content: '';
+  position: absolute;
+  left: var(--v, 50%);
+  top: -6px;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-full);
+  background: var(--knob);
+  box-shadow: var(--shadow-control);
+}
+
+/* ---------- Table: header, 24 px rows, selection in the accent ---------- */
+.ds-mac-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.ds-mac-table th {
+  height: 24px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-secondary);
+}
+.ds-mac-table td {
+  height: var(--size-mac-row);
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+}
+.ds-mac-table .num {
+  text-align: right;
+}
+.ds-mac-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--fill) 45%, transparent);
+}
+.ds-mac-table tbody tr.on td {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ds-mac-table tr.on td:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.ds-mac-table tr.on td:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* ---------- Settings window: toolbar tabs over a form ---------- */
+.ds-mac-tabs {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-1);
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.ds-mac-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 64px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+  color: var(--ink-secondary);
+}
+.ds-mac-tab .ds-icon {
+  width: 22px;
+  height: 22px;
+}
+.ds-mac-tab.on {
+  background: var(--fill-strong);
+  color: var(--accent);
+}
+.ds-mac-settings-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-6) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow: hidden;
+}
+.ds-mac-form {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+.ds-mac-form > .label {
+  text-align: right;
+}
+.ds-mac-form .note {
+  grid-column: 2;
+  margin-top: calc(-1 * var(--space-2));
+  font-size: var(--text-mac-small);
+  line-height: var(--leading-mac-small);
+  color: var(--ink-secondary);
+}
+.ds-mac-rule {
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: var(--space-1) 0;
+}
+
+/* ---------- Menu-bar extra: the bar and its popover ---------- */
+.ds-mac-menubar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 24px;
+  padding: 0 var(--space-3);
+  box-sizing: border-box;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-mac-body);
+}
+.ds-mac-menubar .grow {
+  flex: 1;
+}
+.ds-mac-menubar .extra {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+}
+.ds-mac-menubar .extra.on {
+  background: var(--fill-strong);
+}
+.ds-mac-menubar .ds-icon {
+  width: 14px;
+  height: 14px;
+}
+.ds-mac-popover {
+  position: relative;
+  width: 300px;
+  box-sizing: border-box;
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+.ds-mac-popover-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+.ds-mac-popover-head .name {
+  font-weight: var(--weight-semibold);
+}
+.ds-mac-menu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.ds-mac-menu-row .value {
+  margin-left: auto;
+  color: var(--ink-secondary);
+}
+.ds-mac-menu-row.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ds-mac-menu-row.on .value {
+  color: inherit;
+}
+.ds-mac-popover .ds-mac-rule {
+  margin: var(--space-1) var(--space-2);
+}
+
+/* ---------- Sheet: drops from the title bar over a dimmed window ---------- */
+.ds-mac-dim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+}
+.ds-mac-sheet {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 420px;
+  margin-left: -210px;
+  box-sizing: border-box;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-sheet) var(--radius-sheet);
+  background: var(--surface);
+  box-shadow: var(--shadow-dialog);
+}
+.ds-mac-sheet h2 {
+  margin: 0;
+  font-size: var(--text-mac-headline);
+  line-height: var(--leading-mac-headline);
+  font-weight: var(--weight-semibold);
+}
+.ds-mac-sheet-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.ds-mac-sheet p {
+  margin: 0;
+}

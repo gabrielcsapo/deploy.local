@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=doc,page=a4,schemes=light dark" />
+    <title>Example handbook</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/doc.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-doc">
+      <header class="ds-doc-head"><span>Team handbook</span><span>Working together</span></header>
+      <main class="ds-doc-page">
+        <div class="ds-doc-kicker">Version 1.0</div>
+        <h1>Working together</h1>
+        <p class="ds-doc-lede">
+          How the team plans, decides and hands work over. It is short on purpose: read it once, then
+          come back to the part you need.
+        </p>
+
+        <h2>Planning</h2>
+        <p>
+          Work is planned in cycles of two weeks. Before a cycle starts, each person writes down what
+          they expect to finish and what could get in the way. The plan is a list, not a document:
+          anyone should be able to read it in a minute.
+        </p>
+        <ul>
+          <li>Pick no more than three things to finish per person.</li>
+          <li>Name the person who decides if the scope has to change.</li>
+          <li>Leave one afternoon free for what nobody planned.</li>
+        </ul>
+        <div class="ds-doc-callout">
+          <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 11v5M12 8h.01" />
+          </svg>
+          <div>
+            <p class="ds-doc-callout-title">A plan can change</p>
+            <p>Changing the plan is fine. Changing it without telling the others is not.</p>
+          </div>
+        </div>
+
+        <h2>Roles and hours</h2>
+        <p>Each role has one place where its work is reviewed and a usual time it is reachable.</p>
+        <table class="ds-doc-table">
+          <caption>
+            Who to ask, and when
+          </caption>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Reviews</th>
+              <th>Reachable</th>
+              <th class="num">Cycle share</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Lead</td>
+              <td data-label="Reviews">Plans and scope</td>
+              <td data-label="Reachable">Weekdays, 09:00 to 17:00</td>
+              <td data-label="Cycle share" class="num">20%</td>
+            </tr>
+            <tr>
+              <td>Maker</td>
+              <td data-label="Reviews">Own work, then a peer</td>
+              <td data-label="Reachable">Weekdays, 10:00 to 16:00</td>
+              <td data-label="Cycle share" class="num">70%</td>
+            </tr>
+            <tr>
+              <td>Support</td>
+              <td data-label="Reviews">Answers and handovers</td>
+              <td data-label="Reachable">Weekdays, 08:00 to 18:00</td>
+              <td data-label="Cycle share" class="num">10%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="ds-doc-pagebreak"></div>
+
+        <h2>Handing work over</h2>
+        <p>
+          A handover is a note, not a meeting. It says what is done, what is left and where to look
+          first. The person receiving it replies once with what they understood.
+        </p>
+        <figure class="ds-doc-figure">
+          <div class="ds-doc-figure-art">
+            <svg viewBox="0 0 320 180" aria-hidden="true">
+              <rect x="40" y="70" width="64" height="40" rx="8" fill="none" stroke="currentColor" stroke-width="2" />
+              <rect x="216" y="70" width="64" height="40" rx="8" fill="none" stroke="currentColor" stroke-width="2" />
+              <path d="M112 90h96m-10-8 10 8-10 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
+          <figcaption>The note goes from the person who finishes to the person who continues.</figcaption>
+        </figure>
+        <h3>What a note contains</h3>
+        <ol>
+          <li>What is finished, in one sentence.</li>
+          <li>What is not, and why it is not.</li>
+          <li>The first thing to open, with a link.</li>
+        </ol>
+        <p>
+          Use <code>handover</code> in the title so the note can be found later. Questions go in the
+          same thread, not in a new one.
+        </p>
+      </main>
+      <footer class="ds-doc-foot"><span>Updated 1 January</span><span>Page numbers added in print</span></footer>
+    </div>
+  </body>
+</html>

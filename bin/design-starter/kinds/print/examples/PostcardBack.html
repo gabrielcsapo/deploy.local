@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=print,size=148x105mm,bleed=3mm,safe=4mm,schemes=light" />
+    <title>Example postcard back</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/print.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: var(--surface);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-print-face" style="--print-w: 148mm; --print-h: 105mm; --print-bleed: 3mm; --print-safe: 5mm">
+      <div class="ds-print-safe" style="flex-direction: row; gap: 10mm; justify-content: flex-start">
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between">
+          <p class="ds-print-body" style="max-width: 58mm">A few lines of message go here, set at body size and kept to the left half of the card.</p>
+          <div class="ds-print-wordmark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill-rule="evenodd" fill="currentColor" d="M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z"/><circle cx="32" cy="32" r="8" fill="currentColor"/></svg> Product name</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between">
+          <div class="ds-print-stamp">Stamp</div>
+          <address class="ds-print-address" style="width: 100%">
+            <span class="line">Recipient name</span><hr class="ds-print-rule" style="margin: 2mm 0" />
+            <span class="line">Street and number</span><hr class="ds-print-rule" style="margin: 2mm 0" />
+            <span class="line">Postcode and town</span><hr class="ds-print-rule" style="margin: 2mm 0" />
+            <span class="line">Country</span>
+          </address>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

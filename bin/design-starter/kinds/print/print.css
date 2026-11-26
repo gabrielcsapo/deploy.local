@@ -1,0 +1,190 @@
+/* Print kind: a card face at trim size, with bleed and a safe area. Load tokens.css and components.css first.
+   Sizes are millimetres and type is points (1 pt = 1/72 in). The face's size comes from custom
+   properties set on .ds-print-face to match the board's meta: --print-w, --print-h (trim),
+   --print-bleed and --print-safe. Print is light only. */
+
+:root {
+  --text-print-fine: 6pt;
+  --leading-print-fine: 8pt;
+  --text-print-small: 7pt;
+  --leading-print-small: 9.5pt;
+  --text-print-body: 8.5pt;
+  --leading-print-body: 11.5pt;
+  --text-print-name: 11pt;
+  --leading-print-name: 13pt;
+  --text-print-title: 16pt;
+  --leading-print-title: 19pt;
+  --text-print-display: 26pt;
+  --leading-print-display: 28pt;
+  --print-w: 85mm;
+  --print-h: 55mm;
+  --print-bleed: 3mm;
+  --print-safe: 4mm;
+}
+
+/* ---------- The face: trim plus bleed on every side. The board is exactly this box. ---------- */
+.ds-print-face {
+  position: relative;
+  box-sizing: border-box;
+  width: calc(var(--print-w) + 2 * var(--print-bleed));
+  height: calc(var(--print-h) + 2 * var(--print-bleed));
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-print-body);
+  line-height: var(--leading-print-body);
+  -webkit-font-smoothing: antialiased;
+}
+.ds-print-face p {
+  margin: 0;
+}
+/* A solid ground that runs out into the bleed. */
+.ds-print-face.ground-ink {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.ds-print-face.ground-brand {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ds-print-face.ground-quiet {
+  background: var(--bg-sunken);
+}
+/* Anything that must run to the cut edge is a child of .ds-print-bleed, which fills the whole face. */
+.ds-print-bleed {
+  position: absolute;
+  inset: 0;
+}
+/* Content sits in the safe area: inside the trim by --print-safe. Never put text outside it. */
+.ds-print-safe {
+  position: absolute;
+  inset: calc(var(--print-bleed) + var(--print-safe));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.ds-print-safe.center {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+/* ---------- Type ---------- */
+.ds-print-display {
+  font-size: var(--text-print-display);
+  line-height: var(--leading-print-display);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+}
+.ds-print-title {
+  font-size: var(--text-print-title);
+  line-height: var(--leading-print-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+.ds-print-name {
+  font-size: var(--text-print-name);
+  line-height: var(--leading-print-name);
+  font-weight: var(--weight-semibold);
+}
+.ds-print-body {
+  font-size: var(--text-print-body);
+  line-height: var(--leading-print-body);
+}
+.ds-print-small {
+  font-size: var(--text-print-small);
+  line-height: var(--leading-print-small);
+}
+.ds-print-fine {
+  font-size: var(--text-print-fine);
+  line-height: var(--leading-print-fine);
+}
+.ds-print-muted {
+  color: var(--ink-secondary);
+}
+.ds-print-face.ground-ink .ds-print-muted,
+.ds-print-face.ground-brand .ds-print-muted {
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* ---------- Wordmark area: the mark and the name, set small ---------- */
+.ds-print-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+  font-size: var(--text-print-name);
+  line-height: var(--leading-print-name);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+.ds-print-wordmark svg {
+  width: 6mm;
+  height: 6mm;
+  flex: none;
+}
+.ds-print-wordmark.large {
+  font-size: var(--text-print-title);
+  line-height: var(--leading-print-title);
+}
+.ds-print-wordmark.large svg {
+  width: 9mm;
+  height: 9mm;
+}
+
+/* ---------- Contact lines ---------- */
+.ds-print-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5mm;
+  font-size: var(--text-print-small);
+  line-height: var(--leading-print-small);
+}
+
+/* ---------- Address block: the recipient, at a fixed place and size ---------- */
+.ds-print-address {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-print-name);
+  line-height: var(--leading-print-name);
+  font-style: normal;
+}
+.ds-print-address .line + .line {
+  margin-top: 0.5mm;
+}
+.ds-print-rule {
+  height: 0;
+  border: 0;
+  border-top: 0.25pt solid var(--line-strong);
+  margin: 0;
+}
+
+/* ---------- Stamp box: keep clear, never print in it ---------- */
+.ds-print-stamp {
+  box-sizing: border-box;
+  width: 20mm;
+  height: 24mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.25pt dashed var(--ink-tertiary);
+  color: var(--ink-tertiary);
+  font-size: var(--text-print-fine);
+  line-height: var(--leading-print-fine);
+  text-align: center;
+}
+
+/* ---------- Front and back, side by side on one sheet board ---------- */
+.ds-print-pair {
+  display: flex;
+  align-items: flex-start;
+  gap: 10mm;
+  padding: 10mm;
+  background: var(--bg-sunken);
+  width: max-content;
+}
+.ds-print-pair .ds-print-face {
+  flex: none;
+  box-shadow: var(--shadow-raised);
+}

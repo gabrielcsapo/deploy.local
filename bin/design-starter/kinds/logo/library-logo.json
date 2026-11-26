@@ -1,0 +1,68 @@
+{
+  "name": "Logo kind",
+  "components": [
+    {
+      "id": "logo-mark",
+      "name": "Placeholder mark",
+      "group": "Logo",
+      "platform": "logo",
+      "description": "A mark on a 64 grid from two shapes; replace the shapes, keep the classes (.a main colour, .b accent). Variants: \" mono\", \" reversed\".",
+      "props": [
+        {
+          "id": "variant",
+          "label": "Variant",
+          "default": ""
+        }
+      ],
+      "html": "<svg class=\"ds-logo-mark{{variant}}\" viewBox=\"0 0 64 64\" role=\"img\" aria-label=\"Mark\"><path class=\"a\" fill-rule=\"evenodd\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle class=\"b\" cx=\"32\" cy=\"32\" r=\"8\"/></svg>"
+    },
+    {
+      "id": "logo-artboard",
+      "name": "Artboard with clear space",
+      "group": "Logo",
+      "platform": "logo",
+      "description": "The 1024 square with the mark centred and the clear-space guide drawn.",
+      "props": [],
+      "html": "<div class=\"ds-logo-artboard guides\"><svg class=\"ds-logo-mark\" viewBox=\"0 0 64 64\" role=\"img\" aria-label=\"Mark\"><path class=\"a\" fill-rule=\"evenodd\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle class=\"b\" cx=\"32\" cy=\"32\" r=\"8\"/></svg><span class=\"ds-logo-x\">x</span></div>"
+    },
+    {
+      "id": "logo-lockup",
+      "name": "Horizontal lockup",
+      "group": "Logo",
+      "platform": "logo",
+      "description": "Mark left, the name to the right.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Name",
+          "default": "Product name"
+        }
+      ],
+      "html": "<div class=\"ds-logo-lockup\"><svg class=\"ds-logo-mark\" viewBox=\"0 0 64 64\" role=\"img\" aria-label=\"Mark\"><path class=\"a\" fill-rule=\"evenodd\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle class=\"b\" cx=\"32\" cy=\"32\" r=\"8\"/></svg><span class=\"ds-logo-word\">{{name}}</span></div>"
+    },
+    {
+      "id": "logo-stacked",
+      "name": "Stacked lockup",
+      "group": "Logo",
+      "platform": "logo",
+      "description": "Mark above, the name centred under it.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Name",
+          "default": "Product name"
+        }
+      ],
+      "html": "<div class=\"ds-logo-lockup stacked\"><svg class=\"ds-logo-mark\" viewBox=\"0 0 64 64\" role=\"img\" aria-label=\"Mark\"><path class=\"a\" fill-rule=\"evenodd\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle class=\"b\" cx=\"32\" cy=\"32\" r=\"8\"/></svg><span class=\"ds-logo-word\">{{name}}</span></div>"
+    },
+    {
+      "id": "logo-strip",
+      "name": "Small-size strip",
+      "group": "Logo",
+      "platform": "logo",
+      "description": "The mark at 64, 32, 24 and 16 px; .reversed for a dark ground.",
+      "props": [],
+      "html": "<div class=\"ds-logo-strip\"><svg class=\"ds-logo-mark s64\" viewBox=\"0 0 64 64\" role=\"img\" aria-label=\"Mark\"><path class=\"a\" fill-rule=\"evenodd\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle class=\"b\" cx=\"32\" cy=\"32\" r=\"8\"/></svg><svg class=\"ds-logo-mark s32\" viewBox=\"0 0 64 64\" role=\"img\" aria-label=\"Mark\"><path class=\"a\" fill-rule=\"evenodd\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle class=\"b\" cx=\"32\" cy=\"32\" r=\"8\"/></svg><svg class=\"ds-logo-mark s24\" viewBox=\"0 0 64 64\" role=\"img\" aria-label=\"Mark\"><path class=\"a\" fill-rule=\"evenodd\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle class=\"b\" cx=\"32\" cy=\"32\" r=\"8\"/></svg><svg class=\"ds-logo-mark s16\" viewBox=\"0 0 64 64\" role=\"img\" aria-label=\"Mark\"><path class=\"a\" fill-rule=\"evenodd\" d=\"M14 0h36a14 14 0 0 1 14 14v36a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0zM32 14a18 18 0 1 0 0 36 18 18 0 0 0 0-36z\"/><circle class=\"b\" cx=\"32\" cy=\"32\" r=\"8\"/></svg></div>"
+    }
+  ]
+}

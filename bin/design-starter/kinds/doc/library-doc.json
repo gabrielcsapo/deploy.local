@@ -1,0 +1,149 @@
+{
+  "name": "Doc kind",
+  "components": [
+    {
+      "id": "doc-page",
+      "name": "Reading page",
+      "group": "Doc layout",
+      "platform": "doc",
+      "description": "The whole document: running header, one column of about 66 characters, running footer.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Document",
+          "default": "Document name"
+        },
+        {
+          "id": "section",
+          "label": "Section",
+          "default": "Section"
+        },
+        {
+          "id": "date",
+          "label": "Date",
+          "default": "Updated 1 January"
+        }
+      ],
+      "html": "<div class=\"ds-doc\"><header class=\"ds-doc-head\"><span>{{name}}</span><span>{{section}}</span></header><main class=\"ds-doc-page\"></main><footer class=\"ds-doc-foot\"><span>{{date}}</span><span>{{name}}</span></footer></div>"
+    },
+    {
+      "id": "doc-title",
+      "name": "Title block",
+      "group": "Doc text",
+      "platform": "doc",
+      "description": "Kicker, the one h1 and a lede. Once per document.",
+      "props": [
+        {
+          "id": "kicker",
+          "label": "Kicker",
+          "default": "Version 1.0"
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Document title"
+        },
+        {
+          "id": "lede",
+          "label": "Lede",
+          "default": "One or two sentences that say what this is for."
+        }
+      ],
+      "html": "<div class=\"ds-doc-kicker\">{{kicker}}</div><h1>{{title}}</h1><p class=\"ds-doc-lede\">{{lede}}</p>"
+    },
+    {
+      "id": "doc-section",
+      "name": "Section",
+      "group": "Doc text",
+      "platform": "doc",
+      "description": "An h2 with a paragraph. Use h3 for a part of a section.",
+      "props": [
+        {
+          "id": "heading",
+          "label": "Heading",
+          "default": "Section heading"
+        },
+        {
+          "id": "text",
+          "label": "Text",
+          "default": "A paragraph of body text."
+        }
+      ],
+      "html": "<h2>{{heading}}</h2><p>{{text}}</p>"
+    },
+    {
+      "id": "doc-list",
+      "name": "List",
+      "group": "Doc text",
+      "platform": "doc",
+      "description": "A short bulleted list; three to six items.",
+      "props": [
+        {
+          "id": "one",
+          "label": "First item",
+          "default": "First item"
+        }
+      ],
+      "html": "<ul><li>{{one}}</li><li>Second item</li><li>Third item</li></ul>"
+    },
+    {
+      "id": "doc-table",
+      "name": "Table",
+      "group": "Doc blocks",
+      "platform": "doc",
+      "description": "Header row, hairlines, no zebra. Stacks into labelled rows under 560 px, so every td after the first needs data-label.",
+      "props": [
+        {
+          "id": "caption",
+          "label": "Caption",
+          "default": "What the table shows"
+        }
+      ],
+      "html": "<table class=\"ds-doc-table\"><caption>{{caption}}</caption><thead><tr><th>Name</th><th>Detail</th><th class=\"num\">Number</th></tr></thead><tbody><tr><td>Row one</td><td data-label=\"Detail\">Detail</td><td data-label=\"Number\" class=\"num\">00</td></tr><tr><td>Row two</td><td data-label=\"Detail\">Detail</td><td data-label=\"Number\" class=\"num\">00</td></tr></tbody></table>"
+    },
+    {
+      "id": "doc-callout",
+      "name": "Callout",
+      "group": "Doc blocks",
+      "platform": "doc",
+      "description": "A note to the reader; .warn or .danger only for a warning. At most one or two per page.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Callout title"
+        },
+        {
+          "id": "text",
+          "label": "Text",
+          "default": "One sentence."
+        }
+      ],
+      "html": "<div class=\"ds-doc-callout\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5M12 8h.01\"/></svg><div><p class=\"ds-doc-callout-title\">{{title}}</p><p>{{text}}</p></div></div>"
+    },
+    {
+      "id": "doc-figure",
+      "name": "Figure",
+      "group": "Doc blocks",
+      "platform": "doc",
+      "description": "A picture with a caption that says what to see.",
+      "props": [
+        {
+          "id": "caption",
+          "label": "Caption",
+          "default": "What the figure shows"
+        }
+      ],
+      "html": "<figure class=\"ds-doc-figure\"><div class=\"ds-doc-figure-art\"></div><figcaption>{{caption}}</figcaption></figure>"
+    },
+    {
+      "id": "doc-pagebreak",
+      "name": "Page break",
+      "group": "Doc print",
+      "platform": "doc",
+      "description": "Starts a new printed page; invisible on screen.",
+      "props": [],
+      "html": "<div class=\"ds-doc-pagebreak\"></div>"
+    }
+  ]
+}

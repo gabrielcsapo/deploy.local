@@ -1,0 +1,183 @@
+/* Logo kind: the mark, its clear space, lockups, one-colour and reversed versions, and a small-size check.
+   Load tokens.css and components.css first. The mark is an inline SVG of simple shapes; the shapes
+   take their colour from the classes below, so a mark never carries a literal colour. */
+
+:root {
+  --text-logo-wordmark: 96px;
+  --leading-logo-wordmark: 104px;
+  --size-logo-mark: 384px;
+}
+
+.ds-logo-artboard {
+  position: relative;
+  box-sizing: border-box;
+  width: 1024px;
+  height: 1024px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.ds-logo-artboard.sheet {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: var(--bg);
+}
+
+/* ---------- The mark: .a is the main colour, .b the second (the accent); .mono makes both the main colour ---------- */
+.ds-logo-mark {
+  display: block;
+  width: var(--size-logo-mark);
+  height: var(--size-logo-mark);
+  flex: none;
+  color: var(--ink);
+}
+.ds-logo-mark .a {
+  fill: currentColor;
+}
+.ds-logo-mark .b {
+  fill: var(--accent);
+}
+.ds-logo-mark.mono .b {
+  fill: currentColor;
+}
+.ds-logo-mark.reversed {
+  color: var(--on-primary);
+}
+.ds-logo-mark.reversed .b {
+  fill: currentColor;
+}
+
+/* ---------- Clear space: x is a quarter of the mark; keep that much empty around it ---------- */
+.ds-logo-artboard.guides::before {
+  content: '';
+  position: absolute;
+  width: calc(var(--size-logo-mark) * 1.5);
+  height: calc(var(--size-logo-mark) * 1.5);
+  box-sizing: border-box;
+  border: 2px dashed var(--ink-tertiary);
+}
+.ds-logo-artboard.guides::after {
+  content: '';
+  position: absolute;
+  width: var(--size-logo-mark);
+  height: var(--size-logo-mark);
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong);
+}
+.ds-logo-x {
+  position: absolute;
+  top: calc(50% - var(--size-logo-mark) * 0.75);
+  left: calc(50% - var(--size-logo-mark) * 0.25);
+  width: calc(var(--size-logo-mark) * 0.5);
+  height: calc(var(--size-logo-mark) * 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-style: italic;
+  color: var(--ink-secondary);
+}
+
+/* ---------- Wordmark and lockups ---------- */
+.ds-logo-word {
+  font-size: var(--text-logo-wordmark);
+  line-height: var(--leading-logo-wordmark);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.ds-logo-lockup {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  color: var(--ink);
+}
+.ds-logo-lockup .ds-logo-mark {
+  --size-logo-mark: 112px;
+}
+.ds-logo-lockup.stacked {
+  flex-direction: column;
+  gap: 24px;
+}
+.ds-logo-lockup.stacked .ds-logo-mark {
+  --size-logo-mark: 160px;
+}
+.ds-logo-lockup.stacked .ds-logo-word {
+  font-size: 72px;
+  line-height: 80px;
+}
+
+/* ---------- Grounds: light, dark, one colour and reversed, each a tile on a sheet ---------- */
+.ds-logo-tiles {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 1fr;
+}
+.ds-logo-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  margin: -1px 0 0 -1px;
+}
+.ds-logo-tile.reversed {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.ds-logo-tile .ds-logo-lockup {
+  color: inherit;
+}
+.ds-logo-tile .ds-logo-lockup .ds-logo-word {
+  font-size: 56px;
+  line-height: 64px;
+}
+.ds-logo-tile .ds-logo-lockup .ds-logo-mark {
+  --size-logo-mark: 72px;
+  color: inherit;
+}
+.ds-logo-caption {
+  font-size: 22px;
+  line-height: 28px;
+  opacity: 0.8;
+}
+
+/* ---------- Small-size strip: the mark at 64, 32, 24 and 16 px, on light and on dark ---------- */
+.ds-logo-strip {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 32px 48px;
+  background: var(--surface);
+  color: var(--ink);
+  border-top: 1px solid var(--line);
+}
+.ds-logo-strip.reversed {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.ds-logo-strip .ds-logo-mark {
+  color: inherit;
+}
+.ds-logo-strip .ds-logo-mark.s64 {
+  --size-logo-mark: 64px;
+}
+.ds-logo-strip .ds-logo-mark.s32 {
+  --size-logo-mark: 32px;
+}
+.ds-logo-strip .ds-logo-mark.s24 {
+  --size-logo-mark: 24px;
+}
+.ds-logo-strip .ds-logo-mark.s16 {
+  --size-logo-mark: 16px;
+}

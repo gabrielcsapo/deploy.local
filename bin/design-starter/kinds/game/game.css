@@ -1,0 +1,313 @@
+/* Game kind: a game's screens on a phone, calm and token-based. Load tokens.css and components.css first.
+   A stage frame (390 x 844, or landscape 844 x 390), a HUD bar, round thumb-sized buttons, level
+   tiles, a result card and a pause sheet. Type is --text-game-*. Light and dark from the tokens. */
+
+:root {
+  --text-game-label: 13px;
+  --leading-game-label: 18px;
+  --text-game-hud: 17px;
+  --leading-game-hud: 22px;
+  --text-game-body: 17px;
+  --leading-game-body: 24px;
+  --text-game-title: 28px;
+  --leading-game-title: 34px;
+  --text-game-score: 40px;
+  --leading-game-score: 44px;
+  --text-game-display: 56px;
+  --leading-game-display: 60px;
+  --size-game-thumb: 56px;
+  --size-game-tile: 72px;
+}
+
+.ds-game {
+  position: relative;
+  box-sizing: border-box;
+  width: 390px;
+  height: 844px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-game-body);
+  line-height: var(--leading-game-body);
+  -webkit-font-smoothing: antialiased;
+  padding: 54px var(--space-4) 34px;
+}
+.ds-game.landscape {
+  width: 844px;
+  height: 390px;
+  padding: var(--space-4) 54px var(--space-4);
+}
+.ds-game p {
+  margin: 0;
+}
+
+/* ---------- Text ---------- */
+.ds-game-display {
+  margin: 0;
+  font-size: var(--text-game-display);
+  line-height: var(--leading-game-display);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.03em;
+}
+.ds-game-title {
+  margin: 0;
+  font-size: var(--text-game-title);
+  line-height: var(--leading-game-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+}
+.ds-game-score {
+  font-size: var(--text-game-score);
+  line-height: var(--leading-game-score);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ds-game-label {
+  font-size: var(--text-game-label);
+  line-height: var(--leading-game-label);
+  color: var(--ink-secondary);
+}
+
+/* ---------- HUD bar: pause at the left, the score in the middle, lives or time at the right ---------- */
+.ds-game-hud {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  font-size: var(--text-game-hud);
+  line-height: var(--leading-game-hud);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.ds-game-hud .grow {
+  flex: 1;
+  text-align: center;
+}
+.ds-game-hud .stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ds-game-hud .stat .ds-icon {
+  color: var(--accent);
+}
+.ds-game-pips {
+  display: flex;
+  gap: 6px;
+}
+.ds-game-pips i {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+}
+.ds-game-pips i.off {
+  background: var(--fill-strong);
+}
+
+/* ---------- Round icon buttons, thumb-sized ---------- */
+.ds-game-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-game-thumb);
+  height: var(--size-game-thumb);
+  flex: none;
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-raised);
+}
+.ds-game-btn.small {
+  width: var(--size-touch);
+  height: var(--size-touch);
+}
+.ds-game-btn.primary {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.ds-game-btn .ds-icon {
+  width: 24px;
+  height: 24px;
+}
+.ds-game-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--size-game-thumb);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: var(--text-game-hud);
+  font-weight: var(--weight-semibold);
+}
+.ds-game-play.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+.ds-game-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-2);
+}
+
+/* ---------- Stage: where the game is drawn ---------- */
+.ds-game-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: var(--space-2) 0;
+  border-radius: var(--radius-sheet);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.ds-game-stage.open {
+  border: 0;
+  background: transparent;
+}
+.ds-game-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+.ds-game-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+
+/* ---------- Level grid: locked, available, done ---------- */
+.ds-game-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+.ds-game-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  font-size: var(--text-game-body);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.ds-game-tile .ds-icon {
+  width: 14px;
+  height: 14px;
+}
+.ds-game-tile.done {
+  border-color: transparent;
+  background: var(--fill);
+}
+.ds-game-tile.done .ds-icon {
+  color: var(--success);
+}
+.ds-game-tile.available {
+  border-color: var(--accent);
+  border-width: 2px;
+  color: var(--accent);
+}
+.ds-game-tile.locked {
+  border-style: dashed;
+  background: transparent;
+  color: var(--ink-tertiary);
+  font-weight: var(--weight-regular);
+}
+
+/* ---------- Result card ---------- */
+.ds-game-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  text-align: center;
+}
+.ds-game-stars {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--accent);
+}
+.ds-game-stars .ds-icon {
+  width: 28px;
+  height: 28px;
+}
+.ds-game-stars .off {
+  color: var(--fill-strong);
+}
+.ds-game-stats {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-3);
+}
+.ds-game-stats div {
+  display: flex;
+  flex-direction: column;
+}
+.ds-game-stats strong {
+  font-size: var(--text-game-hud);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Pause sheet: over the dimmed game ---------- */
+.ds-game-dim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+}
+.ds-game-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) 34px;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-dialog);
+  color: var(--ink);
+}
+.ds-game-sheet .grab {
+  align-self: center;
+  width: 36px;
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+}
+.ds-game-sheet .ds-game-title {
+  padding: var(--space-3) 0 var(--space-1);
+  text-align: center;
+}
