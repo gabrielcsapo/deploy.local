@@ -18,6 +18,7 @@ import {
   DESIGN_README,
   designSlug,
   projectFromRemote,
+  reviewQuestions,
   runDesign,
   titleFromBranch,
 } from './cli-design.mjs';
@@ -1531,6 +1532,65 @@ test('check --fix places a new board beside the one it came from', async () => {
       h: 844,
       title: 'SidebarPhone',
     });
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('a clean check ends with the pairs to open and the questions a reviewer asks', async () => {
+  const repo = repository();
+  try {
+    writeFileSync(
+      join(repo.clone, 'design/boards/Sidebar.html'),
+      '<p data-layer="name">Name, changed</p>',
+    );
+    const openLocalDrawing = async () => ({
+      drawing: {
+        shoot: async () => ({ png: Buffer.from('png'), measured: null, inspected: null }),
+        pair: async () => Buffer.from('pair'),
+      },
+      close: async () => {},
+    });
+    const run = terminal(repo.clone, coordinator().api, { openLocalDrawing });
+    const result = await runDesign('check', [], {}, run.deps);
+    assert.equal(result.exitCode, 0);
+    const pairs = [1440, 700].flatMap((width) =>
+      ['light', 'dark'].map((scheme) => `output/design/pairs/Sidebar-${width}-${scheme}.png`),
+    );
+    assert.deepEqual(result.json.review, { pairs, questions: reviewQuestions });
+    assert.equal(reviewQuestions.length, 8);
+    const text = run.text();
+    assert.match(
+      text,
+      /\nBefore you finish\nOpen each pair:\n {3}1\. output\/design\/pairs\/Sidebar-1440-light\.png\n/,
+    );
+    assert.match(
+      text,
+      /\n {2}8\. Is every open question asked with data-question instead of guessed\?\n$/,
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("status prints the design system's phone conventions for a new phone board", async () => {
+  const repo = repository();
+  try {
+    mkdirSync(join(repo.clone, 'design/ds'), { recursive: true });
+    writeFileSync(
+      join(repo.clone, 'design/ds/README.md'),
+      '# System\n\n## Phone screens\n\n- Detail screens have a back button and the title in the bar.\n- Rows are 52 px.\n\n## Lists\n\nOther.\n',
+    );
+    const run = terminal(repo.clone, coordinator().api);
+    const result = await runDesign('status', ['SidebarPhone'], {}, run.deps);
+    assert.deepEqual(result.json.boards[0].conventions, [
+      'Detail screens have a back button and the title in the bar.',
+      'Rows are 52 px.',
+    ]);
+    assert.match(
+      run.text(),
+      /\n {2}Conventions {5}Detail screens have a back button and the title in the bar\.\n {18}Rows are 52 px\.\n/,
+    );
   } finally {
     repo.cleanup();
   }

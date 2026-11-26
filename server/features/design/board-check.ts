@@ -32,6 +32,7 @@ import { placeBoard } from '../../design/board-placement.ts';
 import type { BoardQuestion } from '../../design/check-drawing.ts';
 import {
   contrastProblems,
+  cutOffBottomProblems,
   drawnNotes,
   heightProblem,
   layerNameNote,
@@ -40,7 +41,9 @@ import {
   overlapProblems,
   questionFindings,
   readTokens,
+  renameMeaninglessLayers,
   removedLayersNote,
+  boardContent,
   boardSimilarity,
   distinctiveWords,
   editedInstanceProblems,
@@ -341,6 +344,8 @@ export type CheckResult = {
   restore: { commit: string; files: string[] }[];
   /** Boards whose canvas and meta heights disagree, with the height drawn: what --fix writes. */
   heights: Record<string, number>;
+  /** Boards whose new, meaningless layer IDs --fix names again, as they would read. */
+  renames: Record<string, string>;
   /** Boards with no place on the canvas or a bad one, and the free place --fix puts them. */
   places: Record<
     string,
@@ -520,6 +525,19 @@ export async function checkDesign(
   const problems: CheckProblem[] = [];
   const notes: CheckProblem[] = [];
   const comparedWith = new Map<string, string>();
+  // Phone boards by the board their head says they were drawn from, read once when needed.
+  let phoneSourceIndex: Map<string, string[]> | null = null;
+  const phoneSources = async () => {
+    if (!phoneSourceIndex) {
+      phoneSourceIndex = new Map();
+      for (const other of disk.filter((entry) => /Phone\.html$/.test(entry))) {
+        const from = parseBoardMeta(await after(other)).source;
+        if (from) phoneSourceIndex.set(from, [...(phoneSourceIndex.get(from) ?? []), other]);
+      }
+    }
+    return phoneSourceIndex;
+  };
+  const renames: Record<string, string> = {};
   const originOf = new Map<string, string>();
   /**
    * The board on main a new one is most like: most of its own style lines, by one git grep, then
@@ -638,8 +656,12 @@ export async function checkDesign(
       const asked = questionFindings(board);
       problems.push(...asked.problems);
       notes.push(...asked.notes);
-      const nameNote = layerNameNote(baseline);
-      if (nameNote) notes.push(nameNote);
+      // Only names the board was written with: the check's own names are its job, not the agent's.
+      const nameProblem = layerNameNote({ ...baseline, after: written.get(file) ?? text });
+      if (nameProblem) {
+        problems.push(nameProblem);
+        renames[file] = renameMeaninglessLayers(baseline.before, text);
+      }
       notes.push(...spacingNotes({ ...baseline, tokens }));
       notes.push(...localCopyNotes({ ...board, bundle, library: branchLibrary, origin }));
       if (!isSpecimen(file)) {
@@ -664,11 +686,24 @@ export async function checkDesign(
         }
       }
       if (meta.source && meta.source !== file) {
+        // A link on the source to a web board is answered by a link here to its phone
+        // counterpart: a board drawn from it, or its name with Phone.
+        const counterparts: Record<string, string[]> = {};
+        const drawnFrom = await phoneSources();
+        for (const link of boardContent(await after(meta.source)).links) {
+          const named = `${link.replace(/\.html$/, '')}Phone.html`;
+          const found = [
+            ...(disk.includes(named) ? [named] : []),
+            ...(drawnFrom.get(link) ?? []).filter((other) => other !== named),
+          ];
+          if (found.length) counterparts[link] = found;
+        }
         const compared = sourceNotes({
           ...board,
           source: meta.source,
           sourceAfter: await after(meta.source),
           sourceBefore: await onMain(meta.source),
+          counterparts,
         });
         problems.push(...compared.filter((finding) => finding.code === 'source_action_missing'));
         notes.push(...compared.filter((finding) => finding.code !== 'source_action_missing'));
@@ -840,9 +875,18 @@ export async function checkDesign(
                 if (drawn?.inspected) siblings.push({ file: sibling, rows: drawn.inspected.rows });
               }
             }
-            found.notes.push(
-              ...drawnNotes({ file, title, width, tokens, platform, siblings, ...inspected }),
-            );
+            // Two primaries at once is a problem; the rest of taste is notes.
+            for (const finding of drawnNotes({
+              file,
+              title,
+              width,
+              tokens,
+              platform,
+              siblings,
+              ...inspected,
+            }))
+              (finding.code === 'second_primary' ? found.problems : found.notes).push(finding);
+            found.problems.push(...cutOffBottomProblems({ file, title, width, ...inspected }));
           }
         }
         const png = await drawing.pair({
@@ -925,6 +969,7 @@ export async function checkDesign(
     restore,
     heights,
     places,
+    renames,
     pictures,
   };
 }

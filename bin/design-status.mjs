@@ -185,6 +185,23 @@ const ago = (ms) => {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
 };
 
+/**
+ * The design system's conventions for phone screens: the lines of the section titled "Phone
+ * screens" in design/ds/README.md, when it has one.
+ */
+export function phoneConventions(top, designSystem) {
+  const readme = designText(top, 'ds/README.md', designSystem) ?? '';
+  const match = /^(#{2,4})\s+Phone screens\b[^\n]*\n([\s\S]*?)(?=^#{1,4}\s|(?![\s\S]))/im.exec(
+    readme,
+  );
+  if (!match) return null;
+  const lines = match[2]
+    .split('\n')
+    .map((line) => line.replace(/^\s*[-*]\s+/, '').trim())
+    .filter(Boolean);
+  return lines.length ? lines : null;
+}
+
 const camelWords = (name) =>
   (name.replace(/\.html$/, '').match(/[A-Z0-9][a-z0-9]*|[a-z0-9]+/g) ?? []).map((word) =>
     word.toLowerCase(),
@@ -314,6 +331,9 @@ export function designStatus({
         source,
         sourceOn: source ? design.boards.get(source)?.platform : null,
         templates: templates.map((component) => component.id),
+        ...(platform === 'phone' && phoneConventions(top, designSystem)
+          ? { conventions: phoneConventions(top, designSystem) }
+          : {}),
         otherBranches: branches.get(`design/boards/${file}`) ?? [],
       };
     }
@@ -366,6 +386,9 @@ export function statusLines(status) {
         );
       if (board.startFrom.length)
         lines.push(`  ${label('Start from')}${board.startFrom.join(', ')}`);
+      if (board.conventions)
+        for (const [at, line] of board.conventions.entries())
+          lines.push(`  ${label(at ? '' : 'Conventions')}${line}`);
       if (board.templates.length && !board.means)
         lines.push(`  ${label('Templates')}${board.templates.join(', ')}`);
       if (!board.source && !board.startFrom.length && !board.means && !board.copyFrom)
@@ -514,7 +537,10 @@ export function guideLines({ top, designSystem }) {
   }
   section('When the product does not say');
   lines.push(
-    '  Mark the layer with data-question="How long are kept files kept?" and show no value.',
+    '  Mark the layer with data-question="How long are kept files kept?" and say the thing without',
+  );
+  lines.push(
+    "  a value: 'Kept files are deleted after a period the owner will set'. No placeholder, no guess.",
   );
   lines.push('  The check lists it for the owner; a date or number on that layer is a problem.');
   section('Check codes (problems block; notes do not)');

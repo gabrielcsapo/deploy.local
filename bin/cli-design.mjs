@@ -200,6 +200,18 @@ export function painter(enabled) {
   };
 }
 
+/** What a reviewer asks of a clean check: the agent answers these looking at the pairs. */
+export const reviewQuestions = [
+  'Does it answer the task fully?',
+  'Are the words, data and actions true to the product code?',
+  'Does it use only components and tokens?',
+  'One primary action, roomy, every size on the scale?',
+  "Does it match its siblings' structure, sizes and chrome?",
+  'Is every width and scheme readable, nothing cut off, and do the scheme words match the render?',
+  'Is every old layer ID kept, and every new one named for what it is?',
+  'Is every open question asked with data-question instead of guessed?',
+];
+
 /** One step: a mark, what happened, and a quieter detail in its own column. */
 function stepLine(paint, mark, label, detail = '') {
   const colour = { '✓': paint.ok, '✗': paint.bad, '!': paint.ask }[mark] ?? paint.run;
@@ -306,6 +318,7 @@ export async function runDesign(sub, args, options, deps) {
     }
     const { result, sent, cleanup } = run;
     const fixed = [];
+    const pairFiles = [];
     try {
       // New elements' layer IDs go into the boards here, unless a board changed since it was read.
       for (const [file, html] of Object.entries(result.layers ?? {})) {
@@ -325,6 +338,27 @@ export async function runDesign(sub, args, options, deps) {
           const bytes = designFile(top, from, `boards/${file}`);
           if (bytes !== null) writeFileSync(join(top, 'design', 'boards', file), bytes);
         }
+      // New layer IDs that say nothing, named again with fix: only IDs main does not have.
+      const renames = Object.entries(result.renames ?? {});
+      if (fix && renames.length) {
+        for (const [file, html] of renames) {
+          const path = join(top, 'design', 'boards', file);
+          if (!existsSync(path)) continue;
+          // Only a board nobody changed since it was read (or that just got its new IDs).
+          const now = readFileSync(path, 'utf8').trimEnd();
+          if (
+            now !== (sent(file) ?? '').trimEnd() &&
+            now !== (result.layers?.[file] ?? '').trimEnd()
+          )
+            continue;
+          writeFileSync(path, html.endsWith('\n') ? html : `${html}\n`);
+          fixed.push(`${screenName(file)}'s new layers named for what they are`);
+        }
+        const done = new Set(renames.map(([file]) => file));
+        result.problems = result.problems.filter(
+          (problem) => !(problem.code === 'layer_name_says_nothing' && done.has(problem.file)),
+        );
+      }
       // Heights the canvas and the board disagree on: measured, and written into both with fix.
       const heights = Object.entries(result.heights ?? {});
       if (fix && heights.length) {
@@ -389,8 +423,10 @@ export async function runDesign(sub, args, options, deps) {
       const pairs = join(top, 'output', 'design', 'pairs');
       mkdirSync(pairs, { recursive: true });
       for (const picture of result.pictures ?? [])
-        if (/^[A-Za-z0-9_-]+-\d+-(light|dark)\.png$/.test(picture.name))
+        if (/^[A-Za-z0-9_-]+-\d+-(light|dark)\.png$/.test(picture.name)) {
           writeFileSync(join(pairs, picture.name), Buffer.from(picture.png, 'base64'));
+          pairFiles.push(`output/design/pairs/${picture.name}`);
+        }
     } finally {
       cleanup?.();
     }
@@ -400,6 +436,7 @@ export async function runDesign(sub, args, options, deps) {
       restore: _restore,
       heights: _heights,
       places: _places,
+      renames: _renames,
       ...shown
     } = result;
     const branch = tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], top) ?? 'HEAD';
@@ -408,6 +445,7 @@ export async function runDesign(sub, args, options, deps) {
       notes: shown.notes ?? [],
       fixed,
       where: run.where,
+      pairFiles,
       ...(run.sandboxed ? { sandboxed: true } : {}),
       ...(run.reason ? { fellBackBecause: run.reason } : {}),
       legacy: /^(design|artifact)\//.test(branch),
@@ -520,7 +558,7 @@ export async function runDesign(sub, args, options, deps) {
       }
       const shown = new Map();
       return {
-        result: { notes: [], heights: {}, places: {}, ...result },
+        result: { notes: [], heights: {}, places: {}, renames: {}, ...result },
         where: 'deploy.local',
         reason,
         sent: (file) => {
@@ -566,9 +604,13 @@ export async function runDesign(sub, args, options, deps) {
     // A part's carried boards are fixed by the check itself, and so are heights.
     const carried = result.problems.some((problem) => problem.file?.startsWith('part:'));
     const heights = result.problems.some((problem) =>
-      ['height_differs', 'boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(
-        problem.code,
-      ),
+      [
+        'height_differs',
+        'boards_overlap',
+        'board_overlaps_note',
+        'not_on_canvas',
+        'layer_name_says_nothing',
+      ].includes(problem.code),
     );
     out(`  deploy design check${carried ? ' --drop-instances' : ''}${heights ? ' --fix' : ''}`);
   };
@@ -627,6 +669,15 @@ export async function runDesign(sub, args, options, deps) {
         out('No problems. Next: commit the boards with the code they picture:');
         out('  git commit -am "…"');
       }
+      // The check cannot judge everything a reviewer will: the agent looks, and answers.
+      if (result.pairFiles.length) {
+        out();
+        out(paint.bold('Before you finish'));
+        out('Open each pair:');
+        result.pairFiles.forEach((file, at) => out(`  ${String(at + 1).padStart(2)}. ${file}`));
+        out('And answer each, in your own words:');
+        reviewQuestions.forEach((question, at) => out(`  ${at + 1}. ${question}`));
+      }
     }
   };
 
@@ -634,9 +685,13 @@ export async function runDesign(sub, args, options, deps) {
   const envelope = (result) => {
     const ok = result.problems.length === 0;
     const heights = result.problems.some((problem) =>
-      ['height_differs', 'boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(
-        problem.code,
-      ),
+      [
+        'height_differs',
+        'boards_overlap',
+        'board_overlaps_note',
+        'not_on_canvas',
+        'layer_name_says_nothing',
+      ].includes(problem.code),
     );
     return {
       ok,
@@ -655,6 +710,7 @@ export async function runDesign(sub, args, options, deps) {
         : `deploy design check${heights ? ' --fix' : ''}`,
       checked: true,
       ...result,
+      ...(ok ? { review: { pairs: result.pairFiles, questions: reviewQuestions } } : {}),
     };
   };
 

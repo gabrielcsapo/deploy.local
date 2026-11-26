@@ -30,6 +30,8 @@ import {
   noteOverlapProblems,
   layerNameNote,
   localCopyNotes,
+  meaninglessLayers,
+  renameMeaninglessLayers,
   notATokenProblems,
   overlapProblems,
   questionFindings,
@@ -1435,4 +1437,149 @@ test('what is typed inside a component instance is a problem naming its props', 
     editedInstanceProblems({ file: 'A.html', title: 'A', before: typed, after: typed, library }),
     [],
   );
+});
+
+test('a phone board is compared with its source without the web chrome, and a phone counterpart answers a link', () => {
+  const web = board(
+    '',
+    '<header class="dl-head"><button aria-label="Show sidebar" class="dl-icon-btn"></button><button class="dl-icon-btn" aria-label="Search"></button><a class="dl-btn primary" href="Home.html">New task</a></header>' +
+      '<main><h1>Package</h1><a class="dl-btn secondary" href="Package.html">Versions</a></main>',
+  );
+  const phone = board(
+    '',
+    '<main><h1>Package</h1><a class="dl-ph-row" href="PackageVersionsPhone.html">Versions</a></main>',
+  );
+  const notes = (counterparts = {}) =>
+    sourceNotes({
+      file: 'PackagePhone.html',
+      title: 'Package on iPhone',
+      source: 'Package2.html',
+      before: null,
+      after: phone,
+      sourceBefore: null,
+      sourceAfter: web,
+      counterparts,
+    }).map((finding) => finding.label);
+  assert.deepEqual(notes({ 'Package.html': ['PackageVersionsPhone.html'] }), []);
+  assert.deepEqual(notes(), ['Package2 leads to Package; PackagePhone has no way to reach it']);
+});
+
+test('question_invented says the thing without a value and keeps the question', () => {
+  const [problem] = questionFindings({
+    file: 'A.html',
+    title: 'A',
+    before: null,
+    after: board('', '<p data-layer="kept" data-question="How long?">Deleted after 30 days</p>'),
+  }).problems;
+  assert.equal(
+    problem!.fix,
+    "say the thing without a value, e.g. 'Kept files are deleted after a period the owner will set', and keep the data-question",
+  );
+});
+
+test('two primaries, meaningless names the board was written with, and cut-off text are problems', async () => {
+  const repo = repository();
+  try {
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({ boards: { 'P.html': { x: 0, y: 0, w: 390, h: 844 } } }),
+    );
+    repo.write(
+      'design/boards/P.html',
+      '<main data-layer="page"><p data-layer="title">Run</p></main>',
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'more']);
+    // t-2 is the agent's; the new <p> gets its name from the check, which is never a problem.
+    repo.write(
+      'design/boards/P.html',
+      '<main data-layer="page"><p data-layer="title">Run</p><span data-layer="t-2">Kept</span><p>Logs</p></main>',
+    );
+    repo.run(['commit', '-qam', 'More']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const drawer: CheckDrawing = {
+      shoot: async ({ commit: at, inspect }) => ({
+        png: Buffer.from('png'),
+        measured: null,
+        inspected: inspect
+          ? inspection(
+              at === commit
+                ? {
+                    primaries: ['publish', 'retry'],
+                    clipped: [{ layer: 'logs', text: 'Logs', by: 'bar', frame: 'tab-bar' }],
+                  }
+                : {},
+            )
+          : null,
+      }),
+      pair: async () => Buffer.from('pair'),
+    };
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.deepEqual(
+      result.problems.map((problem) => [problem.code, problem.detail]),
+      [
+        ['layer_name_says_nothing', 't-2'],
+        ['second_primary', 'publish, retry'],
+        ['cut_off_bottom', '"Logs" is partly hidden'],
+      ],
+    );
+    assert.equal(result.problems[2]!.label, 'P logs sits under tab-bar');
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('--fix names again only the new layers that say nothing', () => {
+  const before = '<main data-layer="page"><p data-layer="t-1">Old</p></main>';
+  const after =
+    '<main data-layer="page"><p data-layer="t-1">Old</p><div class="dl-item"><span data-layer="report">report.xml</span><span data-layer="212-kb">212 KB</span></div></main>';
+  assert.deepEqual(meaninglessLayers(before, after), ['212-kb']);
+  const renamed = renameMeaninglessLayers(before, after);
+  assert.match(renamed, /data-layer="t-1"/, "main's IDs stay, even when they say nothing");
+  assert.match(renamed, /<span data-layer="file-report-xml-size">212 KB<\/span>/);
+});
+
+test('the check counts a link to a phone counterpart, by name or by source=, as reaching the web board', async () => {
+  const repo = repository();
+  try {
+    const boards = {
+      'Run.html':
+        '<main><h1>Run</h1><a href="Package.html">Package</a><a href="Versions.html">Versions</a></main>',
+      'Package.html': '<main>Package</main>',
+      'Versions.html': '<main>Versions</main>',
+      'PackagePhone.html': '<main>Package</main>',
+      'VersionListPhone.html':
+        '<meta name="design-board" content="width=390,height=844,source=Versions.html"><main>Versions</main>',
+    };
+    for (const [file, html] of Object.entries(boards)) repo.write(`design/boards/${file}`, html);
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        boards: Object.fromEntries(
+          Object.keys(boards).map((file, at) => [file, { x: at * 2000, y: 0, w: 1440, h: 900 }]),
+        ),
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'phone']);
+    repo.write(
+      'design/boards/RunPhone.html',
+      '<meta name="design-board" content="width=390,height=844,source=Run.html"><main><h1>Run</h1><a href="PackagePhone.html">Package</a><a href="VersionListPhone.html">Versions</a></main>',
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Phone']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const { drawer } = drawing();
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.deepEqual(
+      result.notes.filter((note) => note.code === 'differs_from_source').map((note) => note.label),
+      [],
+    );
+  } finally {
+    repo.cleanup();
+  }
 });

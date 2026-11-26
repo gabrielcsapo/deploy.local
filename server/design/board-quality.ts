@@ -3,7 +3,13 @@
 // Each one looks only at what the branch changed: it runs on main's board too and drops what main
 // already had. Everything here is plain text and arithmetic, so the same code runs on deploy.local
 // and on the computer; what comes from a drawn page arrives as an Inspection.
-import { boardElements, layerIds, syncInstances, type Library } from './board-html.ts';
+import {
+  assignLayerIds,
+  boardElements,
+  layerIds,
+  syncInstances,
+  type Library,
+} from './board-html.ts';
 import type { CheckProblem } from '../../shared/v2/design-overflow.ts';
 import {
   contrast,
@@ -337,22 +343,59 @@ export function heightProblem(input: {
 // ── Layers ──────────────────────────────────────────────────────────────────────────────────────
 
 const empty =
-  /^(?:[a-z]|t|c|v|x|on|off|end|start|layer|el|element|item|row|box|wrap|wrapper|inner|outer|container|group|block|text|label|content|span|div|svg|path|g|p|a|i|b|em|strong|small|section|header|footer|main|nav|aside|button|img|ul|ol|li|figure)(?:-\d+)?$/;
-/** Whether a layer ID says nothing about what the element is: a, a-2, t-2, svg-3, item-3, on. */
-export const saysNothing = (layer: string) => empty.test(layer);
+  /^(?:[a-z]|t|c|v|x|on|off|end|start|layer|el|element|item|row|box|wrap|wrapper|inner|outer|container|group|block|text|label|content|span|div|svg|path|g|p|a|i|b|em|strong|small|button|img|ul|ol|li|figure)(?:-\d+)?$/;
+/**
+ * Whether a layer ID says nothing about what the element is: a, a-2, t-2, svg-3, item-3, on.
+ * Landmarks (main, nav, header, footer, aside, section) say where they are, so they pass.
+ */
+/** A name that is only a value says nothing about the element either: 212-kb, 3, 41-s. */
+export const saysNothing = (layer: string) => empty.test(layer) || /^\d/.test(layer);
 
 /** New layer IDs on the branch whose names say nothing, as one note for the board. */
+/** New layer IDs on the branch, outside component instances, whose names say nothing. */
+export function meaninglessLayers(before: string | null, after: string | null) {
+  if (!after) return [];
+  const old = new Set(before ? layerIds(before) : []);
+  // Layers inside a component instance are named when the library draws it, not by the board.
+  const elements = boardElements(after);
+  const drawnByLibrary = new Set<string>();
+  elements.forEach((element) => {
+    if (!element.layer) return;
+    for (let at = element.parent; at >= 0; at = elements[at].parent)
+      if (/^<[^>]*\sdata-component="/.test(elements[at].outer)) {
+        drawnByLibrary.add(element.layer);
+        return;
+      }
+  });
+  return [
+    ...new Set(
+      layerIds(after).filter(
+        (layer) => !old.has(layer) && !drawnByLibrary.has(layer) && saysNothing(layer),
+      ),
+    ),
+  ];
+}
+
+/**
+ * The board with those layers named again for what they are (deploy design check --fix): only IDs
+ * main does not have, so nothing on deploy.local points at them yet.
+ */
+export function renameMeaninglessLayers(before: string | null, after: string) {
+  const bad = new Set(meaninglessLayers(before, after));
+  if (!bad.size) return after;
+  const stripped = after.replace(/\sdata-layer="([^"]*)"/g, (whole, layer: string) =>
+    bad.has(layer) ? '' : whole,
+  );
+  return assignLayerIds(stripped);
+}
+
 export function layerNameNote(input: {
   file: string;
   title: string;
   before: string | null;
   after: string | null;
 }): Finding | null {
-  if (!input.after) return null;
-  const old = new Set(input.before ? layerIds(input.before) : []);
-  const bad = [
-    ...new Set(layerIds(input.after).filter((layer) => !old.has(layer) && saysNothing(layer))),
-  ];
+  const bad = meaninglessLayers(input.before, input.after);
   if (!bad.length) return null;
   return {
     code: 'layer_name_says_nothing',
@@ -362,7 +405,7 @@ export function layerNameNote(input: {
     label: `${input.title} has ${bad.length} new layer${bad.length === 1 ? '' : 's'} whose name says nothing`,
     detail: `${bad.slice(0, 6).join(', ')}${bad.length > 6 ? ` and ${bad.length - 6} more` : ''}`,
     short: 'layer names say nothing',
-    fix: 'rename each data-layer for what it is, like run-status or download-button',
+    fix: 'rename each data-layer for what it is, like file-report-xml-size, or run deploy design check --fix (only IDs main does not have)',
   };
 }
 
@@ -421,7 +464,7 @@ export function questionFindings(input: {
         label: `${input.title} answers its own question in ${entry.layer || 'a layer'}`,
         detail: `"${entry.question}" but it says "${words}"`,
         short: 'question answered with a made-up fact',
-        fix: 'leave the value out or write it as a placeholder (like "after N days") until the owner answers',
+        fix: "say the thing without a value, e.g. 'Kept files are deleted after a period the owner will set', and keep the data-question",
       });
     }
     if (old.has(`${entry.layer} ${entry.question}`)) continue;
@@ -441,19 +484,23 @@ export function questionFindings(input: {
 
 // ── A board against its source ───────────────────────────────────────────────────────────────────
 
-/** The words a person sees on a board and where it lets them go, leaving out the sidebar. */
+/**
+ * App chrome, not the page's own content: the sidebar, the top bar and its search and New task,
+ * a phone's title bar and tab bar. A web page and its phone screen are compared without it,
+ * since on iPhone the chrome lives on the tab roots, not on a detail screen.
+ */
+export const isChrome = (tag: string) =>
+  /^<(nav|header)\b/i.test(tag) ||
+  /data-component="(sidebar|header|phone-title|phone-tabs)"/.test(tag) ||
+  /\bclass="[^"]*\b(dl-side|dl-head|dl-tabbar|dl-ph-top|mac-lights)\b/.test(tag);
+
+/** The words a person sees on a board and where it lets them go, leaving out the chrome. */
 export function boardContent(html: string | null | undefined) {
   if (!html) return { words: [] as string[], links: [] as string[] };
   let body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
   for (const element of boardElements(body)) {
     const tag = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
-    if (
-      /^<nav\b/i.test(tag) ||
-      /data-component="(sidebar|phone-title)"/.test(tag) ||
-      /\bclass="[^"]*\b(dl-side|mac-lights)\b/.test(tag) ||
-      /\saria-hidden="true"/.test(tag)
-    )
-      body = body.replace(element.outer, ' ');
+    if (isChrome(tag) || /\saria-hidden="true"/.test(tag)) body = body.replace(element.outer, ' ');
   }
   const words = new Set<string>();
   for (const chunk of body
@@ -492,12 +539,7 @@ export function boardActions(html: string | null | undefined) {
   const hidden = (index: number) => {
     for (let at = index; at >= 0; at = elements[at].parent) {
       const start = tag(elements[at].outer);
-      if (
-        /^<nav\b/i.test(start) ||
-        /data-component="(sidebar|phone-title)"/.test(start) ||
-        /\bclass="[^"]*\bdl-side\b/.test(start)
-      )
-        return true;
+      if (isChrome(start)) return true;
     }
     return false;
   };
@@ -524,8 +566,23 @@ export function boardActions(html: string | null | undefined) {
     .filter((action) => action.text);
 }
 
+/**
+ * The boards a board's links reach, counting a link to a web board as reaching its phone
+ * counterparts too (PackageVersionsPhone, drawn from Package, answers a link to Package).
+ */
+function reachable(links: string[], counterparts: Record<string, string[]>) {
+  const reached = new Set(links);
+  for (const [web, phones] of Object.entries(counterparts))
+    if (phones.some((phone) => reached.has(phone))) reached.add(web);
+  return reached;
+}
+
 /** What one board shows and the other does not, in both directions, as a person would read it. */
-export function contentDifferences(board: string | null, source: string | null) {
+export function contentDifferences(
+  board: string | null,
+  source: string | null,
+  counterparts: Record<string, string[]> = {},
+) {
   const a = boardContent(board);
   const b = boardContent(source);
   // Words of actions inside rows: a phone makes the row itself the way there.
@@ -541,7 +598,7 @@ export function contentDifferences(board: string | null, source: string | null) 
   return {
     onlySource: b.words.filter((word) => keep(word) && !inBoard.has(comparable(word))),
     onlyBoard: a.words.filter((word) => keep(word) && !inSource.has(comparable(word))),
-    linksOnlySource: b.links.filter((link) => !a.links.includes(link)),
+    linksOnlySource: b.links.filter((link) => !reachable(a.links, counterparts).has(link)),
   };
 }
 
@@ -549,10 +606,14 @@ export function contentDifferences(board: string | null, source: string | null) 
  * Page actions the source offers that the board drops entirely: no action or row with the same
  * words, and no way to where it leads. A data-question that names it says why, and is enough.
  */
-export function droppedActions(board: string | null, source: string | null) {
+export function droppedActions(
+  board: string | null,
+  source: string | null,
+  counterparts: Record<string, string[]> = {},
+) {
   if (!board || !source) return [];
   const words = new Set(boardContent(board).words.map(comparable));
-  const links = new Set(boardContent(board).links);
+  const links = reachable(boardContent(board).links, counterparts);
   const questions = boardQuestions(board).map((entry) => entry.question.toLowerCase());
   return boardActions(source)
     .filter((action) => !action.inRow)
@@ -588,9 +649,12 @@ export function sourceNotes(input: {
   after: string | null;
   sourceBefore: string | null;
   sourceAfter: string | null;
+  /** A web board's phone counterparts: boards drawn from it, or its name with Phone. */
+  counterparts?: Record<string, string[]>;
 }): Finding[] {
   if (!input.after || !input.sourceAfter) return [];
-  const now = contentDifferences(input.after, input.sourceAfter);
+  const counterparts = input.counterparts ?? {};
+  const now = contentDifferences(input.after, input.sourceAfter, counterparts);
   const then =
     input.before && input.sourceBefore
       ? contentDifferences(input.before, input.sourceBefore)
@@ -602,7 +666,7 @@ export function sourceNotes(input: {
   const oldDropped = new Set(
     droppedActions(input.before, input.sourceBefore).map((action) => comparable(action.text)),
   );
-  const dropped = droppedActions(input.after, input.sourceAfter).filter(
+  const dropped = droppedActions(input.after, input.sourceAfter, counterparts).filter(
     (action) => !oldDropped.has(comparable(action.text)),
   );
   for (const action of dropped)
@@ -1038,6 +1102,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     problem: true,
     means: 'markup typed inside an instance; use data-props',
   },
+  {
+    code: 'cut_off_bottom',
+    problem: true,
+    means: "text cut by a frame's bottom or under a bottom bar",
+  },
   { code: 'question_invented', problem: true, means: 'a layer asks a question and states a value' },
   { code: 'height_differs', problem: true, means: 'canvas.json and the head disagree; --fix' },
   {
@@ -1064,8 +1133,8 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: 'list rows unlike the same list on siblings',
   },
   { code: 'box_in_card', problem: false, means: 'a bordered box inside a card' },
-  { code: 'second_primary', problem: false, means: 'more than one primary button shows' },
-  { code: 'layer_name_says_nothing', problem: false, means: 'new layer IDs like a, t-2, svg-3' },
+  { code: 'second_primary', problem: true, means: 'more than one primary button shows' },
+  { code: 'layer_name_says_nothing', problem: true, means: 'new layer IDs like a, t-2, svg-3' },
   { code: 'local_copy_of_component', problem: false, means: 'board CSS copying a dl-* class' },
   { code: 'layer_removed', problem: false, means: 'layer IDs whose elements the branch removed' },
   { code: 'specimen_text', problem: false, means: 'sample words from a DesignSystem board' },
@@ -1175,4 +1244,39 @@ export function editedInstanceProblems(input: {
     });
   });
   return findings;
+}
+
+/**
+ * Text partly hidden at the bottom of a fixed-height frame or a phone screen, or under a bar
+ * pinned there: what main's board already hid is left out.
+ */
+export function cutOffBottomProblems(input: {
+  file: string;
+  title: string;
+  width: number;
+  after: Inspection | null;
+  before: Inspection | null;
+}): Finding[] {
+  const old = new Set((input.before?.clipped ?? []).map((entry) => `${entry.layer} ${entry.text}`));
+  return (input.after?.clipped ?? [])
+    .filter((entry) => !old.has(`${entry.layer} ${entry.text}`))
+    .slice(0, 5)
+    .map((entry) => ({
+      code: 'cut_off_bottom',
+      file: input.file,
+      board: input.title,
+      width: input.width,
+      scheme: 'light' as const,
+      ...(entry.layer ? { layer: entry.layer } : {}),
+      label:
+        entry.by === 'bar'
+          ? `${input.title} ${entry.layer ?? 'text'} sits under ${entry.frame ?? 'a bar'}`
+          : `${input.title} ${entry.layer ?? 'text'} is cut off at the bottom${entry.frame ? ` of ${entry.frame}` : ''}`,
+      detail: `"${entry.text}" is partly hidden`,
+      short: 'cut off at the bottom',
+      fix:
+        entry.by === 'bar'
+          ? 'leave room above the bar (padding at the foot of the scrolling content), or end the content sooner'
+          : 'make the board taller (deploy design check --fix measures it), show fewer rows, or end on a whole row',
+    }));
 }

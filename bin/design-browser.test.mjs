@@ -170,3 +170,36 @@ console.log(JSON.stringify({ sandboxed: opened.sandboxed, png: png.subarray(1, 4
     rmSync(work, { recursive: true, force: true });
   }
 });
+
+test("text cut by a phone screen's bottom or hidden under its tab bar is found when drawn", async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    const page = `<!doctype html><html><body style="margin:0;font:17px/24px system-ui">
+      <main data-layer="list"><p data-layer="row-1" style="margin:0;height:300px">Builds</p>
+      <p data-layer="row-2" style="margin:0;height:300px">Releases</p>
+      <p data-layer="row-3" style="margin:0;padding-top:170px;height:40px">Logs</p></main>
+      <nav data-layer="tab-bar" style="position:fixed;left:0;right:0;bottom:0;height:83px;background:#fff">Home</nav>
+      </body></html>`;
+    const tab = await browser.newTab({ width: 390, height: 844 });
+    try {
+      const shot = await shootBoard(tab, page, { scheme: 'light', measure: false, inspect: true });
+      assert.deepEqual(shot.inspected.clipped, [
+        { layer: 'row-3', text: 'Logs', by: 'bar', frame: 'tab-bar' },
+      ]);
+      const cut = await shootBoard(tab, page.replace('padding-top:170px', 'padding-top:228px'), {
+        scheme: 'light',
+        measure: false,
+        inspect: true,
+      });
+      assert.deepEqual(
+        cut.inspected.clipped.map((entry) => [entry.layer, entry.by]),
+        [['row-3', 'frame']],
+      );
+    } finally {
+      await tab.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
