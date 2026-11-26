@@ -1,0 +1,673 @@
+{
+  "name": "Starter design system",
+  "components": [
+    {
+      "id": "app-shell",
+      "name": "App shell",
+      "group": "Web layout",
+      "platform": "web",
+      "description": "Every web screen: the sidebar with the places, and the main pane. Below 820 px the sidebar folds into the top bar.",
+      "props": [
+        {
+          "id": "product",
+          "label": "Product",
+          "default": "Product name"
+        }
+      ],
+      "html": "<div class=\"ds-app\"><nav class=\"ds-sidebar\" aria-label=\"Places\"><div class=\"ds-brand\"><span class=\"ds-brand-mark\"></span>{{product}}</div><a href=\"#\" class=\"ds-nav on\" aria-current=\"page\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg>Place one</a><a href=\"#\" class=\"ds-nav\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Place two</a><div class=\"ds-sidebar-foot\"><a href=\"#\" class=\"ds-nav\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/><circle cx=\"15\" cy=\"7\" r=\"2\"/><circle cx=\"9\" cy=\"17\" r=\"2\"/></svg>Settings</a></div></nav><div class=\"ds-main\"><header class=\"ds-topbar\"><button type=\"button\" class=\"ds-btn quiet\" aria-label=\"Menu\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h16M4 17h16\"/></svg></button><div class=\"ds-brand\"><span class=\"ds-brand-mark\"></span>{{product}}</div></header><main class=\"ds-page\"></main></div></div>"
+    },
+    {
+      "id": "nav-item",
+      "name": "Sidebar place",
+      "group": "Web layout",
+      "platform": "web",
+      "description": "One place in the sidebar; .on for where you are, with a quiet count when it helps.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Place name"
+        },
+        {
+          "id": "count",
+          "label": "Count",
+          "default": "00"
+        }
+      ],
+      "html": "<a href=\"#\" class=\"ds-nav\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg>{{label}}<span class=\"ds-count\">{{count}}</span></a>"
+    },
+    {
+      "id": "page-head",
+      "name": "Page header",
+      "group": "Web layout",
+      "platform": "web",
+      "description": "The top of a page: its title (28 for a top-level place, 22 inside one), one line of facts, and the page's one primary action.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Page title"
+        },
+        {
+          "id": "meta",
+          "label": "Meta",
+          "default": "00 items · detail"
+        },
+        {
+          "id": "action",
+          "label": "Action",
+          "default": "Primary action"
+        }
+      ],
+      "html": "<div class=\"ds-page-head\"><div class=\"ds-head-text\"><h1 class=\"ds-display\">{{title}}</h1><span class=\"ds-secondary\">{{meta}}</span></div><div class=\"ds-actions\"><button type=\"button\" class=\"ds-btn primary\">{{action}}</button></div></div>"
+    },
+    {
+      "id": "section-label",
+      "name": "Section label",
+      "group": "Lists",
+      "platform": "web",
+      "description": "The label over a group of rows, with a quiet count. Sentence case, never uppercase.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Section name"
+        },
+        {
+          "id": "count",
+          "label": "Count",
+          "default": "0"
+        }
+      ],
+      "html": "<h2 class=\"ds-section-label\">{{label}} <span class=\"ds-count\">{{count}}</span></h2>"
+    },
+    {
+      "id": "list-group",
+      "name": "List group",
+      "group": "Lists",
+      "platform": "web",
+      "description": "Rows of the same kind in one rounded group. Put .ds-row fragments inside; a footnote goes below as .ds-section-note.",
+      "props": [],
+      "html": "<div class=\"ds-group\"></div>"
+    },
+    {
+      "id": "row",
+      "name": "Row",
+      "group": "Lists",
+      "platform": "web",
+      "description": "One item in a group: an optional leading tile, its name, one secondary line, a value, and a chevron when it opens something. A fragment for inside .ds-group.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Item name"
+        },
+        {
+          "id": "detail",
+          "label": "Detail",
+          "default": "Secondary line"
+        },
+        {
+          "id": "value",
+          "label": "Value",
+          "default": "Value"
+        }
+      ],
+      "html": "<a href=\"#\" class=\"ds-row\"><span class=\"ds-tile\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21 8l-9-5-9 5 9 5 9-5z\"/><path d=\"M3 8v8l9 5 9-5V8M12 13v8\"/></svg></span><span class=\"ds-row-text\"><span>{{title}}</span><span>{{detail}}</span></span><span class=\"ds-value\">{{value}}</span><svg class=\"ds-icon ds-chevron\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"/></svg></a>"
+    },
+    {
+      "id": "status",
+      "name": "Status",
+      "group": "Lists",
+      "platform": "both",
+      "description": "State as a dot and a short word at a row's end: .ok, .warn or .danger. Never a coloured pill.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "State"
+        }
+      ],
+      "html": "<span class=\"ds-status warn\"><span class=\"ds-dot\"></span>{{label}}</span>"
+    },
+    {
+      "id": "tile",
+      "name": "Tile",
+      "group": "Lists",
+      "platform": "both",
+      "description": "A 30 px leading icon that says what kind of thing a row is. .accent for the one row that leads.",
+      "props": [],
+      "html": "<span class=\"ds-tile\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21 8l-9-5-9 5 9 5 9-5z\"/><path d=\"M3 8v8l9 5 9-5V8M12 13v8\"/></svg></span>"
+    },
+    {
+      "id": "button-primary",
+      "name": "Button · primary",
+      "group": "Input",
+      "platform": "web",
+      "description": "The one next action in a view. Near-black, never the accent; one per view.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Primary action"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-btn primary\">{{label}}</button>"
+    },
+    {
+      "id": "button-secondary",
+      "name": "Button · secondary",
+      "group": "Input",
+      "platform": "web",
+      "description": "Any other action beside the primary one.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Secondary action"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-btn secondary\">{{label}}</button>"
+    },
+    {
+      "id": "button-quiet",
+      "name": "Button · quiet",
+      "group": "Input",
+      "platform": "web",
+      "description": "Dismiss, cancel, or a small action inside a row.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Not now"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-btn quiet\">{{label}}</button>"
+    },
+    {
+      "id": "text-field",
+      "name": "Text field",
+      "group": "Input",
+      "platform": "web",
+      "description": "A labelled field with an optional hint. Add .invalid to the field to show an error in the hint.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Field name"
+        },
+        {
+          "id": "placeholder",
+          "label": "Placeholder",
+          "default": "Placeholder"
+        },
+        {
+          "id": "hint",
+          "label": "Hint",
+          "default": "One line of help"
+        }
+      ],
+      "html": "<label class=\"ds-field\"><span class=\"ds-label\">{{label}}</span><input class=\"ds-input\" type=\"text\" placeholder=\"{{placeholder}}\"><span class=\"ds-hint\">{{hint}}</span></label>"
+    },
+    {
+      "id": "select",
+      "name": "Select",
+      "group": "Input",
+      "platform": "web",
+      "description": "Choosing one of five or more options on the web. Fewer than five: a segmented control.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Field name"
+        }
+      ],
+      "html": "<label class=\"ds-field\"><span class=\"ds-label\">{{label}}</span><select class=\"ds-select\"><option>Option one</option><option>Option two</option></select></label>"
+    },
+    {
+      "id": "date-field",
+      "name": "Date field",
+      "group": "Input",
+      "platform": "web",
+      "description": "A date on the web, with the browser's own picker.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Date"
+        }
+      ],
+      "html": "<label class=\"ds-field\"><span class=\"ds-label\">{{label}}</span><input class=\"ds-input\" type=\"date\" value=\"2026-01-01\"></label>"
+    },
+    {
+      "id": "segmented",
+      "name": "Segmented control",
+      "group": "Input",
+      "platform": "web",
+      "description": "Two to four views or choices of the same thing; one is always on.",
+      "props": [],
+      "html": "<div class=\"ds-seg\" role=\"tablist\"><button type=\"button\" class=\"on\" role=\"tab\" aria-selected=\"true\">Option one</button><button type=\"button\" role=\"tab\">Option two</button><button type=\"button\" role=\"tab\">Option three</button></div>"
+    },
+    {
+      "id": "stepper",
+      "name": "Stepper",
+      "group": "Input",
+      "platform": "web",
+      "description": "A small whole number changed one at a time.",
+      "props": [
+        {
+          "id": "value",
+          "label": "Value",
+          "default": "0"
+        }
+      ],
+      "html": "<span class=\"ds-stepper\"><button type=\"button\" aria-label=\"Fewer\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14\"/></svg></button><output>{{value}}</output><button type=\"button\" aria-label=\"More\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button></span>"
+    },
+    {
+      "id": "check-row",
+      "name": "Check row",
+      "group": "Input",
+      "platform": "web",
+      "description": "A row you tick off. The tick is part of the row, and a done row's name turns tertiary. A fragment for inside .ds-group.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Item name"
+        },
+        {
+          "id": "detail",
+          "label": "Detail",
+          "default": "Secondary line"
+        }
+      ],
+      "html": "<label class=\"ds-row ds-check\"><input type=\"checkbox\"><span class=\"ds-tick\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12.5l4.5 4.5L19 7\"/></svg></span><span class=\"ds-row-text\"><span>{{title}}</span><span>{{detail}}</span></span></label>"
+    },
+    {
+      "id": "switch",
+      "name": "Switch",
+      "group": "Input",
+      "platform": "web",
+      "description": "A setting that is on or off and takes effect at once.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Setting name"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-switch\" role=\"switch\" aria-checked=\"true\" aria-label=\"{{label}}\"></button>"
+    },
+    {
+      "id": "empty",
+      "name": "Empty state",
+      "group": "Feedback",
+      "platform": "web",
+      "description": "A place with nothing in it yet: what it is for, and one action.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Nothing here yet"
+        },
+        {
+          "id": "body",
+          "label": "Body",
+          "default": "One sentence on what this place is for."
+        },
+        {
+          "id": "action",
+          "label": "Action",
+          "default": "Primary action"
+        }
+      ],
+      "html": "<div class=\"ds-empty\"><span class=\"ds-tile\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21 8l-9-5-9 5 9 5 9-5z\"/><path d=\"M3 8v8l9 5 9-5V8M12 13v8\"/></svg></span><p class=\"ds-empty-title\">{{title}}</p><p>{{body}}</p><button type=\"button\" class=\"ds-btn primary\">{{action}}</button></div>"
+    },
+    {
+      "id": "notice",
+      "name": "Notice",
+      "group": "Feedback",
+      "platform": "web",
+      "description": "Something to know before acting: what happened and the one thing to do. .warn while it can be fixed, .danger when something failed.",
+      "props": [
+        {
+          "id": "text",
+          "label": "Text",
+          "default": "What happened, and the one thing to do."
+        },
+        {
+          "id": "action",
+          "label": "Action",
+          "default": "Action"
+        }
+      ],
+      "html": "<div class=\"ds-notice warn\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5M12 8h.01\"/></svg><span class=\"ds-notice-text\">{{text}}</span><button type=\"button\" class=\"ds-btn secondary\">{{action}}</button></div>"
+    },
+    {
+      "id": "toast",
+      "name": "Toast",
+      "group": "Feedback",
+      "platform": "web",
+      "description": "A short confirmation after an action, with Undo when it can be undone.",
+      "props": [
+        {
+          "id": "text",
+          "label": "Text",
+          "default": "Done"
+        }
+      ],
+      "html": "<div class=\"ds-toast\"><span>{{text}}</span><button type=\"button\" class=\"ds-btn quiet\">Undo</button></div>"
+    },
+    {
+      "id": "dialog",
+      "name": "Dialog",
+      "group": "Feedback",
+      "platform": "web",
+      "description": "One decision or a short form over the page. The confirm action is primary and last.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Dialog title"
+        },
+        {
+          "id": "body",
+          "label": "Body",
+          "default": "One or two sentences."
+        },
+        {
+          "id": "action",
+          "label": "Action",
+          "default": "Confirm"
+        }
+      ],
+      "html": "<div class=\"ds-dialog\" role=\"dialog\" aria-label=\"{{title}}\"><h2 class=\"ds-title\">{{title}}</h2><p class=\"ds-secondary\" style=\"margin:0\">{{body}}</p><div class=\"ds-dialog-foot\"><button type=\"button\" class=\"ds-btn quiet\">Cancel</button><button type=\"button\" class=\"ds-btn primary\">{{action}}</button></div></div>"
+    },
+    {
+      "id": "phone-frame",
+      "name": "Phone frame",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "One iPhone screen, 390 x 844, never taller: status bar, a bar, the scrolling content, and the tab bar on tab screens.",
+      "props": [],
+      "html": "<div class=\"ds-phone\"><div class=\"ds-statusbar\"><span>9:41</span><span class=\"ds-status-icons\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 18v-2M9 18v-5M13 18v-8M17 18V6\"/></svg><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"2\" y=\"7\" width=\"18\" height=\"10\" rx=\"3\"/><path d=\"M22 11v2\"/></svg></span></div><header class=\"ds-navbar\"></header><div class=\"ds-scroll\"></div><nav class=\"ds-tabbar\" aria-label=\"Places\"></nav></div>"
+    },
+    {
+      "id": "phone-navbar",
+      "name": "Navigation bar",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "A pushed screen's bar: back (named after where it goes), a short title, at most one action.",
+      "props": [
+        {
+          "id": "back",
+          "label": "Back",
+          "default": "Back"
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Screen title"
+        }
+      ],
+      "html": "<header class=\"ds-navbar\"><a href=\"#\" class=\"ds-back\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M15 5l-7 7 7 7\"/></svg>{{back}}</a><h1 class=\"ds-nav-title\">{{title}}</h1><button type=\"button\" class=\"ds-nav-action\" aria-label=\"Add\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button></header>"
+    },
+    {
+      "id": "phone-large-title",
+      "name": "Large title",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "A tab root's 34 px title, first in the scrolling content. Pushed screens use the bar title instead.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Place name"
+        }
+      ],
+      "html": "<h1 class=\"ds-large-title\">{{title}}</h1>"
+    },
+    {
+      "id": "phone-label",
+      "name": "Phone section label",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "The label over an inset group, 13 px, sentence case.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Section name"
+        }
+      ],
+      "html": "<h2 class=\"ds-ph-label\">{{label}}</h2>"
+    },
+    {
+      "id": "phone-group",
+      "name": "Inset group",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "iOS inset grouped rows on the grey ground. Put .ds-ph-row fragments inside; a footnote goes below as .ds-ph-note.",
+      "props": [],
+      "html": "<div class=\"ds-ph-group\"></div>"
+    },
+    {
+      "id": "phone-row",
+      "name": "Phone row",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "One row in an inset group: optional tile, a 17 px name, a 13 px secondary line, a value and a chevron when it opens something. A fragment for inside .ds-ph-group.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Item name"
+        },
+        {
+          "id": "detail",
+          "label": "Detail",
+          "default": "Secondary line"
+        },
+        {
+          "id": "value",
+          "label": "Value",
+          "default": "Value"
+        }
+      ],
+      "html": "<a href=\"#\" class=\"ds-ph-row\"><span class=\"ds-tile\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21 8l-9-5-9 5 9 5 9-5z\"/><path d=\"M3 8v8l9 5 9-5V8M12 13v8\"/></svg></span><span class=\"ds-row-text\"><span>{{title}}</span><span>{{detail}}</span></span><span class=\"ds-value\">{{value}}</span><svg class=\"ds-icon ds-chevron\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"/></svg></a>"
+    },
+    {
+      "id": "phone-note",
+      "name": "Phone footnote",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "One explanation under an inset group, never between rows.",
+      "props": [
+        {
+          "id": "text",
+          "label": "Text",
+          "default": "Footnote text."
+        }
+      ],
+      "html": "<p class=\"ds-ph-note\">{{text}}</p>"
+    },
+    {
+      "id": "phone-tabbar",
+      "name": "Tab bar",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "The app's three to five top-level places, fixed at the foot of every tab screen. The on tab is the accent.",
+      "props": [],
+      "html": "<nav class=\"ds-tabbar\" aria-label=\"Places\"><a href=\"#\" class=\"on\" aria-current=\"page\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg>Place one</a><a href=\"#\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Place two</a><a href=\"#\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/><circle cx=\"15\" cy=\"7\" r=\"2\"/><circle cx=\"9\" cy=\"17\" r=\"2\"/></svg>Settings</a></nav>"
+    },
+    {
+      "id": "phone-sheet",
+      "name": "Sheet",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "Creating or editing one thing: a sheet over the screen with a grab handle, Cancel at the left and the confirm action (Add, Done, Save) at the right of its bar. No big button at the bottom.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "New item"
+        },
+        {
+          "id": "confirm",
+          "label": "Confirm",
+          "default": "Add"
+        }
+      ],
+      "html": "<div class=\"ds-sheet-layer\"><div class=\"ds-sheet\" role=\"dialog\" aria-label=\"{{title}}\"><div class=\"ds-grab\"></div><header class=\"ds-sheet-bar\"><button type=\"button\" class=\"ds-nav-action ds-cancel\">Cancel</button><h1 class=\"ds-nav-title\">{{title}}</h1><button type=\"button\" class=\"ds-nav-action ds-confirm\">{{confirm}}</button></header><div class=\"ds-scroll\"></div></div></div>"
+    },
+    {
+      "id": "phone-text-row",
+      "name": "Text field row",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "Typing in a sheet: a borderless field filling the row, its name as the placeholder.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Field name"
+        }
+      ],
+      "html": "<label class=\"ds-ph-row\"><span class=\"ds-sr\">{{label}}</span><input class=\"ds-ph-input\" type=\"text\" placeholder=\"{{label}}\"></label>"
+    },
+    {
+      "id": "phone-menu-row",
+      "name": "Menu row",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "Choosing one of several options: the choice at the row's end with up-down arrows, opening an iOS menu. Never a web select.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Field name"
+        },
+        {
+          "id": "value",
+          "label": "Value",
+          "default": "Choose"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-ph-row\" style=\"width:100%;border:0;background:none;text-align:left\"><span class=\"ds-row-text\"><span>{{label}}</span></span><span class=\"ds-menu-value\">{{value}}<svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M8 9l4-4 4 4M8 15l4 4 4-4\"/></svg></span></button>"
+    },
+    {
+      "id": "phone-stepper-row",
+      "name": "Stepper row",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "A small count: the value, then the iOS minus-plus stepper.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Quantity"
+        },
+        {
+          "id": "value",
+          "label": "Value",
+          "default": "0"
+        }
+      ],
+      "html": "<div class=\"ds-ph-row\"><span class=\"ds-row-text\"><span>{{label}}</span></span><span class=\"ds-ph-count\">{{value}}</span><span class=\"ds-ph-stepper\"><button type=\"button\" aria-label=\"Fewer\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14\"/></svg></button><button type=\"button\" aria-label=\"More\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button></span></div>"
+    },
+    {
+      "id": "phone-date-row",
+      "name": "Date row",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "A date: the compact iOS date pill at the row's end. Never a web date field.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Date"
+        },
+        {
+          "id": "value",
+          "label": "Value",
+          "default": "Jan 1, 2026"
+        }
+      ],
+      "html": "<div class=\"ds-ph-row\"><span class=\"ds-row-text\"><span>{{label}}</span></span><button type=\"button\" class=\"ds-ph-pill\">{{value}}</button></div>"
+    },
+    {
+      "id": "phone-segmented",
+      "name": "Phone segmented control",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "Two to four views or choices, full width with 16 px margins.",
+      "props": [],
+      "html": "<div class=\"ds-ph-pad\"><div class=\"ds-ph-seg\" role=\"tablist\"><button type=\"button\" class=\"on\" role=\"tab\" aria-selected=\"true\">Option one</button><button type=\"button\" role=\"tab\">Option two</button></div></div>"
+    },
+    {
+      "id": "phone-tick-row",
+      "name": "Tick row",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "A row you tick off, or one of several choices: a round tick leading the row. Never a square checkbox.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Option name"
+        }
+      ],
+      "html": "<div class=\"ds-ph-row\"><span class=\"ds-ph-tick on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12.5l4.5 4.5L19 7\"/></svg></span><span class=\"ds-row-text\"><span>{{title}}</span></span></div>"
+    },
+    {
+      "id": "phone-switch-row",
+      "name": "Switch row",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "A setting that is on or off, with the iOS switch.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Setting name"
+        }
+      ],
+      "html": "<div class=\"ds-ph-row\"><span class=\"ds-row-text\"><span>{{label}}</span></span><button type=\"button\" class=\"ds-ph-switch\" role=\"switch\" aria-checked=\"true\" aria-label=\"{{label}}\"></button></div>"
+    },
+    {
+      "id": "phone-action-row",
+      "name": "Action row",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "An action inside a list (Add another, Delete), as iOS does: accent text, or .destructive for danger, in its own group.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Action"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"ds-ph-row action\" style=\"width:100%;border:0;background:none;text-align:left\">{{label}}</button>"
+    },
+    {
+      "id": "phone-empty",
+      "name": "Phone empty state",
+      "group": "Phone",
+      "platform": "phone",
+      "description": "A phone place with nothing in it yet: what it is for, and the action in the bar.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Nothing here yet"
+        },
+        {
+          "id": "body",
+          "label": "Body",
+          "default": "One sentence on what this place is for."
+        }
+      ],
+      "html": "<div class=\"ds-ph-empty\"><p class=\"ds-empty-title\">{{title}}</p><p>{{body}}</p></div>"
+    }
+  ]
+}

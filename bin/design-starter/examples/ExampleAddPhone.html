@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="width=390,height=844,platform=phone,schemes=light dark" />
+    <title>Example add phone</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-phone">
+      <div class="ds-statusbar">
+        <span>9:41</span
+        ><span class="ds-status-icons"
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 18v-2M9 18v-5M13 18v-8M17 18V6" /></svg
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2" y="7" width="18" height="10" rx="3" />
+            <path d="M22 11v2" /></svg
+        ></span>
+      </div>
+      <header class="ds-navbar">
+        <button type="button" class="ds-nav-action" aria-label="Add item">
+          <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      </header>
+      <div class="ds-scroll">
+        <h1 class="ds-large-title">Items</h1>
+        <div class="ds-ph-pad">
+          <div class="ds-ph-seg" role="tablist" aria-label="Show">
+            <button type="button" class="on" role="tab" aria-selected="true">All</button
+            ><button type="button" role="tab">Needs attention</button
+            ><button type="button" role="tab">Done</button>
+          </div>
+        </div>
+        <h2 class="ds-ph-label">Section name</h2>
+        <div class="ds-ph-group">
+          <a href="#" class="ds-ph-row"
+            ><span class="ds-tile"
+              ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+            ><span class="ds-row-text"><span>Item name</span><span>Secondary line</span></span
+            ><span class="ds-status warn"><span class="ds-dot"></span>Needs attention</span
+            ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" /></svg
+          ></a>
+          <a href="#" class="ds-ph-row"
+            ><span class="ds-tile"
+              ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+            ><span class="ds-row-text"
+              ><span>Item name with a longer title that wraps</span
+              ><span>Secondary line · detail</span></span
+            ><span class="ds-value">Value</span
+            ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" /></svg
+          ></a>
+          <a href="#" class="ds-ph-row"
+            ><span class="ds-tile"
+              ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 12V4h8l10 10-8 8z" />
+                <path d="M7.5 7.5h.01" /></svg></span
+            ><span class="ds-row-text"><span>Item name</span><span>Secondary line</span></span
+            ><span class="ds-value">Value</span
+            ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" /></svg
+          ></a>
+        </div>
+        <h2 class="ds-ph-label">Another section</h2>
+        <div class="ds-ph-group">
+          <a href="#" class="ds-ph-row"
+            ><span class="ds-tile"
+              ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+            ><span class="ds-row-text"><span>Item name</span><span>Secondary line</span></span
+            ><span class="ds-value">Value</span
+            ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" /></svg
+          ></a>
+          <a href="#" class="ds-ph-row"
+            ><span class="ds-tile"
+              ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+            ><span class="ds-row-text"><span>Item name</span><span>Secondary line</span></span
+            ><span class="ds-value">Value</span
+            ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" /></svg
+          ></a>
+          <a href="#" class="ds-ph-row"
+            ><span class="ds-tile"
+              ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+            ><span class="ds-row-text"><span>Item name</span><span>Secondary line</span></span
+            ><span class="ds-value">Value</span
+            ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" /></svg
+          ></a>
+          <a href="#" class="ds-ph-row"
+            ><span class="ds-tile"
+              ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+            ><span class="ds-row-text"><span>Item name</span><span>Secondary line</span></span
+            ><span class="ds-value">Value</span
+            ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" /></svg
+          ></a>
+        </div>
+        <p class="ds-ph-note">A footnote explains the group once, below it.</p>
+      </div>
+      <nav class="ds-tabbar" aria-label="Places">
+        <a href="#" class="on" aria-current="page"
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" /></svg
+          >Items</a
+        ><a href="#"
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            /></svg
+          >Collections</a
+        ><a href="#"
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" /></svg
+          >Activity</a
+        ><a href="#"
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+            <circle cx="15" cy="7" r="2" />
+            <circle cx="9" cy="17" r="2" /></svg
+          >Settings</a
+        >
+      </nav>
+      <div class="ds-sheet-layer">
+        <div class="ds-sheet" role="dialog" aria-label="New item">
+          <div class="ds-grab"></div>
+          <header class="ds-sheet-bar">
+            <button type="button" class="ds-nav-action ds-cancel">Cancel</button>
+            <h1 class="ds-nav-title">New item</h1>
+            <button type="button" class="ds-nav-action ds-confirm">Add</button>
+          </header>
+          <div class="ds-scroll">
+            <div class="ds-ph-group" style="margin-top: 8px">
+              <label class="ds-ph-row"
+                ><span class="ds-sr">Name</span
+                ><input class="ds-ph-input" type="text" value="Item name"
+              /></label>
+              <label class="ds-ph-row"
+                ><span class="ds-sr">Note</span
+                ><input class="ds-ph-input" type="text" placeholder="Note"
+              /></label>
+            </div>
+            <h2 class="ds-ph-label">Details</h2>
+            <div class="ds-ph-group">
+              <button
+                type="button"
+                class="ds-ph-row"
+                style="width: 100%; border: 0; background: none; text-align: left"
+              >
+                <span class="ds-row-text"><span>Collection</span></span
+                ><span class="ds-menu-value"
+                  >Choose<svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 9l4-4 4 4M8 15l4 4 4-4" /></svg
+                ></span>
+              </button>
+              <div class="ds-ph-row">
+                <span class="ds-row-text"><span>Quantity</span></span
+                ><span class="ds-ph-count">2</span
+                ><span class="ds-ph-stepper"
+                  ><button type="button" aria-label="Fewer">
+                    <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 12h14" />
+                    </svg></button
+                  ><button type="button" aria-label="More">
+                    <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg></button
+                ></span>
+              </div>
+              <div class="ds-ph-row">
+                <span class="ds-row-text"><span>Date</span></span
+                ><button type="button" class="ds-ph-pill">Nov 26, 2026</button>
+              </div>
+              <div class="ds-ph-row">
+                <span class="ds-row-text"><span>Remind me</span></span
+                ><button
+                  type="button"
+                  class="ds-ph-switch"
+                  role="switch"
+                  aria-checked="true"
+                  aria-label="Remind me"
+                ></button>
+              </div>
+            </div>
+            <h2 class="ds-ph-label">Kind</h2>
+            <div class="ds-ph-pad" style="padding-top: 0">
+              <div class="ds-ph-seg" role="radiogroup" aria-label="Kind">
+                <button type="button" class="on" role="radio" aria-checked="true">Option one</button
+                ><button type="button" role="radio">Option two</button
+                ><button type="button" role="radio">Option three</button>
+              </div>
+            </div>
+            <h2 class="ds-ph-label">Choose any</h2>
+            <div class="ds-ph-group">
+              <div class="ds-ph-row">
+                <span class="ds-ph-tick on"
+                  ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12.5l4.5 4.5L19 7" /></svg></span
+                ><span class="ds-row-text"><span>Option name</span></span>
+              </div>
+              <div class="ds-ph-row">
+                <span class="ds-ph-tick"
+                  ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12.5l4.5 4.5L19 7" /></svg></span
+                ><span class="ds-row-text"><span>Option name</span></span>
+              </div>
+            </div>
+            <p class="ds-ph-note">Placeholder footnote about these choices.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

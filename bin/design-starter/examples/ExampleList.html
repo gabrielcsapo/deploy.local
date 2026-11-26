@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="width=1440,height=900,platform=web,schemes=light dark" />
+    <title>Example list</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-app">
+      <nav class="ds-sidebar" aria-label="Places">
+        <div class="ds-brand"><span class="ds-brand-mark"></span>Product name</div>
+        <a href="#" class="ds-nav on" aria-current="page"
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" /></svg
+          >Items<span class="ds-count">24</span></a
+        >
+        <a href="#" class="ds-nav"
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            /></svg
+          >Collections</a
+        >
+        <a href="#" class="ds-nav"
+          ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" /></svg
+          >Activity</a
+        >
+        <div class="ds-sidebar-foot">
+          <a href="#" class="ds-nav"
+            ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+              <circle cx="15" cy="7" r="2" />
+              <circle cx="9" cy="17" r="2" /></svg
+            >Settings</a
+          >
+        </div>
+      </nav>
+      <div class="ds-main">
+        <header class="ds-topbar">
+          <button type="button" class="ds-btn quiet" aria-label="Menu">
+            <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <div class="ds-brand"><span class="ds-brand-mark"></span>Product name</div>
+        </header>
+        <main class="ds-page">
+          <div class="ds-page-head">
+            <div class="ds-head-text">
+              <h1 class="ds-display">Items</h1>
+              <span class="ds-secondary">24 items · 3 need attention</span>
+            </div>
+            <div class="ds-actions">
+              <button type="button" class="ds-btn primary">
+                <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" /></svg
+                >Add item
+              </button>
+            </div>
+          </div>
+          <div class="ds-toolbar">
+            <div class="ds-seg" role="tablist" aria-label="Show">
+              <button type="button" class="on" role="tab" aria-selected="true">All</button
+              ><button type="button" role="tab">Needs attention</button
+              ><button type="button" role="tab">Done</button>
+            </div>
+            <label
+              class="ds-field"
+              style="flex: 1; min-width: 200px; max-width: 320px; margin-left: auto"
+              ><span class="ds-sr">Search items</span
+              ><input class="ds-input" type="search" placeholder="Search items"
+            /></label>
+          </div>
+          <div class="ds-notice warn">
+            <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5M12 8h.01" /></svg
+            ><span class="ds-notice-text"
+              >Placeholder notice: what happened, and the one thing to do about it.</span
+            ><button type="button" class="ds-btn secondary">Review</button>
+          </div>
+          <section class="ds-section">
+            <h2 class="ds-section-label">Section name <span class="ds-count">3</span></h2>
+            <div class="ds-group">
+              <a href="#" class="ds-row"
+                ><span class="ds-tile"
+                  ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                    <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+                ><span class="ds-row-text"
+                  ><span>Item name</span><span>Secondary line · detail</span></span
+                ><span class="ds-status warn"><span class="ds-dot"></span>Needs attention</span
+                ><span class="ds-value">Value</span
+                ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 6l6 6-6 6" /></svg
+              ></a>
+              <a href="#" class="ds-row"
+                ><span class="ds-tile"
+                  ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                    <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+                ><span class="ds-row-text"
+                  ><span>Item name with a longer title that wraps when it has to</span
+                  ><span>Secondary line · detail</span></span
+                ><span class="ds-value">Value</span
+                ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 6l6 6-6 6" /></svg
+              ></a>
+              <a href="#" class="ds-row"
+                ><span class="ds-tile"
+                  ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 12V4h8l10 10-8 8z" />
+                    <path d="M7.5 7.5h.01" /></svg></span
+                ><span class="ds-row-text"><span>Item name</span><span>Secondary line</span></span
+                ><span class="ds-value">Value</span
+                ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 6l6 6-6 6" /></svg
+              ></a>
+            </div>
+          </section>
+          <section class="ds-section">
+            <h2 class="ds-section-label">Another section <span class="ds-count">2</span></h2>
+            <div class="ds-group">
+              <a href="#" class="ds-row"
+                ><span class="ds-tile"
+                  ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                    <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+                ><span class="ds-row-text"
+                  ><span>Item name</span><span>Secondary line · detail</span></span
+                ><span class="ds-status ok"><span class="ds-dot"></span>Done</span
+                ><span class="ds-value">Value</span
+                ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 6l6 6-6 6" /></svg
+              ></a>
+              <a href="#" class="ds-row"
+                ><span class="ds-tile"
+                  ><svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                    <path d="M3 8v8l9 5 9-5V8M12 13v8" /></svg></span
+                ><span class="ds-row-text"
+                  ><span>Item name</span><span>Secondary line · detail</span></span
+                ><span class="ds-value">Value</span
+                ><svg class="ds-icon ds-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 6l6 6-6 6" /></svg
+              ></a>
+            </div>
+            <p class="ds-section-note">
+              A footnote explains the group once, below it, not between rows.
+            </p>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

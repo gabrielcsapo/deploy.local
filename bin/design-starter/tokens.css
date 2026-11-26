@@ -1,0 +1,157 @@
+/* Design tokens: the one place a project's look is decided.
+   Change --brand to give the product its accent; everything else stays neutral.
+   Light first, with a matching dark theme: it follows the system (prefers-color-scheme)
+   unless a page pins it with data-theme="light" or data-theme="dark".
+   Names are read by tools: --text-* type sizes, --leading-* line heights, --space-*,
+   --radius-*, and colour tokens with hex values in the light and dark blocks. */
+
+:root,
+[data-theme="light"] {
+  --brand: #2f5bb7;
+  --accent: var(--brand);
+  --on-accent: #ffffff;
+  --knob: #ffffff;
+  --bg: #f7f7f8;
+  --bg-sunken: #f0f0f3;
+  --surface: #ffffff;
+  --ink: #1c1b1f;
+  --ink-secondary: #55525b;
+  --ink-tertiary: #67636f;
+  --line: #e6e5ea;
+  --line-strong: #d4d2d9;
+  --fill: #ebeaef;
+  --fill-strong: #dddce2;
+  --control-on: #ffffff;
+  --primary: #232127;
+  --on-primary: #ffffff;
+  --focus: #8a8692;
+  --success: #1f6b43;
+  --warning: #8a5208;
+  --danger: #b42318;
+  --scrim: rgba(20, 18, 26, 0.32);
+  --shadow-raised: 0 1px 2px rgba(20, 18, 26, 0.04), 0 2px 6px -2px rgba(20, 18, 26, 0.06);
+  --shadow-control: 0 1px 2px rgba(20, 18, 26, 0.1), 0 1px 1px rgba(20, 18, 26, 0.04);
+  --shadow-float: 0 12px 32px -12px rgba(20, 18, 26, 0.2);
+  --shadow-dialog: 0 24px 48px -16px rgba(20, 18, 26, 0.26);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --accent: color-mix(in srgb, var(--brand) 50%, #ffffff);
+  --on-accent: #111013;
+  --bg: #18171b;
+  --bg-sunken: #111013;
+  --surface: #24222a;
+  --ink: #f3f2f5;
+  --ink-secondary: #c5c1cc;
+  --ink-tertiary: #9e99a7;
+  --line: #34313a;
+  --line-strong: #46424d;
+  --fill: #2f2c35;
+  --fill-strong: #3b3842;
+  --control-on: #4a4652;
+  --primary: #ebe9ef;
+  --on-primary: #1c1b1f;
+  --focus: #77727f;
+  --success: #8fd4aa;
+  --warning: #f2cd91;
+  --danger: #ffb3ba;
+  --scrim: rgba(0, 0, 0, 0.5);
+  --shadow-raised: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  --shadow-dialog: 0 24px 48px -16px rgba(0, 0, 0, 0.7);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: color-mix(in srgb, var(--brand) 50%, #ffffff);
+    --on-accent: #111013;
+    --bg: #18171b;
+    --bg-sunken: #111013;
+    --surface: #24222a;
+    --ink: #f3f2f5;
+    --ink-secondary: #c5c1cc;
+    --ink-tertiary: #9e99a7;
+    --line: #34313a;
+    --line-strong: #46424d;
+    --fill: #2f2c35;
+    --fill-strong: #3b3842;
+    --control-on: #4a4652;
+    --primary: #ebe9ef;
+    --on-primary: #1c1b1f;
+    --focus: #77727f;
+    --success: #8fd4aa;
+    --warning: #f2cd91;
+    --danger: #ffb3ba;
+    --scrim: rgba(0, 0, 0, 0.5);
+    --shadow-raised: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.5);
+    --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-float: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+    --shadow-dialog: 0 24px 48px -16px rgba(0, 0, 0, 0.7);
+    color-scheme: dark;
+  }
+}
+
+:root {
+  /* Type, web: five sizes. */
+  --text-meta: 12px;
+  --leading-meta: 16px;
+  --text-ui: 13px;
+  --leading-ui: 20px;
+  --text-body: 15px;
+  --leading-body: 22px;
+  --text-title: 22px;
+  --leading-title: 28px;
+  --text-display: 28px;
+  --leading-display: 34px;
+
+  /* Type, iPhone: the iOS sizes. */
+  --text-phone-tab: 10px;
+  --leading-phone-tab: 12px;
+  --text-phone-footnote: 13px;
+  --leading-phone-footnote: 18px;
+  --text-phone-subhead: 15px;
+  --leading-phone-subhead: 20px;
+  --text-phone-body: 17px;
+  --leading-phone-body: 22px;
+  --text-phone-title: 22px;
+  --leading-phone-title: 28px;
+  --text-phone-large: 34px;
+  --leading-phone-large: 41px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable', 'Segoe UI', system-ui,
+    sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Spacing. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Corners. */
+  --radius-sm: 6px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-sheet: 16px;
+  --radius-full: 999px;
+
+  /* Sizes. */
+  --size-control: 32px;
+  --size-row: 52px;
+  --size-touch: 44px;
+  --size-sidebar: 248px;
+  --size-page: 960px;
+  --size-icon: 16px;
+}
