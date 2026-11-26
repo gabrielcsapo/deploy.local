@@ -357,13 +357,20 @@ export async function runDesign(sub, args, options, deps) {
             parseBoardMeta(html).title ??
             /<title>([^<]*)<\/title>/.exec(html)?.[1] ??
             screenName(file);
+          const { near, side, why, ...rect } = place;
           canvas.boards[file] = {
             ...canvas.boards[file],
-            ...place,
+            ...rect,
             title: canvas.boards[file]?.title ?? title,
           };
           if (Array.isArray(canvas.order) && !canvas.order.includes(file)) canvas.order.push(file);
-          fixed.push(`${screenName(file)} placed at x ${place.x}, y ${place.y} in canvas.json`);
+          // Where and why, so an agent that placed it by hand sees what changed.
+          const where = near
+            ? `${side === 'below' ? 'below' : `${side} of`} ${screenName(near)}`
+            : 'under the rest of the canvas';
+          fixed.push(
+            `${screenName(file)} placed at x ${rect.x}, y ${rect.y} in canvas.json, ${where} (${why ?? 'it was misplaced'})`,
+          );
         }
         writeFileSync(canvasPath, `${JSON.stringify(canvas, null, 2)}\n`);
         const done = new Set(places.map(([file]) => file));

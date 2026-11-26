@@ -1509,7 +1509,10 @@ test('check --fix places a new board beside the one it came from', async () => {
       terminal(repo.clone, coordinator().api, { openLocalDrawing }).deps,
     );
     const missing = first.json.problems.find((problem) => problem.code === 'not_on_canvas');
-    assert.match(missing.fix, /^deploy design check --fix places it at x 1600, y 0$/);
+    assert.match(
+      missing.fix,
+      /^deploy design check --fix places it at x 1600, y 0, right of Sidebar\.html$/,
+    );
     const fixed = await runDesign(
       'check',
       [],
@@ -1517,7 +1520,9 @@ test('check --fix places a new board beside the one it came from', async () => {
       terminal(repo.clone, coordinator().api, { openLocalDrawing }).deps,
     );
     assert.equal(fixed.exitCode, 0);
-    assert.deepEqual(fixed.json.fixed, ['SidebarPhone placed at x 1600, y 0 in canvas.json']);
+    assert.deepEqual(fixed.json.fixed, [
+      'SidebarPhone placed at x 1600, y 0 in canvas.json, right of Sidebar (it was not on the canvas)',
+    ]);
     const canvas = JSON.parse(readFileSync(join(repo.clone, 'design/canvas.json'), 'utf8'));
     assert.deepEqual(canvas.boards['SidebarPhone.html'], {
       x: 1600,

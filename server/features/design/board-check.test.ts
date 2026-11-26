@@ -653,7 +653,7 @@ test('boards placed on top of each other are a problem only when the branch did 
   assert.equal(problem!.code, 'boards_overlap');
   assert.equal(problem!.file, 'C.html');
   // The row's gap is 160: the free place is after B, at the row's y.
-  assert.match(problem!.fix!, /^move it to x 3200, y 0 in canvas\.json/);
+  assert.match(problem!.fix!, /^move it to x -1600, y 0 in canvas\.json/);
   // Two boards that already overlapped on main are not this branch's problem.
   assert.deepEqual(overlapProblems(moved, moved), []);
 });
@@ -692,13 +692,13 @@ test('a board on a canvas note or section title is a problem; --fix places new b
     size: { w: 390, h: 844 },
     near: 'Run.html',
   });
-  assert.deepEqual(spot, { x: 3920, y: 400 });
+  assert.deepEqual(spot, { x: -590, y: 400, side: 'left', near: 'Run.html' });
   assert.equal(rowGap(canvas, 400), 200);
   assert.deepEqual(noteRect({ x: 0, y: 0, w: 420, text: 'one line' }), {
     x: 0,
     y: 0,
     w: 420,
-    h: 54,
+    h: 44,
   });
 });
 
@@ -1307,4 +1307,80 @@ test('type scale: a phone board is judged by the phone scale, a web board by the
       .filter((code) => code === 'type_off_scale');
   assert.deepEqual(codes('web', 1440), ['type_off_scale']);
   assert.deepEqual(codes('phone', 390), []);
+});
+
+// The Packages section of deploy.local's canvas, as it was when --fix put PipelineRunPhone 10,600 px
+// away from PipelineRun.
+const packagesCanvas = {
+  boards: {
+    'Packages.html': { x: 500, y: 73720, w: 1440, h: 900 },
+    'Package.html': { x: 2020, y: 73720, w: 1440, h: 1100 },
+    'PipelineRun.html': { x: 500, y: 74700, w: 1440, h: 900 },
+    'PackagesCache.html': { x: 3540, y: 73720, w: 1440, h: 1500 },
+    'PackagesSetup.html': { x: 5060, y: 73720, w: 1440, h: 1400 },
+    'TaskPublish.html': { x: 6580, y: 73720, w: 1440, h: 900 },
+    'CliPackages.html': { x: 8100, y: 73720, w: 1440, h: 760 },
+    'PackagesPhone.html': { x: 9620, y: 73720, w: 390, h: 844 },
+    'PackageVersionsPhone.html': { x: 10030, y: 73720, w: 390, h: 844 },
+    'PackagesEmptyPhone.html': { x: 10440, y: 73720, w: 390, h: 844 },
+    'PackagesErrorPhone.html': { x: 10850, y: 73720, w: 390, h: 844 },
+    'PackagesUnreachablePhone.html': { x: 11260, y: 73720, w: 390, h: 844 },
+    'SettingsPackagesRowPhone.html': { x: 11670, y: 73720, w: 390, h: 900 },
+    'PackageVersionsErrorPhone.html': { x: 12080, y: 73720, w: 390, h: 844 },
+    'PackagesLongNamePhone.html': { x: 12490, y: 73720, w: 390, h: 844 },
+    'NpmSignIn.html': { x: 2020, y: 76100, w: 1440, h: 900 },
+    'NpmSignInDone.html': { x: 3540, y: 76100, w: 1440, h: 900 },
+  },
+  notes: {
+    'section-packages': {
+      x: 0,
+      y: 73000,
+      text: '10 \u00b7 Packages (for approval)',
+      kind: 'title1',
+      size: 'xxl',
+      maxW: 10100,
+    },
+    'packages-col-web': { fill: 'purple', w: 260, x: 500, y: 73500, text: 'Web app and Mac app' },
+    'packages-col-cli': { fill: 'purple', w: 260, x: 8100, y: 73500, text: 'CLI' },
+    'packages-col-phone': { fill: 'purple', w: 260, x: 9620, y: 73500, text: 'iPhone' },
+    'packages-how': {
+      fill: 'orange',
+      w: 440,
+      x: -520,
+      y: 73720,
+      text: "Proposal. deploy.local hosts npm packages and Cargo crates, and keeps a copy of everything projects install from npmjs.org and crates.io, so installs keep working when those sites are down.\n\n\u2022 Packages sits in the sidebar under Computers. It appears once deploy.local has served a package: a private one, or a copy. On approval, every board's sidebar gets the same row.\n\u2022 Tabs: Private, Copies, Set up. A package opens its page: install, versions, the projects that use it (read from each project's lockfile on main).\n\u2022 Versions are never replaced or deleted. npm versions can be deprecated and crates yanked from the package page's version rows.\n\u2022 Who publishes: pipelines, so nobody has to release a package by hand. deploy.yaml's pipeline gets a publish list. Once every job passes on main, each listed package whose version is new is published (PipelineRun), and a version already published is skipped. A failed publish fails the run, and Run pipeline retries it. Merging a new version is what starts it (TaskPublish). Pull requests never publish. People can still run deploy packages publish, for a package with no pipeline. Tasks and agents never publish; their computers' keys only install. There is no publish card in Waiting on you.\n\u2022 A project with a pipeline shows Pipelines after Apps, as the app has today. This board is the first to draw that tab.\n\u2022 Copies tab, normal state: no banner, both sources read Reachable, Packages kept has one row for all projects, and the sidebar row shows nothing. While a source is down the sidebar shows Using copies, as drawn. Only projects with a problem get their own row, with the cause. A missing package is fetched on its own when the source is back. A version its source removed stops installing until the project moves off it.\n\u2022 Copies cover npm packages and crates. App builds also need their Docker image, which deploy.local doesn't keep.\n\u2022 Package keys (Settings, General) are made by deploy packages login from your CLI sign-in. Installs only or Installs and publishes. Remove revokes it at once.\n\u2022 Project settings get a Packages group with one switch, Install through deploy.local (on). A project with packages gets a Packages tab after Releases, listing its own packages with the same rows.\n\u2022 Mac app: the window loads these web pages; nothing native is added. iPhone: Settings \u2192 Packages is read-only (PackagesPhone). Rows open the package's versions in a sheet.",
+    },
+    'packages-phone-first-run': {
+      fill: 'yellow',
+      w: 760,
+      x: 9620,
+      y: 74670,
+      text: 'Drawn after the iPhone screens were first seen running.\n\n\u2022 Packages and a package\u2019s versions both open as sheets, like every other Settings destination.\n\u2022 The two parts load separately: if one fails, the other still shows. A failed part with nothing to show says it could not be refreshed. One with rows keeps them.\n\u2022 Storage reads like web: gigabytes of 1024\u00b3, then the limit (6.2 GB of 20 GB).\n\u2022 Version dates carry the year. Today\u2019s reads Today, 7:57 AM.\n\u2022 Kept on SER opens nothing, so it has no chevron.\n\u2022 A latest version over 12 characters is capped at 96 pt and shortened in the middle, so it can\u2019t squeeze the name. The versions sheet shows it in full.',
+    },
+  },
+};
+
+test('--fix places a new phone board nearest its source on the real canvas, never across it', () => {
+  const spot = placeBoard({
+    canvas: packagesCanvas,
+    file: 'PipelineRunPhone.html',
+    size: { w: 390, h: 844 },
+    near: 'PipelineRun.html',
+  });
+  // Right of PipelineRun is Package; left is the section's note: so just below it.
+  assert.deepEqual(spot, { x: 500, y: 75760, side: 'below', near: 'PipelineRun.html' });
+  // With room to its right, it goes there, at the row's gap.
+  const roomy = {
+    ...packagesCanvas,
+    boards: { ...packagesCanvas.boards, 'Package.html': { x: 20000, y: 73720, w: 1440, h: 1100 } },
+  };
+  assert.equal(
+    placeBoard({
+      canvas: roomy,
+      file: 'PipelineRunPhone.html',
+      size: { w: 390, h: 844 },
+      near: 'PipelineRun.html',
+    }).x,
+    2100,
+  );
 });

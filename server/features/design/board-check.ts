@@ -341,7 +341,20 @@ export type CheckResult = {
   /** Boards whose canvas and meta heights disagree, with the height drawn: what --fix writes. */
   heights: Record<string, number>;
   /** Boards with no place on the canvas or a bad one, and the free place --fix puts them. */
-  places: Record<string, { x: number; y: number; w: number; h: number }>;
+  places: Record<
+    string,
+    {
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      /** The board it was put beside, and on which side; null when it went under the rest. */
+      near: string | null;
+      side: string;
+      /** Why it needed a place: the problem's short words. */
+      why: string;
+    }
+  >;
   /** Before and after, named <Board>-<width>-<scheme>.png, as base64. */
   pictures: { name: string; png: string }[];
 };
@@ -698,23 +711,50 @@ export async function checkDesign(
   for (const file of own) {
     const text = await after(file);
     if (text === null) continue;
-    const misplaced = problems.some(
+    // A board the agent placed stays where it is unless it covers a board, a note or a title.
+    const why = problems.find(
       (problem) =>
         problem.file === file &&
         ['boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(problem.code ?? ''),
     );
-    if (!misplaced) continue;
+    if (!why) continue;
     const meta = parseBoardMeta(text);
     const size = {
       w: Number(placing.boards[file]?.w) || meta.width || 1440,
       h: Number(placing.boards[file]?.h) || meta.height || 900,
     };
-    const spot = placeBoard({ canvas: placing, file, size, near: originOf.get(file) ?? null });
-    places[file] = { ...spot, ...size };
-    placing.boards[file] = { ...placing.boards[file], ...places[file] };
+    // Beside the board it came from, else beside a board of the same screen already placed.
+    const placedSibling = screenFamily(
+      file,
+      Object.keys(placing.boards).filter((other) => other !== file && !own.includes(other)),
+    )[0];
+    const spot = placeBoard({
+      canvas: placing,
+      file,
+      size,
+      near: originOf.get(file) ?? placedSibling ?? null,
+    });
+    places[file] = {
+      x: spot.x,
+      y: spot.y,
+      ...size,
+      near: spot.near,
+      side: spot.side,
+      why:
+        why.code === 'not_on_canvas'
+          ? 'it was not on the canvas'
+          : why.code === 'boards_overlap'
+            ? `it was ${why.short}`
+            : `it ${why.short.replace(/^covers/, 'covered')}`,
+    };
+    placing.boards[file] = { ...placing.boards[file], x: spot.x, y: spot.y, ...size };
+    const where = spot.near
+      ? `${spot.side === 'below' ? 'below' : `${spot.side} of`} ${spot.near}`
+      : 'under the rest of the canvas';
     for (const problem of problems)
-      if (problem.file === file && problem.code === 'not_on_canvas')
-        problem.fix = `deploy design check --fix places it at x ${spot.x}, y ${spot.y}`;
+      if (problem.file === file)
+        if (['boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(problem.code ?? ''))
+          problem.fix = `deploy design check --fix places it at x ${spot.x}, y ${spot.y}, ${where}`;
   }
 
   // The platform of a board, from its head or its width, for sizes and siblings.

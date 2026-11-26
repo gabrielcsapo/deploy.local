@@ -39,17 +39,18 @@ export function noteRect(note: Note): Rect | null {
   const text = String(note.text ?? '');
   if (/^title/.test(note.kind ?? '')) {
     const size = note.size === 'xxl' ? 64 : 44;
-    const w = Math.min(Number(note.maxW) || 4000, Math.max(400, text.length * size * 0.55));
-    return { x, y, w, h: Number(note.h) || size * 2 };
+    const w = Math.min(Number(note.maxW) || 4000, Math.max(200, text.length * size * 0.5));
+    return { x, y, w, h: Number(note.h) || Math.round(size * 1.4) };
   }
   const w = Number(note.w) || 420;
   if (Number(note.h)) return { x, y, w, h: Number(note.h) };
-  // About 8 px a character at 15 px type, 22 px a line, 16 px of padding around.
-  const perLine = Math.max(1, Math.floor((w - 32) / 8));
+  // Tight, so a board placed beside a note is not pushed away: about 7 px a character at 15 px
+  // type, 20 px a line, 12 px of padding above and below.
+  const perLine = Math.max(1, Math.floor((w - 24) / 7));
   const lines = text
     .split('\n')
     .reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / perLine)), 0);
-  return { x, y, w, h: 32 + lines * 22 };
+  return { x, y, w, h: 24 + lines * 20 };
 }
 
 type Canvas = { boards?: Record<string, Placed>; notes?: Record<string, Note> };
@@ -84,38 +85,70 @@ export function rowGap(canvas: Canvas | null | undefined, y: number, fallback = 
 }
 
 /**
- * The free place nearest a board for one of a size: to its right in its row, then below it,
- * then further right, keeping the row's usual gap. Clear of every board and note.
+ * The free place nearest a board for one of a size, clear of every board and note by half the
+ * row's usual gap. It looks beside the board's right edge, its left edge and below it, sliding
+ * past whatever is in the way, and takes whichever is nearest (right, then left, then below on a
+ * tie). With no board to be near, or nothing free within reach, it goes under everything.
  */
 export function freeSpot(
   canvas: Canvas | null | undefined,
   size: { w: number; h: number },
   near: Rect | null,
   except: string[] = [],
-): { x: number; y: number } {
+  reach = 6000,
+): { x: number; y: number; side: 'right' | 'left' | 'below' | 'bottom' } {
   const taken = occupied(canvas, except);
   const gap = near ? rowGap(canvas, near.y) : 160;
-  const free = (x: number, y: number) => {
-    const rect = { x, y, w: size.w, h: size.h };
+  const blockers = (x: number, y: number) => {
     const padded = { x: x - gap / 2, y: y - gap / 2, w: size.w + gap, h: size.h + gap };
-    return !taken.some((other) => intersects(padded, other) || intersects(rect, other));
+    return taken.filter((other) => intersects(padded, other));
   };
   if (near) {
-    // Right along the row, as far as twenty boards over.
-    for (let step = 0, x = near.x + near.w + gap; step < 20; step++) {
-      if (free(x, near.y)) return { x, y: near.y };
-      const blocker = taken
-        .filter((other) => intersects({ x, y: near.y, w: size.w, h: size.h }, other))
-        .sort((a, b) => b.x + b.w - (a.x + a.w))[0];
-      x = blocker ? blocker.x + blocker.w + gap : x + size.w + gap;
-    }
-    // Below it.
-    for (let step = 1, y = near.y + near.h + gap; step < 20; step++, y += gap)
-      if (free(near.x, y)) return { x: near.x, y };
+    const sides = [
+      {
+        side: 'right' as const,
+        start: { x: near.x + near.w + gap, y: near.y },
+        next: (x: number, y: number, hit: Rect[]) => ({
+          x: Math.max(...hit.map((other) => other.x + other.w)) + gap,
+          y,
+        }),
+      },
+      {
+        side: 'left' as const,
+        start: { x: near.x - gap - size.w, y: near.y },
+        next: (x: number, y: number, hit: Rect[]) => ({
+          x: Math.min(...hit.map((other) => other.x)) - gap - size.w,
+          y,
+        }),
+      },
+      {
+        side: 'below' as const,
+        start: { x: near.x, y: near.y + near.h + gap },
+        next: (x: number, y: number, hit: Rect[]) => ({
+          x,
+          y: Math.max(...hit.map((other) => other.y + other.h)) + gap,
+        }),
+      },
+    ];
+    const found = sides
+      .map(({ side, start, next }) => {
+        let { x, y } = start;
+        for (let step = 0; step < 50; step++) {
+          const travelled = Math.abs(x - start.x) + Math.abs(y - start.y);
+          if (travelled > reach) return null;
+          const hit = blockers(x, y);
+          if (!hit.length) return { x, y, side, travelled };
+          ({ x, y } = next(x, y, hit));
+        }
+        return null;
+      })
+      .filter((spot): spot is NonNullable<typeof spot> => Boolean(spot));
+    // Nearest first; the order above breaks a tie.
+    const best = found.sort((a, b) => a.travelled - b.travelled)[0];
+    if (best) return { x: best.x, y: best.y, side: best.side };
   }
-  // Under everything, at the left.
   const bottom = Math.max(0, ...taken.map((other) => other.y + other.h));
-  return { x: near?.x ?? 0, y: bottom + gap };
+  return { x: near?.x ?? 0, y: bottom + gap, side: 'bottom' };
 }
 
 const moved = (branch: Placed | undefined, main: Placed | undefined) =>
@@ -194,5 +227,8 @@ export function placeBoard(input: {
 }) {
   const near = (input.near && rectOf(input.canvas?.boards?.[input.near])) || null;
   const current = rectOf(input.canvas?.boards?.[input.file]);
-  return freeSpot(input.canvas, input.size, near ?? current, [input.file]);
+  return {
+    ...freeSpot(input.canvas, input.size, near ?? current, [input.file]),
+    near: near ? input.near : null,
+  };
 }
