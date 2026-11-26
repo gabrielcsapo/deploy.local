@@ -1917,6 +1917,7 @@ test('export prints each board at its own size in canvas order into one PDF', as
       ['One.html', 'platform=slide'],
       ['Two.html', 'platform=print,size=85x55mm,bleed=3mm'],
       ['Notes.html', 'platform=doc,page=letter'],
+      ['Mark.html', 'platform=logo'],
     ])
       writeFileSync(
         join(root, 'design/boards', file),
@@ -1925,23 +1926,30 @@ test('export prints each board at its own size in canvas order into one PDF', as
     const printed = [];
     const drawing = {
       pdf: async (input) => {
-        printed.push([input.file, input.paperWidth, input.paperHeight, input.fixed]);
+        printed.push([input.file, input.paperWidth, input.paperHeight, input.fixed, input.css]);
         return Buffer.from(`pdf:${input.file}`);
       },
+      shoot: async (input) => ({
+        marks: input.logo ? { svg: '<svg xmlns="http://www.w3.org/2000/svg"/>' } : null,
+      }),
     };
     const run = terminal(root, coordinator().api, {
       openLocalDrawing: async () => ({ drawing, close: async () => {} }),
     });
     // The stand-in PDFs have no pages; the joining is tested on Chromium's own output.
     const result = await runDesign('export', [], {}, run.deps);
-    assert.deepEqual(result.json.boards, ['Two.html', 'One.html', 'Notes.html']);
+    assert.deepEqual(result.json.boards, ['Two.html', 'One.html', 'Mark.html', 'Notes.html']);
+    // A logo's mark leaves as SVG beside the PDF.
+    assert.deepEqual(result.json.marks, ['output/design/Mark-mark.svg']);
+    assert.match(readFileSync(join(root, 'output/design/Mark-mark.svg'), 'utf8'), /^<svg/);
     assert.ok(existsSync(join(root, 'output/design/export')));
     assert.deepEqual(
-      printed.map(([file, w, h, fixed]) => [file, Math.round(w), Math.round(h), fixed]),
+      printed.map(([file, w, h, fixed, css]) => [file, Math.round(w), Math.round(h), fixed, css]),
       [
-        ['Two.html', 344, 231, true],
-        ['One.html', 1920, 1080, true],
-        ['Notes.html', 816, 1056, false],
+        ['Two.html', 344, 231, true, undefined],
+        ['One.html', 1920, 1080, true, undefined],
+        ['Mark.html', 1024, 1024, true, undefined],
+        ['Notes.html', 816, 1056, false, true],
       ],
       'canvas order, each at its own paper: trim plus bleed, the slide, a letter page',
     );

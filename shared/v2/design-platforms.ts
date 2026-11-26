@@ -18,7 +18,7 @@ export const pageSizes: Record<string, { w: number; h: number; label: string }> 
   letter: { w: 816, h: 1056, label: 'Letter' },
 };
 /** The sizes a logo is checked at, largest first. */
-export const logoSizes = [512, 128, 64, 32, 16];
+export const logoSizes = [512, 128, 64, 32, 24, 16];
 
 export type PlatformInfo = {
   id: string;
@@ -254,7 +254,7 @@ export function drawSteps(platform: string, meta: BoardMeta, placed: PlacedSize 
           mode: 'sheet',
           measure: true,
           inspect: true,
-          shown: logoSizes.reduce((sum, size) => sum + size + 24, 24),
+          shown: 720,
           layout: { kind: 'sheet', sizes: logoSizes },
         }),
       ];
@@ -358,6 +358,8 @@ export function exportPage(platform: string, meta: BoardMeta, placed: PlacedSize
       paperWidth: page.w,
       paperHeight: page.h,
       fixed: false,
+      /** The board's own @page size and margins decide the sheets, as a printer would have them. */
+      css: true,
     };
   }
   if (platform === 'print') {

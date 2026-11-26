@@ -27,7 +27,9 @@ import {
   overflowProblems,
   partRow,
   type CheckDrawing,
+  type CheckShot,
 } from './board-check.ts';
+import type { LogoMarks } from '../../design/kind-checks.ts';
 import {
   contentDifferences,
   contrastProblems,
@@ -2023,6 +2025,8 @@ async function kindCheck(options: {
   placed?: Record<string, number>;
   inspect?: (input: { width: number; scheme: string; media?: string }) => Partial<Inspection>;
   png?: (scheme: string) => Buffer;
+  /** More the drawing gives back for a shot (printed sheets, a logo's marks, its grounds). */
+  extra?: (input: { scheme: string; media?: string }) => Partial<CheckShot>;
 }) {
   const repo = repository();
   try {
@@ -2060,7 +2064,14 @@ async function kindCheck(options: {
       media?: string;
       fullPage?: boolean;
     }[] = [];
-    const pairs: { width: number; scheme: string; before: Buffer | null; layout?: unknown }[] = [];
+    const pairs: {
+      width: number;
+      scheme: string;
+      before: Buffer | null;
+      layout?: unknown;
+      afterPages?: Buffer[];
+      afterMarks?: unknown;
+    }[] = [];
     const drawer: CheckDrawing = {
       shoot: async (input) => {
         shots.push({
@@ -2084,10 +2095,11 @@ async function kindCheck(options: {
                 }),
               })
             : null,
+          ...options.extra?.({ scheme: input.scheme, media: input.media }),
         };
       },
-      pair: async ({ before, width, scheme, layout }) => {
-        pairs.push({ width, scheme, before, layout });
+      pair: async ({ before, width, scheme, layout, afterPages, afterMarks }) => {
+        pairs.push({ width, scheme, before, layout, afterPages, afterMarks });
         return Buffer.from('pair');
       },
     };
@@ -2252,7 +2264,7 @@ test('a logo is one sheet on each ground, and a mark that vanishes at 16 px is n
       [1024, 1024],
     ],
   );
-  assert.deepEqual(faint.pairs[0].layout, { kind: 'sheet', sizes: [512, 128, 64, 32, 16] });
+  assert.deepEqual(faint.pairs[0].layout, { kind: 'sheet', sizes: [512, 128, 64, 32, 24, 16] });
   assert.deepEqual(
     faint.result.notes.map((note) => note.code),
     ['logo_small_unreadable'],
@@ -2260,6 +2272,124 @@ test('a logo is one sheet on each ground, and a mark that vanishes at 16 px is n
   const bold = await kindCheck({ head: 'platform=logo', png: png([20, 20, 30], [255, 255, 255]) });
   assert.deepEqual(bold.result.notes, []);
   assert.deepEqual(bold.result.problems, []);
+});
+
+/** A mark's picture: `period` px of ink then ground, in vertical bars, on white, 128 px square. */
+function barsPng(size: number, ink: number, period: number) {
+  const edge = size / 16;
+  return pngOf(size, size, (x, y) => {
+    const along = x - edge;
+    return along >= 0 && x < size - edge && y >= edge && y < size - edge && along % period < ink
+      ? [20, 20, 30]
+      : [255, 255, 255];
+  });
+}
+
+const marksOf = (ink: number, period: number): LogoMarks => ({
+  svg: '<svg/>',
+  ground: 'rgb(255, 255, 255)',
+  ink: 'rgb(20, 20, 30)',
+  sizes: [128, 16].map((size) => ({
+    size,
+    png: barsPng(size, (ink * size) / 128, (period * size) / 128),
+  })),
+  icons: [],
+});
+
+test('a logo mark read at 16 px: a thin or crowded mark is a note naming the size, a bold one is not', async () => {
+  const run = (ink: number, period: number) =>
+    kindCheck({
+      head: 'platform=logo',
+      png: () => barsPng(256, 100, 200),
+      extra: () => ({ marks: marksOf(ink, period) }),
+    });
+  // Bars 8 px wide in a 128 px drawing: one pixel at 16, thinner than 1.5.
+  const thin = await run(8, 24);
+  assert.deepEqual(
+    thin.result.notes.map((note) => note.code),
+    ['logo_small_unreadable'],
+  );
+  assert.match(thin.result.notes[0].label, /16 px/);
+  assert.match(thin.result.notes[0].detail, /thinner than 1.5 px at 16 px/);
+  // Bars 40 px wide, 40 px apart: three pixels at 16.
+  const bold = await run(40, 80);
+  assert.deepEqual(bold.result.notes, []);
+  // Bars wide enough, but gaps of 8 px (one pixel at 16): they close up.
+  const crowded = await run(40, 48);
+  assert.deepEqual(
+    crowded.result.notes.map((note) => note.code),
+    ['logo_small_unreadable'],
+  );
+  assert.match(crowded.result.notes[0].detail, /gaps between its shapes/);
+  // The picture is given the marks drawn from the mark itself.
+  assert.ok(bold.pairs.every((pair) => pair.afterMarks));
+});
+
+test('a tile labelled for one ground that changes with the scheme is a note', async () => {
+  const flips = await kindCheck({
+    head: 'platform=logo',
+    extra: ({ scheme }) => ({
+      grounds: [
+        {
+          layer: 'tile-reversed',
+          label: 'reversed',
+          ground: scheme === 'dark' ? 'rgb(250, 250, 250)' : 'rgb(24, 24, 27)',
+        },
+        { layer: 'tile-brand', label: 'brand', ground: 'rgb(47, 91, 183)' },
+      ],
+    }),
+  });
+  const note = flips.result.notes.find((entry) => entry.code === 'logo_ground_follows_scheme');
+  assert.ok(note);
+  assert.match(note.detail, /tile-reversed/);
+  assert.doesNotMatch(note.detail, /tile-brand/);
+  const fixed = await kindCheck({
+    head: 'platform=logo',
+    extra: () => ({
+      grounds: [{ layer: 'tile-reversed', label: 'reversed', ground: 'rgb(24, 24, 27)' }],
+    }),
+  });
+  assert.equal(
+    fixed.result.notes.some((entry) => entry.code === 'logo_ground_follows_scheme'),
+    false,
+  );
+});
+
+test('a document printed to real sheets: the pictures are the sheets and a stranded heading is a note', async () => {
+  const sheets = [Buffer.from('p1'), Buffer.from('p2')];
+  const real = await kindCheck({
+    head: 'platform=doc',
+    inspect: ({ width }) => ({
+      headings:
+        width === 794
+          ? [
+              {
+                layer: 'cancel',
+                text: 'If a lesson is cancelled',
+                left: 0,
+                top: 900,
+                width: 600,
+                height: 36,
+              },
+            ]
+          : [],
+    }),
+    extra: ({ media }) =>
+      media === 'print' ? { pages: sheets, stranded: [{ page: 1, heading: 0 }] } : {},
+  });
+  const printed = real.pairs.at(-1)!;
+  assert.deepEqual(printed.afterPages, sheets);
+  const note = real.result.notes.find((entry) => entry.code === 'page_break_inside');
+  assert.ok(note);
+  assert.match(note.detail, /If a lesson is cancelled" on page 1/);
+  const clean = await kindCheck({
+    head: 'platform=doc',
+    extra: ({ media }) => (media === 'print' ? { pages: sheets, stranded: [] } : {}),
+  });
+  assert.equal(
+    clean.result.notes.some((entry) => entry.code === 'page_break_inside'),
+    false,
+  );
 });
 
 test('a slide taller than its frame is a problem; a mac window and a game screen draw once', async () => {

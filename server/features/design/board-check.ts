@@ -81,7 +81,13 @@ import {
 import {
   fixedHeight,
   isImmersive,
+  logoGroundNote,
   logoSmallNote,
+  markLegibility,
+  pageBreakNotesFromPages,
+  type LogoGround,
+  type LogoMarks,
+  type StrandedHeading,
   measuredHeightProblem,
   pageBreakNotes,
   phoneScreen,
@@ -327,6 +333,14 @@ export type CheckShot = {
   inspected?: Inspection | null;
   /** The questions marked on the picture, by their badges' numbers. */
   questions?: BoardQuestion[];
+  /** A document's printed sheets, one picture each, as the browser printed them. */
+  pages?: Buffer[];
+  /** The headings that end a printed sheet with nothing after them on it. */
+  stranded?: StrandedHeading[];
+  /** A logo's mark drawn from the mark itself at each size. */
+  marks?: LogoMarks | null;
+  /** A logo board's grounds labelled for one fixed ground, with the colour drawn. */
+  grounds?: LogoGround[];
 };
 export type CheckDrawing = {
   /**
@@ -347,6 +361,10 @@ export type CheckDrawing = {
     media?: 'print';
     /** Picture the whole page, however tall (a document), not just the window. */
     fullPage?: boolean;
+    /** Also print the page on this paper and picture each sheet (a document's printed pages). */
+    printed?: { paperWidth: number; paperHeight: number };
+    /** Also draw the mark itself at true size, and read the grounds labelled for one colour. */
+    logo?: boolean;
   }): Promise<CheckShot | null>;
   /** Before and after side by side, captioned, as one PNG. */
   pair(input: {
@@ -359,6 +377,12 @@ export type CheckDrawing = {
     questions?: BoardQuestion[];
     /** Pages, a print piece's guides or a sheet of sizes, when the picture is more than a screen. */
     layout?: PairLayout;
+    /** The printed sheets themselves, when the browser printed them. */
+    beforePages?: Buffer[];
+    afterPages?: Buffer[];
+    /** The mark drawn from the mark itself, when it could be. */
+    beforeMarks?: LogoMarks | null;
+    afterMarks?: LogoMarks | null;
   }): Promise<Buffer>;
 };
 
@@ -1036,7 +1060,12 @@ export async function checkDesign(
     const shots: CheckResult['pictures'] = [];
     const found = { problems: [] as Finding[], notes: [] as Finding[] };
     // A logo's pictures, whose pixels say whether the mark shows at 16 px.
-    const logoPictures: { scheme: Scheme; png: Buffer }[] = [];
+    const logoPictures: {
+      scheme: Scheme;
+      png: Buffer;
+      marks: LogoMarks | null;
+      grounds: LogoGround[];
+    }[] = [];
     let inspectedOnce = false;
     for (const planned of steps) {
       let step = planned;
@@ -1091,6 +1120,15 @@ export async function checkDesign(
           ...(step.scale !== 1 ? { scale: step.scale } : {}),
           ...(step.media ? { media: step.media } : {}),
           ...(step.height === null ? { fullPage: true } : {}),
+          ...(step.mode === 'pages' && step.layout?.kind === 'pages'
+            ? {
+                printed: {
+                  paperWidth: step.layout.pageWidth,
+                  paperHeight: step.layout.pageHeight,
+                },
+              }
+            : {}),
+          ...(platform === 'logo' ? { logo: true } : {}),
         };
         const shot = (at: string) => drawing.shoot({ commit: at, file, ...draw });
         // A new board's taste is judged against the board it came from, drawn from main.
@@ -1111,10 +1149,26 @@ export async function checkDesign(
             width,
           };
         }
-        if (platform === 'logo') logoPictures.push({ scheme, png: afterShot.png });
+        if (platform === 'logo')
+          logoPictures.push({
+            scheme,
+            png: afterShot.png,
+            marks: afterShot.marks ?? null,
+            grounds: afterShot.grounds ?? [],
+          });
         if (inspect && afterShot.inspected && step.mode === 'pages') {
           // Printed pages: where the sheets break, nothing else read twice.
-          if (scheme === stepSchemes[0] && step.layout?.kind === 'pages')
+          if (scheme === stepSchemes[0] && step.layout?.kind === 'pages' && afterShot.pages?.length)
+            // The sheets as the browser printed them: where they really end.
+            found.notes.push(
+              ...pageBreakNotesFromPages({
+                file,
+                title,
+                stranded: afterShot.stranded ?? [],
+                inspection: afterShot.inspected,
+              }),
+            );
+          else if (scheme === stepSchemes[0] && step.layout?.kind === 'pages')
             found.notes.push(
               ...pageBreakNotes({
                 file,
@@ -1252,6 +1306,10 @@ export async function checkDesign(
           scheme,
           questions: afterShot.questions ?? [],
           ...(step.layout ? { layout: step.layout } : {}),
+          ...(afterShot.pages?.length ? { afterPages: afterShot.pages } : {}),
+          ...(mainHas && beforeShot?.pages?.length ? { beforePages: beforeShot.pages } : {}),
+          ...(afterShot.marks ? { afterMarks: afterShot.marks } : {}),
+          ...(mainHas && beforeShot?.marks ? { beforeMarks: beforeShot.marks } : {}),
         });
         shots.push({ name: `${name}-${step.key}-${scheme}.png`, png: png.toString('base64') });
       }
@@ -1260,8 +1318,24 @@ export async function checkDesign(
       const note = logoSmallNote({
         file,
         title,
-        results: logoPictures.flatMap(({ scheme, png }) => {
+        size: 16,
+        results: logoPictures.flatMap(({ scheme, png, marks }) => {
           try {
+            if (marks) {
+              const at = (size: number) => marks.sizes.find((entry) => entry.size === size)?.png;
+              const big = at(128);
+              const small = at(16);
+              if (big && small) {
+                const read = markLegibility({
+                  big,
+                  small,
+                  size: 16,
+                  ground: marks.ground,
+                  ink: marks.ink,
+                });
+                return [{ scheme, ...read }];
+              }
+            }
             return [{ scheme, contrast: smallContrast(png, 16).contrast }];
           } catch {
             return [];
@@ -1269,6 +1343,18 @@ export async function checkDesign(
         }),
       });
       if (note) found.notes.push(note);
+      // A tile labelled for one ground keeps it in both schemes.
+      const light = logoPictures.find((entry) => entry.scheme === 'light');
+      const dark = logoPictures.find((entry) => entry.scheme === 'dark');
+      if (light && dark) {
+        const ground = logoGroundNote({
+          file,
+          title,
+          light: light.grounds,
+          dark: dark.grounds,
+        });
+        if (ground) found.notes.push(ground);
+      }
     }
     drawnFindings[file] = found;
     return shots;

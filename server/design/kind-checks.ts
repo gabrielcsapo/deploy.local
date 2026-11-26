@@ -4,7 +4,7 @@
 // the same code runs on deploy.local and on the computer.
 import { inflateSync } from 'node:zlib';
 import { contrast, type Box, type Inspection, type Rgb } from '../../shared/v2/design-inspect.ts';
-import { CSS_PX_PER_MM } from '../../shared/v2/design-platforms.ts';
+import { CSS_PX_PER_MM, logoSizes } from '../../shared/v2/design-platforms.ts';
 import type { Finding } from './board-quality.ts';
 
 // ── Pictures ────────────────────────────────────────────────────────────────────────────────────
@@ -131,24 +131,207 @@ export function smallContrast(png: Buffer, size = 16) {
   return { ground, cell: bestCell, contrast: best };
 }
 
-/** A logo that does not show at 16 px on a ground it is drawn on: a note, since small use is a choice. */
+/** The sizes the mark is drawn at, from the mark itself. */
+export const logoMarkSizes = logoSizes;
+
+/** A logo's mark drawn from the mark itself at each size, the app icon and the SVG it came from. */
+export type LogoMarks = {
+  /** The self-contained SVG of the mark, every colour resolved. */
+  svg: string;
+  /** The colour the mark sits on, and the ink it is drawn in, as CSS colours. */
+  ground: string;
+  ink: string;
+  /** The mark at true pixel size: size x size px, 1:1. */
+  sizes: { size: number; png: Buffer }[];
+  /** The app icon, a rounded square: the mark in its ink on the ground (light) and the reverse (dark). */
+  icons: { tone: 'light' | 'dark'; size: number; png: Buffer }[];
+};
+
+/** An element labelled for one fixed ground, and the colour it is drawn on. */
+export type LogoGround = { layer: string; label: string; ground: string };
+
+const cssRgb = (value: string): Rgb => {
+  const parts = /rgba?\(([^)]+)\)/
+    .exec(value)?.[1]
+    .split(/[,\s/]+/)
+    .map(Number) ?? [255, 255, 255];
+  return [parts[0] ?? 255, parts[1] ?? 255, parts[2] ?? 255];
+};
+
+/**
+ * How much of a mark survives at `size` px, read from the mark drawn at that size and again at
+ * eight times it. The big drawing is a mask (ink or ground); a stroke is the shorter of the two
+ * runs through an ink pixel, a gap the shorter bounded run through a ground pixel. What is
+ * thinner than 1.5 device pixels at `size` fades, or closes up against its neighbour.
+ */
+/** Thinner than this many device pixels at the small size, a stroke fades and a gap closes up. */
+const LIMIT = 1.5;
+export function markLegibility(input: {
+  big: Buffer;
+  /** The mark's drawing at `size`, for the contrast it keeps against its ground. */
+  small: Buffer;
+  size: number;
+  ground: string;
+  ink: string;
+}) {
+  const { width, height, rgba } = decodePng(input.big);
+  const ground = cssRgb(input.ground);
+  const ink = cssRgb(input.ink);
+  const far = Math.hypot(ink[0] - ground[0], ink[1] - ground[1], ink[2] - ground[2]);
+  const cut = Math.max(40, far * 0.35);
+  const mask = new Uint8Array(width * height);
+  let inkArea = 0;
+  for (let at = 0; at < width * height; at++) {
+    const alpha = rgba[at * 4 + 3] / 255;
+    const px = [0, 1, 2].map((c) => rgba[at * 4 + c] * alpha + 255 * (1 - alpha));
+    const distance = Math.hypot(px[0] - ground[0], px[1] - ground[1], px[2] - ground[2]);
+    if (distance > cut) {
+      mask[at] = 1;
+      inkArea++;
+    }
+  }
+  const unit = width / input.size;
+  // Run lengths through every pixel, along rows and along columns.
+  const runs = (along: 'x' | 'y') => {
+    const length = new Int32Array(width * height);
+    const bounded = new Uint8Array(width * height);
+    const lines = along === 'x' ? height : width;
+    const steps = along === 'x' ? width : height;
+    for (let line = 0; line < lines; line++) {
+      let start = 0;
+      while (start < steps) {
+        const index = (step: number) => (along === 'x' ? line * width + step : step * width + line);
+        const value = mask[index(start)];
+        let end = start;
+        while (end + 1 < steps && mask[index(end + 1)] === value) end++;
+        // A run of ground is a gap only with ink at both its ends.
+        const between = start > 0 && end < steps - 1;
+        for (let step = start; step <= end; step++) {
+          length[index(step)] = end - start + 1;
+          bounded[index(step)] = between ? 1 : 0;
+        }
+        start = end + 1;
+      }
+    }
+    return { length, bounded };
+  };
+  const row = runs('x');
+  const column = runs('y');
+  let thinInk = 0;
+  let thinGap = 0;
+  let box = { left: width, top: height, right: -1, bottom: -1 };
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++)
+      if (mask[y * width + x]) {
+        box = {
+          left: Math.min(box.left, x),
+          top: Math.min(box.top, y),
+          right: Math.max(box.right, x),
+          bottom: Math.max(box.bottom, y),
+        };
+      }
+  for (let y = box.top; y <= box.bottom; y++)
+    for (let x = box.left; x <= box.right; x++) {
+      const at = y * width + x;
+      if (mask[at]) {
+        if (Math.min(row.length[at], column.length[at]) < unit * LIMIT) thinInk++;
+      } else {
+        const lengths = [
+          ...(row.bounded[at] ? [row.length[at]] : []),
+          ...(column.bounded[at] ? [column.length[at]] : []),
+        ];
+        if (lengths.length && Math.min(...lengths) < unit * LIMIT) thinGap++;
+      }
+    }
+  const area = Math.max(1, inkArea);
+  const small = smallContrast(input.small, input.size);
+  return {
+    /** The share of the ink that is thinner than 1.5 device pixels at `size`. */
+    thinInk: thinInk / area,
+    /** Gaps thinner than 1.5 device pixels (they close up), as a share of the ink's area. */
+    thinGaps: thinGap / area,
+    /** The best contrast the mark keeps against its ground at `size`. */
+    contrast: small.contrast,
+  };
+}
+
+/**
+ * A logo that does not show at a small size on a ground it is drawn on: a note, since small use
+ * is a choice. Fires when the mark's best contrast there is under 3:1, or when what it is made
+ * of is thinner than one device pixel (strokes) or closes up (gaps), so it becomes a blob.
+ */
 export function logoSmallNote(input: {
   file: string;
   title: string;
-  results: { scheme: 'light' | 'dark'; contrast: number }[];
+  /** The size read, in px (16). */
+  size?: number;
+  results: {
+    scheme: 'light' | 'dark';
+    contrast: number;
+    thinInk?: number;
+    thinGaps?: number;
+  }[];
 }): Finding | null {
-  const weak = input.results.filter((result) => result.contrast < 3);
+  const size = input.size ?? 16;
+  const reasons = (result: (typeof input.results)[number]) => {
+    const why: string[] = [];
+    if (result.contrast < 3)
+      why.push(`its best contrast at ${size} px is ${result.contrast.toFixed(1)}:1, under 3:1`);
+    if ((result.thinInk ?? 0) >= 0.3)
+      why.push(
+        `${Math.round((result.thinInk ?? 0) * 100)}% of the mark is strokes thinner than 1.5 px at ${size} px`,
+      );
+    if ((result.thinGaps ?? 0) >= 0.12)
+      why.push(
+        `gaps between its shapes (${Math.round((result.thinGaps ?? 0) * 100)}% of its area) are under 1.5 px at ${size} px and close up`,
+      );
+    return why;
+  };
+  const weak = input.results.filter((result) => reasons(result).length);
   if (!weak.length) return null;
-  const worst = weak.reduce((a, b) => (a.contrast <= b.contrast ? a : b));
+  const worst = weak.reduce((a, b) => (reasons(a).length >= reasons(b).length ? a : b));
   return {
     code: 'logo_small_unreadable',
     file: input.file,
     board: input.title,
     scheme: worst.scheme,
-    label: `${input.title} does not read at 16 px on its ${weak.map((entry) => entry.scheme).join(' and ')} ground`,
-    detail: `the mark's best contrast at 16 px is ${worst.contrast.toFixed(1)}:1, under 3:1`,
-    short: 'unreadable at 16 px',
-    fix: 'thicken the strokes, drop the fine detail or give the mark a solid shape that holds at 16 px',
+    label: `${input.title} does not read at ${size} px${weak.length === input.results.length && weak.length > 1 ? '' : ` on its ${weak.map((entry) => entry.scheme).join(' and ')} ground`}`,
+    detail: reasons(worst).join('; '),
+    short: `unreadable at ${size} px`,
+    fix: `make strokes and gaps at least ${Math.round((96 / size) * 10) / 10} units of 64 (1.5 px at ${size} px), or drop the fine detail, then look at the ${size} px crop`,
+  };
+}
+
+/**
+ * Tiles labelled for one fixed ground (light, dark, reversed, brand) that change colour with the
+ * scheme: a "Reversed" tile that turns light in the dark scheme no longer shows what its label
+ * says. One note naming them.
+ */
+export function logoGroundNote(input: {
+  file: string;
+  title: string;
+  light: LogoGround[];
+  dark: LogoGround[];
+}): Finding | null {
+  const moved = input.light.filter((entry) => {
+    const other = input.dark.find((candidate) => candidate.layer === entry.layer);
+    return other && other.ground !== entry.ground;
+  });
+  if (!moved.length) return null;
+  return {
+    code: 'logo_ground_follows_scheme',
+    file: input.file,
+    board: input.title,
+    layer: moved[0].layer,
+    label: `${input.title} has grounds labelled ${[...new Set(moved.map((entry) => entry.label))].join(', ')} that change with the scheme`,
+    detail: `${moved
+      .slice(0, 4)
+      .map((entry) => entry.layer)
+      .join(
+        ', ',
+      )}${moved.length > 4 ? ` and ${moved.length - 4} more` : ''} ${moved.length === 1 ? 'is' : 'are'} drawn on a different colour in the dark scheme than in the light one`,
+    short: 'ground follows scheme',
+    fix: 'give a tile labelled light, dark, reversed or brand a fixed colour (a literal or a token that does not flip) so it shows the same ground in both schemes',
   };
 }
 
@@ -388,6 +571,86 @@ export function pageBreakNotes(input: {
         .map(
           (heading) =>
             `"${heading.text}" on page ${Math.floor((heading.top + heading.height - 0.5) / pageHeight) + 1}`,
+        )
+        .join(', '),
+      short: 'heading ends a page',
+      fix: 'keep the heading with the text after it: break-after: avoid on headings',
+    },
+  ];
+}
+
+/** A heading that ends a printed sheet with nothing after it on that sheet. */
+export type StrandedHeading = { page: number; heading: number };
+
+/**
+ * Where the printed sheets end: from the probe print (headings drawn solid magenta, nothing else
+ * repeated from the page edge) the last ink of each sheet but the last. When it is a heading, that
+ * heading (counted from the first in the document) is stranded.
+ */
+export function headingsEndingPages(sheets: Buffer[]): StrandedHeading[] {
+  const found: StrandedHeading[] = [];
+  let heading = -1;
+  sheets.forEach((sheet, at) => {
+    const { width, height, rgba } = decodePng(sheet);
+    // The picture's own edge is the viewer's, not the paper's.
+    const edge = 3;
+    const rowKind = (y: number) => {
+      let ink = false;
+      let magenta = false;
+      for (let x = edge; x < width - edge; x++) {
+        const i = (y * width + x) * 4;
+        const [r, g, b] = [rgba[i], rgba[i + 1], rgba[i + 2]];
+        if (r > 225 && g < 70 && b > 225) {
+          magenta = true;
+          ink = true;
+        } else if (Math.min(r, g, b) < 235) ink = true;
+      }
+      return { ink, magenta };
+    };
+    let last = -1;
+    let lastWasHeading = false;
+    let inBand = false;
+    for (let y = edge; y < height - edge; y++) {
+      const kind = rowKind(y);
+      if (kind.magenta && !inBand) heading++;
+      inBand = kind.magenta;
+      if (kind.ink) {
+        last = y;
+        lastWasHeading = kind.magenta;
+      }
+    }
+    if (at < sheets.length - 1 && last >= 0 && lastWasHeading)
+      found.push({ page: at + 1, heading });
+  });
+  return found;
+}
+
+/** Headings that end a printed sheet, from the sheets themselves: they belong with their text. */
+export function pageBreakNotesFromPages(input: {
+  file: string;
+  title: string;
+  stranded: StrandedHeading[];
+  inspection: Inspection | null;
+}): Finding[] {
+  if (!input.stranded.length) return [];
+  const headings = input.inspection?.headings ?? [];
+  const named = input.stranded.map((entry) => ({
+    ...entry,
+    box: headings[entry.heading],
+  }));
+  return [
+    {
+      code: 'page_break_inside',
+      file: input.file,
+      board: input.title,
+      ...(named[0].box?.layer ? { layer: named[0].box.layer } : {}),
+      label: `${input.title} ends a printed page on a heading`,
+      detail: named
+        .slice(0, 3)
+        .map((entry) =>
+          entry.box
+            ? `"${entry.box.text}" on page ${entry.page}`
+            : `a heading on page ${entry.page}`,
         )
         .join(', '),
       short: 'heading ends a page',
