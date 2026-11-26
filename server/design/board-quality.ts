@@ -6,6 +6,7 @@
 import {
   assignLayerIds,
   boardElements,
+  instanceQuestions,
   layerIds,
   syncInstances,
   type Library,
@@ -417,17 +418,24 @@ const plain = (html: string) =>
 /** The questions a board asks: each layer with data-question, its question and its words. */
 export function boardQuestions(html: string | null | undefined) {
   if (!html) return [];
-  return boardElements(html)
-    .map((element) => {
-      const tag = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
-      const question = attribute(tag, 'data-question');
-      return question === null
-        ? null
-        : { layer: element.layer ?? '', question: question.trim(), text: plain(element.outer) };
-    })
-    .filter((entry): entry is { layer: string; question: string; text: string } =>
-      Boolean(entry?.question),
-    );
+  const elements = boardElements(html);
+  const found: { layer: string; question: string; text: string }[] = [];
+  for (const element of elements) {
+    const tag = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
+    const question = attribute(tag, 'data-question');
+    if (question?.trim())
+      found.push({
+        layer: element.layer ?? '',
+        question: question.trim(),
+        text: plain(element.outer),
+      });
+    // An instance root asks about its inner layers, which the library draws.
+    for (const [layer, asked] of Object.entries(instanceQuestions(tag))) {
+      const inner = boardElements(element.outer).find((entry) => entry.layer === layer);
+      found.push({ layer, question: asked.trim(), text: inner ? plain(inner.outer) : '' });
+    }
+  }
+  return found;
 }
 
 const numbers =
@@ -483,6 +491,26 @@ export function questionFindings(input: {
 }
 
 // ── A board against its source ───────────────────────────────────────────────────────────────────
+
+/**
+ * The web-to-phone board mappings the design system states, in its "Phone screens" section:
+ * lines like "Package → PackageVersionsPhone" (or ->), where both are boards.
+ */
+export function phoneMappings(readme: string | null | undefined, boards: string[]) {
+  const section = /^#{2,4}\s+Phone screens\b[^\n]*\n([\s\S]*?)(?=^#{1,4}\s|(?![\s\S]))/im.exec(
+    readme ?? '',
+  )?.[1];
+  const known = new Set(boards);
+  const found: Record<string, string[]> = {};
+  for (const match of (section ?? '').matchAll(
+    /\b([A-Z][A-Za-z0-9]+)\s*(?:→|->)\s*([A-Z][A-Za-z0-9]+)\b/g,
+  )) {
+    const [web, phone] = [`${match[1]}.html`, `${match[2]}.html`];
+    if (!known.has(web) || !known.has(phone)) continue;
+    found[web] = [...new Set([...(found[web] ?? []), phone])];
+  }
+  return found;
+}
 
 /**
  * App chrome, not the page's own content: the sidebar, the top bar and its search and New task,
@@ -592,12 +620,30 @@ export function contentDifferences(
       .map((action) => comparable(action.text)),
   );
   const keep = (word: string) => comparable(word) && !rowWords.has(comparable(word));
-  const has = (list: string[]) => new Set(list.map(comparable));
-  const inBoard = has(a.words);
-  const inSource = has(b.words);
+  // A line is kept when each of its ·-separated parts shows somewhere on the other board: a phone
+  // may move "4f2e9a1" into its bar and keep "#31 merged by you" in the body.
+  const shownOn = (words: string[]) => {
+    const all = new Set(words.map(comparable));
+    const text = ` ${words.map(comparable).join(' | ')} `;
+    return (word: string) =>
+      all.has(comparable(word)) ||
+      word
+        .split(/\s*[·•|]\s*/)
+        .map(comparable)
+        .filter(Boolean)
+        .every(
+          (part) =>
+            text.includes(` ${part} `) ||
+            text.includes(` ${part} |`) ||
+            text.includes(`| ${part} `) ||
+            all.has(part),
+        );
+  };
+  const inBoard = shownOn(a.words);
+  const inSource = shownOn(b.words);
   return {
-    onlySource: b.words.filter((word) => keep(word) && !inBoard.has(comparable(word))),
-    onlyBoard: a.words.filter((word) => keep(word) && !inSource.has(comparable(word))),
+    onlySource: b.words.filter((word) => keep(word) && !inBoard(word)),
+    onlyBoard: a.words.filter((word) => keep(word) && !inSource(word)),
     linksOnlySource: b.links.filter((link) => !reachable(a.links, counterparts).has(link)),
   };
 }
@@ -830,7 +876,8 @@ export function contrastProblems(input: {
       { ratio: number; text: Inspection['texts'][number]; need: number }
     >();
     for (const text of inspection?.texts ?? []) {
-      if (!text.bg) continue;
+      // WCAG exempts inactive controls, and so does the check.
+      if (!text.bg || text.inactive) continue;
       const need = neededContrast(text.size, text.weight);
       const ratio = contrast(text.color, text.bg);
       if (ratio >= need) continue;
@@ -1165,6 +1212,8 @@ export function removedLayersNote(input: { file: string; title: string; layers: 
 
 const instanceSignature = (outer: string) =>
   outer
+    // Its values and questions sit on the root in either quotes: what is drawn is what counts.
+    .replace(/\sdata-(props|questions)=("[^"]*"|'[^']*')/g, '')
     .replace(/\sdata-layer="[^"]*"/g, '')
     .replace(/>\s+</g, '><')
     .replace(/\s+/g, ' ')
@@ -1239,7 +1288,7 @@ export function editedInstanceProblems(input: {
         : 'its markup is drawn again from data-props, so the change never shows',
       short: `edited inside ${component.id}`,
       fix: props.length
-        ? `set it with data-props (props: ${props.join(', ')}) or put it outside the instance`
+        ? `set it with data-props (props: ${props.join(', ')}) or put it outside the instance, then run deploy design sync`
         : `${component.id} takes no props: put it outside the instance`,
     });
   });

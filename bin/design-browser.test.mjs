@@ -203,3 +203,50 @@ test("text cut by a phone screen's bottom or hidden under its tab bar is found w
     await browser.close();
   }
 });
+
+test('a disabled control is no second primary and owes no contrast; inner questions are marked', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    const page = `<!doctype html><html><head><style>
+      body{margin:0;background:#18171b;font:13px system-ui}
+      .dl-btn{display:inline-block;padding:6px 12px;background:#ebe9ef;color:#1e1c21}
+      .dl-btn:disabled,.dl-btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+      .faint{color:#77727f;background:#4a4752}
+    </style></head><body>
+      <button data-layer="publish" class="dl-btn primary">Publish</button>
+      <button data-layer="comment-send" class="dl-btn primary faint" disabled>Comment</button>
+      <a data-layer="retry" class="dl-btn primary faint" aria-disabled="true">Retry</a>
+      <div data-layer="editor" data-component="design-editor" data-questions='{"draft-size":"Is the size the frame or the window?"}'>
+        <span data-layer="draft-size" style="color:#fff">1440</span></div>
+    </body></html>`;
+    const tab = await browser.newTab({ width: 600, height: 300, scheme: 'dark' });
+    try {
+      const shot = await shootBoard(tab, page, { scheme: 'dark', measure: false, inspect: true });
+      assert.deepEqual(shot.inspected.primaries, ['publish']);
+      assert.deepEqual(
+        shot.inspected.texts.filter((text) => text.inactive).map((text) => text.layer),
+        ['comment-send', 'retry'],
+      );
+      assert.deepEqual(
+        contrastProblems({
+          file: 'A.html',
+          title: 'A',
+          width: 600,
+          scheme: 'dark',
+          after: shot.inspected,
+          before: null,
+          tokens: null,
+        }),
+        [],
+      );
+      assert.deepEqual(shot.questions, [
+        { n: 1, layer: 'draft-size', question: 'Is the size the frame or the window?' },
+      ]);
+    } finally {
+      await tab.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});

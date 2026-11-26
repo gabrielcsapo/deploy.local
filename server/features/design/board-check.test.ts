@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { syncInstances, type Library } from '../../design/board-html.ts';
+import { instanceQuestions, syncInstances, type Library } from '../../design/board-html.ts';
 import {
   boardWords,
   brokenLinks,
@@ -28,6 +28,7 @@ import {
   drawnNotes,
   heightProblem,
   noteOverlapProblems,
+  phoneMappings,
   layerNameNote,
   localCopyNotes,
   meaninglessLayers,
@@ -1424,7 +1425,7 @@ test('what is typed inside a component instance is a problem naming its props', 
         'edited_inside_component',
         'editor',
         'never drawn: "Leave a comment", "Send"',
-        'set it with data-props (props: mode, branch) or put it outside the instance',
+        'set it with data-props (props: mode, branch) or put it outside the instance, then run deploy design sync',
       ],
     ],
   );
@@ -1582,4 +1583,117 @@ test('the check counts a link to a phone counterpart, by name or by source=, as 
   } finally {
     repo.cleanup();
   }
+});
+
+test('a string the product code says is not specimen text', async () => {
+  const repo = repository();
+  try {
+    repo.write('server/jobs.ts', "export const refused = 'Unsupported file type';\n");
+    repo.write(
+      'design/boards/DesignSystemRows.html',
+      board('', '<main><p>Unsupported file type</p><p>reports/junit.xml 86 KB</p></main>'),
+    );
+    repo.write('design/boards/Run.html', board('', '<main><h1>Run</h1></main>'));
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        boards: {
+          'Run.html': { x: 0, y: 0, w: 1440, h: 900 },
+          'DesignSystemRows.html': { x: 0, y: 2000, w: 1440, h: 900 },
+        },
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'kept']);
+    repo.write(
+      'design/boards/Run.html',
+      board(
+        '',
+        '<main><h1>Run</h1><p>Unsupported file type</p><p>reports/junit.xml 86 KB</p></main>',
+      ),
+    );
+    repo.run(['commit', '-qam', 'Kept']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const { drawer } = drawing();
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.deepEqual(
+      result.notes.filter((note) => note.code === 'specimen_text').map((note) => note.detail),
+      ['"reports/junit.xml 86 KB"'],
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('the design system maps web boards to phone boards, and a line kept in parts is kept', () => {
+  const readme =
+    '# DS\n\n## Phone screens\n\n- A link to a web detail goes to its phone board: Package → PackageVersionsPhone, Logs -> LogsPhone. Projects → a project.\n\n## Lists\n\nRun → Nothing\n';
+  assert.deepEqual(
+    phoneMappings(readme, [
+      'Package.html',
+      'PackageVersionsPhone.html',
+      'Logs.html',
+      'LogsPhone.html',
+      'Run.html',
+      'Nothing.html',
+    ]),
+    { 'Package.html': ['PackageVersionsPhone.html'], 'Logs.html': ['LogsPhone.html'] },
+  );
+  const web = board(
+    '',
+    '<main><p>4f2e9a1 · #31 merged by you · ran on SER</p><a href="Package.html">react-flight-router</a></main>',
+  );
+  const phone = board(
+    '',
+    '<header class="dl-ph-top"><span>4f2e9a1</span></header><main><p>#31 merged by you</p><p>ran on SER</p><a href="PackageVersionsPhone.html">react-flight-router</a></main>',
+  );
+  // The bar is chrome, so the hash is not on the phone's content; the rest of the line is.
+  assert.deepEqual(
+    contentDifferences(phone.replace('<span>4f2e9a1</span>', ''), web, {
+      'Package.html': ['PackageVersionsPhone.html'],
+    }).linksOnlySource,
+    [],
+  );
+  const kept = contentDifferences(phone.replace('header class="dl-ph-top"', 'div'), web, {});
+  assert.deepEqual(kept.onlySource, []);
+});
+
+test('an instance asks about its inner layers on its root; sync keeps the questions and the check reads them', () => {
+  const library = {
+    components: [
+      {
+        id: 'design-editor',
+        name: 'Design editor',
+        props: [{ id: 'draft-size', default: '1440' }],
+        html: '<div class="ed"><span data-layer="draft-size">{{draft-size}}</span><span data-layer="draft-scheme">Light</span></div>',
+      },
+    ],
+  } as any;
+  const written =
+    '<main><div data-layer="editor" data-component="design-editor" data-props=\'{"draft-size":"1440 × 900"}\' data-questions=\'{"draft-size":"Is the size the frame or the window?"}\'><span data-layer="draft-size">old</span><span data-layer="draft-scheme" data-question="Which scheme?">Light</span></div></main>';
+  const synced = syncInstances(written, library);
+  assert.match(synced, /<span data-layer="draft-size">1440 × 900<\/span>/);
+  assert.deepEqual(instanceQuestions(/<div[^>]*data-component[^>]*>/.exec(synced)![0]), {
+    'draft-size': 'Is the size the frame or the window?',
+    'draft-scheme': 'Which scheme?',
+  });
+  assert.doesNotMatch(
+    synced,
+    /<span[^>]*data-question=/,
+    'an inner data-question moves to the root',
+  );
+  const found = questionFindings({ file: 'A.html', title: 'A', before: null, after: synced });
+  assert.deepEqual(
+    found.notes.map((note) => [note.layer, note.label]),
+    [
+      ['draft-size', 'A asks: Is the size the frame or the window?'],
+      ['draft-scheme', 'A asks: Which scheme?'],
+    ],
+  );
+  assert.deepEqual(
+    found.problems.map((problem) => [problem.code, problem.layer]),
+    [['question_invented', 'draft-size']],
+  );
 });

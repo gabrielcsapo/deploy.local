@@ -49,6 +49,7 @@ import {
   editedInstanceProblems,
   isSpecimen,
   noteOverlapProblems,
+  phoneMappings,
   specimenNote,
   styleLines,
   screenFamily,
@@ -571,6 +572,31 @@ export async function checkDesign(
     }
     return best && best.score >= 0.3 ? best.file : null;
   };
+  // Whether the product's own code says a string (the server's wording, an app label): then it is
+  // the product's words, not a specimen's. Asked of main, once per string.
+  const productWords = new Map<string, Promise<boolean>>();
+  const inProductCode = (word: string) => {
+    if (!productWords.has(word))
+      productWords.set(
+        word,
+        git
+          .read([
+            'grep',
+            '-l',
+            '-F',
+            '-e',
+            word,
+            base,
+            '--',
+            'app',
+            'server',
+            'shared',
+            'native/Apple',
+          ])
+          .then((out) => Boolean(out?.trim())),
+      );
+    return productWords.get(word)!;
+  };
   // Distinctive words on the design system's specimen boards, read once.
   let specimens: Map<string, string> | null = null;
   const specimenTexts = new Map<string, string | null>();
@@ -677,7 +703,7 @@ export async function checkDesign(
             .filter(Boolean)
             .map((line) => line.slice(line.lastIndexOf('/') + 1))
             .filter((other) => !isSpecimen(other) && other !== file);
-          if (elsewhere.length) continue;
+          if (elsewhere.length || (await inProductCode(word))) continue;
           borrowed.set(specimen, [...(borrowed.get(specimen) ?? []), word]);
         }
         for (const [specimen, words] of borrowed) {
@@ -690,11 +716,20 @@ export async function checkDesign(
         // counterpart: a board drawn from it, or its name with Phone.
         const counterparts: Record<string, string[]> = {};
         const drawnFrom = await phoneSources();
+        const mapped = phoneMappings(
+          (await show(commit, `${folder}/ds/README.md`)) ??
+            input.systemFile?.('ds/README.md') ??
+            null,
+          disk,
+        );
         for (const link of boardContent(await after(meta.source)).links) {
-          const named = `${link.replace(/\.html$/, '')}Phone.html`;
+          const phoneName = `${link.replace(/\.html$/, '')}Phone.html`;
           const found = [
-            ...(disk.includes(named) ? [named] : []),
-            ...(drawnFrom.get(link) ?? []).filter((other) => other !== named),
+            ...new Set([
+              ...(disk.includes(phoneName) ? [phoneName] : []),
+              ...(drawnFrom.get(link) ?? []),
+              ...(mapped[link] ?? []),
+            ]),
           ];
           if (found.length) counterparts[link] = found;
         }

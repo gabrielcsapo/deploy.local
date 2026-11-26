@@ -19,6 +19,8 @@ export type InspectedText = {
   top: number;
   width: number;
   height: number;
+  /** Text of a disabled control: WCAG asks no contrast of inactive controls. */
+  inactive?: boolean;
 };
 export type Inspection = {
   /** The page's height as drawn: what the board needs to show everything. */
@@ -62,6 +64,24 @@ export function inspectBoard(doc: Document = document): Inspection {
   ];
   const layerOf = (element: Element | null) =>
     element?.closest('[data-layer]')?.getAttribute('data-layer') ?? null;
+  /**
+   * A control that does nothing now: disabled, aria-disabled, inert, or drawn as unavailable
+   * (a disabled class, or the not-allowed cursor the design system gives a disabled button).
+   */
+  const inactive = (element: Element) => {
+    const control = element.closest('button, a, input, select, textarea, [role="button"]');
+    for (let at: Element | null = control ?? element; at; at = at.parentElement) {
+      if (
+        at.matches(
+          ':disabled, [disabled], [aria-disabled="true"], [inert], .disabled, .is-disabled',
+        )
+      )
+        return true;
+      if (at === control && view.getComputedStyle(at).cursor === 'not-allowed') return true;
+      if (!control) break;
+    }
+    return false;
+  };
   const shown = (element: Element) => {
     for (let at: Element | null = element; at; at = at.parentElement) {
       const style = view.getComputedStyle(at);
@@ -132,6 +152,7 @@ export function inspectBoard(doc: Document = document): Inspection {
       top: Math.round(rect.top),
       width: Math.round(rect.width),
       height: Math.round(rect.height),
+      ...(inactive(element) ? { inactive: true } : {}),
     });
     // Blocks of text, for edges that nearly line up: text that starts its own line.
     if (layer && !['inline', 'contents'].includes(style.display))
@@ -191,8 +212,9 @@ export function inspectBoard(doc: Document = document): Inspection {
       });
   }
 
+  // A disabled primary is not a second decision: it cannot be taken yet.
   const primaries = [...doc.body.querySelectorAll('.dl-btn.primary, [data-primary]')]
-    .filter(shown)
+    .filter((element) => shown(element) && !inactive(element))
     .map((element) => layerOf(element) ?? element.textContent!.trim().slice(0, 40));
 
   // Frames: elements that clip what overflows them at a fixed height, and a phone screen itself.
