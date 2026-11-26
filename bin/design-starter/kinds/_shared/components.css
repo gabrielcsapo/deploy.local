@@ -1,0 +1,22 @@
+/* Shared pieces every kind uses: the icon and the screen-reader-only text. Load tokens.css first.
+   The kind's own stylesheet (doc.css, slides.css, …) holds everything else; the web and iPhone
+   components belong to the app kind and are not in this project. */
+
+.ds-icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.ds-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

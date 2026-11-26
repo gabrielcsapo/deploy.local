@@ -12,7 +12,11 @@ A doc board is a reading page: `<meta name="design-board" content="platform=doc,
 - **Pages.** `.ds-doc-pagebreak` forces a new printed page where the content needs one (a chapter start). It is invisible on screen. Margins, page size and orphan/widow rules come from `doc.css`'s `@page` and `@media print`; do not add your own.
 - **Light for print.** Screen is light and dark; the printed pages are always light.
 
+- **No invented facts in a document.** Names, dates, versions, hours, percentages, quantities, defaults and prices in the text and tables are the brief's. A value it did not give is written as an honest placeholder that reads as finished ("Hours to be confirmed", "Date of the last update") with `data-question` on the table or paragraph that holds it, or left out. A document of plausible specifics (64 plots, 1,840 kg, $9,800, 4:00 to 4:45) looks real and is wrong; a reviewer lists each unflagged one as a `[fact]` finding.
+
 What agents get wrong for docs:
+
+- Filling tables and schedules with believable numbers and times nobody supplied.
 
 - Building a web page with a sidebar, a hero and cards. A doc has none of them.
 - Letting the line run the full width of a wide screen. Past about 70 characters it stops being readable.

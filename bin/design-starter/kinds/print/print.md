@@ -7,11 +7,17 @@ A print board is one face of a printed piece: `<meta name="design-board" content
 - **Front and back are two boards**, named so they sort together (`CardFront`, `CardBack`). For a proof sheet showing both, one board with `.ds-print-pair` holding two faces, its meta size the sheet's.
 - **Type in points.** `--text-print-fine` 6 (legal lines, never below 6), `small` 7 (contact lines), `body` 8.5, `name` 11, `title` 16, `display` 26. All are pt: a business card's name is 9 to 11 pt, a postcard's headline 16 to 26 pt. Never px, never the web scale.
 - **Length in millimetres.** Gaps, rules and marks are `mm`. A hairline is 0.25 pt, not 1 px.
-- **Light only, few inks.** The paper is `--surface`; text is `--ink`. A solid ground is `.ground-ink` or `.ground-brand`, never both on one face, and a card has at most the ink, one grey and the accent. A big ground costs a flood of ink and a fragile edge; use it on one side only.
+- **Light only, few inks.** The paper is `--surface`; text is `--ink`. A solid ground is `.ground-ink`, `.ground-brand` or `.ground-quiet` **on the face itself** (`<div class="ds-print-face ground-brand">`), never on a child: the class also sets the text colour, so a ground on a child leaves dark text on the accent. Never two grounds on one face, and a card has at most the ink, one grey and the accent. A big ground costs a flood of ink and a fragile edge; use it on one side only.
 - **Wordmark** at one place and one size (`.ds-print-wordmark`), the mark from the logo kind or a plain SVG shape.
+- **A back fills its face.** A card or postcard back is `.ds-print-face.ds-print-back`: `.ds-print-back-message` takes the left side's full height (the message, then a `.ds-print-lines` block to write on, then the wordmark at the foot) and `.ds-print-back-side` the right: the stamp box at the top, `.ds-print-address.ruled` below it, lowest 15 mm free for the barcode. Content that starts top-left and stops half way down, leaving the rest of the face empty, is wrong; a back is a composition, so every region has something or a rule in it. A business card's back is the wordmark centred on a ground, or one useful line with the same care.
 - **Postcards have a stamp box and an address block.** `.ds-print-stamp` at the top right of the back, 20 by 24 mm, empty; `.ds-print-address` with three to five lines at the right half, on rules. The left half is the message. Keep the lower 15 mm of an address side free for the post's barcode.
 
+- **No invented words or numbers.** Names, roles, phone numbers, addresses, prices, dates and claims on a card are the brief's. A detail not in the brief is written as an honest placeholder that reads as finished (`name@example.com`, "Street and number") and carries `data-question`, or is left off. A reviewer lists every unflagged one as a `[fact]` finding.
+
 What agents get wrong for print:
+
+- A ground class on the `.ds-print-bleed` child: the face's text colour does not follow.
+- A back with the message top-left and nothing else, the rest of the card empty.
 
 - Designing a screen: px sizes, shadows, rounded buttons, hover states. Paper has none of them.
 - Text 2 mm from the cut edge. The safe area is there because trimming moves by a millimetre or two.

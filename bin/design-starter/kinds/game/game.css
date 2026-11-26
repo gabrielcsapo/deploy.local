@@ -311,3 +311,128 @@
   padding: var(--space-3) 0 var(--space-1);
   text-align: center;
 }
+
+/* ---------- The iPhone frame: status bar in the top safe area, home indicator in the bottom one ----------
+   Every portrait game screen has both, drawn on the frame and never over the controls: .ds-game's
+   54 px top and 34 px bottom padding is where they sit, so the stage and the HUD start below the
+   status bar and the lowest button ends above the indicator. A landscape screen has no status bar
+   and keeps its 54 px side insets. */
+.ds-game-status {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 54px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 32px 0 44px;
+  z-index: 2;
+  color: var(--ink);
+  font-size: var(--text-game-hud);
+  line-height: var(--leading-game-hud);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.ds-game-status .glyphs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ds-game-status svg {
+  height: 12px;
+  width: auto;
+  fill: currentColor;
+}
+.ds-game-home {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  z-index: 3;
+  width: 134px;
+  height: 5px;
+  margin-left: -67px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  pointer-events: none;
+}
+.ds-game.landscape .ds-game-status {
+  display: none;
+}
+.ds-game.landscape .ds-game-home {
+  width: 134px;
+}
+
+/* ---------- Labelled controls: a button and its caption ----------
+   An icon alone is not a label. In play, the controls whose icon is not universal carry a
+   caption under them in the label size (13), and every control has an aria-label either way. */
+.ds-game-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: var(--size-touch);
+}
+.ds-game-control .ds-game-label {
+  color: var(--ink);
+}
+
+/* ---------- Progress and its caption ----------
+   A bar (.ds-game-progress > i, --v 0 to 100) with its caption 8 px under it ("n of m done" from
+   the game's own numbers) and 24 px of air before the next block; a caption under a title is 4 px
+   below it. Never a caption stuck to the grid or floating far from its bar. */
+.ds-game-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+.ds-game-progress > .track {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--fill-strong);
+  overflow: hidden;
+}
+.ds-game-progress > .track > i {
+  display: block;
+  width: calc(var(--v, 0) * 1%);
+  height: 100%;
+  background: var(--accent);
+}
+.ds-game-heading {
+  padding: var(--space-6) 0 var(--space-4);
+}
+.ds-game-heading .ds-game-label {
+  margin-top: var(--space-1);
+}
+.ds-game-heading + .ds-game-progress {
+  margin-top: calc(-1 * var(--space-2));
+}
+
+/* ---------- Grid that fits 390: columns never wider than the space, tiles never under 44 ----------
+   4 across is 80 px a tile at the 12 gap; .five is 5 across at the 8 gap, 65 px; more than five
+   does not fit a thumb. minmax(0, 1fr) lets a tile shrink instead of pushing the grid past the
+   frame, and a grid with more rows than the screen scrolls in .ds-game-scroll. */
+.ds-game-grid {
+  box-sizing: border-box;
+  width: 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.ds-game-grid.five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.ds-game-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.ds-game-tile {
+  min-width: 0;
+  overflow: hidden;
+}
+.ds-game-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}

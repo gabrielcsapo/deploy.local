@@ -92,6 +92,13 @@
   letter-spacing: -0.03em;
   white-space: nowrap;
 }
+/* Optical alignment: the lockup centres the wordmark's capital height (not its line box, which
+   carries room for descenders) on the mark's centre. text-box trims the box to cap height and
+   baseline, so align-items: center does it. The mark is cap height plus a third, so it overshoots
+   the capitals equally above and below. A stacked lockup centres horizontally the same way. */
+.ds-logo-lockup .ds-logo-word {
+  text-box: trim-both cap alphabetic;
+}
 .ds-logo-lockup {
   display: flex;
   align-items: center;
@@ -130,6 +137,15 @@
   color: var(--ink);
   border: 1px solid var(--line);
   margin: -1px 0 0 -1px;
+}
+/* A fixed-ground tile does not follow the scheme: data-theme pins the tokens inside it, so the
+   on-light tile is light and the on-dark tile dark whether the sheet is drawn light or dark, and a
+   reversed tile is the near-black primary ground in both. Use them to show the mark on the
+   grounds it will meet, never the scheme's own. */
+.ds-logo-tile.on-light,
+.ds-logo-tile.on-dark {
+  background: var(--surface);
+  color: var(--ink);
 }
 .ds-logo-tile.reversed {
   background: var(--primary);
@@ -180,4 +196,29 @@
 }
 .ds-logo-strip .ds-logo-mark.s16 {
   --size-logo-mark: 16px;
+}
+
+/* ---------- The small cut: a simpler mark for 16, 24 and 32 px ----------
+   The mark holds two cuts in one SVG: <g class="full"> (detail down to one unit, for 48 px and up)
+   and <g class="small"> (nothing under two units, gaps wider, the fine detail dropped). The sizes
+   32, 24 and 16 (.s32 .s24 .s16) and .small-cut show the small cut; everything else the full. */
+.ds-logo-mark .small {
+  display: none;
+}
+.ds-logo-mark.small-cut .full,
+.ds-logo-mark.s32 .full,
+.ds-logo-mark.s24 .full,
+.ds-logo-mark.s16 .full {
+  display: none;
+}
+.ds-logo-mark.small-cut .small,
+.ds-logo-mark.s32 .small,
+.ds-logo-mark.s24 .small,
+.ds-logo-mark.s16 .small {
+  display: inline;
+}
+.ds-logo-mark .hair {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
 }

@@ -225,6 +225,106 @@
   max-width: 1200px;
 }
 
+/* ---------- Figures: two to four numbers side by side, each with what it counts ("a year in numbers").
+   The number's size steps down with how many there are, so they all fit one row: 2 at 160, 3 at 112,
+   4 at 88. One slide, one row; more than four is a table. ---------- */
+.ds-slide.figures .ds-slide-heading {
+  margin-bottom: 96px;
+}
+.ds-slide-figures {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 3), 1fr);
+  gap: 64px;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+.ds-slide-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 32px;
+  border-top: 2px solid var(--line-strong);
+  min-width: 0;
+}
+.ds-slide-figure .value {
+  font-size: var(--text-slide-title);
+  line-height: var(--leading-slide-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ds-slide-figures.n2 {
+  --n: 2;
+}
+.ds-slide-figures.n3 {
+  --n: 3;
+}
+.ds-slide-figures.n4 {
+  --n: 4;
+}
+.ds-slide-figures.n2 .value {
+  font-size: var(--text-slide-number);
+  line-height: var(--leading-slide-number);
+}
+.ds-slide-figures.n3 .value {
+  font-size: var(--text-slide-display);
+  line-height: var(--leading-slide-display);
+}
+.ds-slide-figure .value .unit {
+  margin-left: 8px;
+  font-size: var(--text-slide-lede);
+  letter-spacing: 0;
+  color: var(--ink-secondary);
+}
+.ds-slide-figure .label {
+  font-size: var(--text-slide-body);
+  line-height: var(--leading-slide-body);
+  color: var(--ink-secondary);
+}
+.ds-slide-figure.focus .value {
+  color: var(--accent);
+}
+
+/* ---------- Closing: a thank-you that is not a line on empty space. The closing line sits bottom-left
+   like the title slide, and above it a ruled row of two to four ways to carry on: where to find it,
+   who to ask, what happens next. No footer, as on the title. ---------- */
+.ds-slide.closing {
+  justify-content: flex-end;
+}
+.ds-slide.closing .ds-slide-display {
+  margin-bottom: 96px;
+}
+.ds-slide-next {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 3), 1fr);
+  gap: 64px;
+}
+.ds-slide-next.n2 {
+  --n: 2;
+}
+.ds-slide-next.n4 {
+  --n: 4;
+}
+.ds-slide-next > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 24px;
+  border-top: 2px solid var(--line-strong);
+  min-width: 0;
+}
+.ds-slide-next .label {
+  font-size: var(--text-slide-footer);
+  line-height: var(--leading-slide-footer);
+  font-weight: var(--weight-semibold);
+  color: var(--accent);
+}
+.ds-slide-next .value {
+  font-size: var(--text-slide-lede);
+  line-height: var(--leading-slide-lede);
+}
+
 /* ---------- Simple bar chart: --v is the bar's share of the track, 0 to 100 ---------- */
 .ds-slide-bars {
   display: flex;

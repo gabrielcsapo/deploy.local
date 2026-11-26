@@ -228,6 +228,56 @@
         }
       ],
       "html": "<div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div>"
+    },
+    {
+      "id": "slide-figures",
+      "name": "Figures slide",
+      "group": "Slide layouts",
+      "platform": "slide",
+      "description": "Two to four figures side by side, each a number and what it counts: a year in numbers. Use .n2, .n3 or .n4 on the row for the count; the figures are the brief's, never made up.",
+      "props": [
+        {
+          "id": "heading",
+          "label": "Heading",
+          "default": "The year in numbers"
+        },
+        {
+          "id": "notes",
+          "label": "Speaker notes",
+          "default": "Notes"
+        },
+        {
+          "id": "deck",
+          "label": "Deck name",
+          "default": "Deck name"
+        },
+        {
+          "id": "n",
+          "label": "Slide number",
+          "default": "1"
+        }
+      ],
+      "html": "<section class=\"ds-slide figures\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><div class=\"ds-slide-figures n3\"><div class=\"ds-slide-figure\" data-layer=\"figure-1\"><div class=\"value\">00</div><div class=\"label\">What figure 1 counts</div></div><div class=\"ds-slide-figure focus\" data-layer=\"figure-2\"><div class=\"value\">00</div><div class=\"label\">What figure 2 counts</div></div><div class=\"ds-slide-figure\" data-layer=\"figure-3\"><div class=\"value\">00</div><div class=\"label\">What figure 3 counts</div></div></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+    },
+    {
+      "id": "slide-closing",
+      "name": "Closing slide",
+      "group": "Slide layouts",
+      "platform": "slide",
+      "description": "The last slide: a closing line bottom-left and a ruled row of two to four ways to carry on (where to find it, who to ask, what is next), so it is not one line on empty space. No footer.",
+      "props": [
+        {
+          "id": "text",
+          "label": "Closing line",
+          "default": "Thank you"
+        },
+        {
+          "id": "notes",
+          "label": "Speaker notes",
+          "default": "Notes"
+        }
+      ],
+      "html": "<section class=\"ds-slide closing\"><h2 class=\"ds-slide-display\">{{text}}</h2><div class=\"ds-slide-next n3\"><div><span class=\"label\">Find it</span><span class=\"value\">Where the deck lives</span></div><div><span class=\"label\">Ask</span><span class=\"value\">Who answers questions</span></div><div><span class=\"label\">Next</span><span class=\"value\">What happens next</span></div></div><aside data-notes>{{notes}}</aside></section>"
     }
   ]
 }

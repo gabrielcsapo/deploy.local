@@ -26,7 +26,7 @@
       "name": "Sidebar",
       "group": "Mac layout",
       "platform": "mac",
-      "description": "Sections and items; the current item is a grey fill, icons are in the accent.",
+      "description": "Sections and items. The selected item is grey while the sidebar is not the focused pane, and the accent when it is (.focused on the sidebar); icons are in the accent.",
       "props": [
         {
           "id": "section",
@@ -41,7 +41,7 @@
       "name": "List pane",
       "group": "Mac layout",
       "platform": "mac",
-      "description": "The middle pane of a three-pane split; the selected item is in the accent.",
+      "description": "The middle pane of a three-pane split; the selected item is in the accent while this is the focused pane, grey with .unfocused on the list.",
       "props": [
         {
           "id": "name",
@@ -191,7 +191,7 @@
       "name": "Settings form",
       "group": "Mac settings",
       "platform": "mac",
-      "description": "Labels right-aligned in a 160 px column; notes under a control.",
+      "description": "Labels right-aligned in a 160 px column; popups 200 px wide so they line up; notes under a control; a column of checkboxes is .ds-mac-checks.",
       "props": [
         {
           "id": "label",
@@ -199,7 +199,7 @@
           "default": "Setting"
         }
       ],
-      "html": "<div class=\"ds-mac-form\"><span class=\"label\">{{label}}</span><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>Option</div><span class=\"note\">One line of explanation.</span></div>"
+      "html": "<div class=\"ds-mac-form\"><span class=\"label\">{{label}}</span><div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>Option</div><div class=\"ds-mac-check\"><span class=\"box\"></span>Another option</div><span class=\"note\">One line of explanation.</span></div></div>"
     },
     {
       "id": "mac-menubar-extra",
@@ -214,7 +214,7 @@
           "default": "Product name"
         }
       ],
-      "html": "<div class=\"ds-mac-menubar\"><span style=\"font-weight: 600\">App</span><span class=\"grow\"></span><span class=\"extra on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 7v5l3 2\"/></svg></span></div><div class=\"ds-mac-popover\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">Open window<span class=\"value\">Cmd O</span></div><hr class=\"ds-mac-rule\" /><div class=\"ds-mac-menu-row\">Quit<span class=\"value\">Cmd Q</span></div></div>"
+      "html": "<div class=\"ds-mac-menubar\"><span class=\"app-name\">App</span><span class=\"grow\"></span><span class=\"extra on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 7v5l3 2\"/></svg></span></div><div class=\"ds-mac-popover\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">Open window<span class=\"value\">Cmd O</span></div><hr class=\"ds-mac-rule\" /><div class=\"ds-mac-menu-row\">Quit<span class=\"value\">Cmd Q</span></div></div>"
     },
     {
       "id": "mac-sheet",
@@ -230,6 +230,66 @@
         }
       ],
       "html": "<div class=\"ds-mac-dim\"></div><div class=\"ds-mac-sheet\"><h2>{{title}}</h2><p>One sentence of explanation.</p><div class=\"ds-mac-sheet-foot\"><button type=\"button\" class=\"ds-mac-btn\">Cancel</button><button type=\"button\" class=\"ds-mac-btn default\">Add</button></div></div>"
+    },
+    {
+      "id": "mac-settings-window",
+      "name": "Settings window",
+      "group": "Mac settings",
+      "platform": "mac",
+      "description": "The whole settings window: a plain title bar, toolbar tabs (icon above label, the current one in the accent), then a form. About 640 wide; no Save button, settings apply when changed.",
+      "props": [
+        {
+          "id": "tab",
+          "label": "Current tab",
+          "default": "General"
+        }
+      ],
+      "html": "<div class=\"ds-mac-window\"><header class=\"ds-mac-titlebar plain\"><div class=\"ds-mac-lights\" aria-hidden=\"true\"><i></i><i></i><i></i></div><span class=\"ds-mac-title\">{{tab}}</span></header><nav class=\"ds-mac-tabs\"><div class=\"ds-mac-tab on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 3v3M12 18v3M3 12h3M18 12h3\"/></svg>{{tab}}</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/></svg>Second</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>Third</div></nav><div class=\"ds-mac-settings-body\"><div class=\"ds-mac-form\"><span class=\"label\">Startup</span><div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>Option</div><div class=\"ds-mac-check\"><span class=\"box\"></span>Another option</div></div><span class=\"label\">Choice</span><div><div class=\"ds-mac-popup\"><span>Choice</span><span class=\"arrows\"><svg viewBox=\"0 0 12 12\"><path d=\"M3.5 4.5 6 2l2.5 2.5M3.5 7.5 6 10l2.5-2.5\"/></svg></span></div></div><span class=\"label\">Notes</span><div class=\"ds-mac-textarea\">Placeholder text</div></div></div></div>"
+    },
+    {
+      "id": "mac-checks",
+      "name": "Checkbox rows",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "A column of checkboxes under one form label, 8 px apart, with a note indented under the box it explains.",
+      "props": [
+        {
+          "id": "label",
+          "label": "First option",
+          "default": "Option"
+        }
+      ],
+      "html": "<div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>{{label}}</div><span class=\"note\">One line of explanation.</span><div class=\"ds-mac-check\"><span class=\"box\"></span>Another option</div></div>"
+    },
+    {
+      "id": "mac-textarea",
+      "name": "Text area",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "A multi-line field, 72 px tall; in a form it fills the control column, in a popover it is the grey fill without a border.",
+      "props": [
+        {
+          "id": "text",
+          "label": "Text",
+          "default": "Placeholder text"
+        }
+      ],
+      "html": "<div class=\"ds-mac-textarea\">{{text}}<span class=\"caret\"></span></div>"
+    },
+    {
+      "id": "mac-popover-placement",
+      "name": "Popover under a tool",
+      "group": "Mac dialogs",
+      "platform": "mac",
+      "description": "A popover opens under what opened it: .under-extra under a menu-bar extra, .under-tool under a toolbar item, right-aligned with a 16 px margin, in a .has-popover container.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Title",
+          "default": "Popover title"
+        }
+      ],
+      "html": "<div class=\"ds-mac-popover under-tool\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">First action</div><div class=\"ds-mac-menu-row\">Second action</div></div>"
     }
   ]
 }

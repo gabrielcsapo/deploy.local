@@ -26,6 +26,16 @@ import { designSystemFolder, designSystemPaths } from '../shared/v2/design-syste
 
 const readOnly = { GIT_OPTIONAL_LOCKS: '0' };
 
+/** The size keys a head of each platform names, for the guide's example head. */
+const boardSizeKeys = {
+  mac: ',width=1280,height=800',
+  slide: ',width=1920,height=1080',
+  doc: ',page=a4',
+  print: ',size=85x55mm,bleed=3mm,safe=4mm',
+  game: ',device=phone,width=390,height=844',
+  logo: ',width=1024,height=1024',
+};
+
 /**
  * A file under design/: the project's own. Only deploy.local's own design system (ds/deploy-local)
  * falls back to the copy the CLI carries; no other project gets deploy.local's.
@@ -629,11 +639,31 @@ export function guideLines({ top, designSystem }) {
       `  ${platform.padEnd(8)}${String(width).padEnd(6)}drawn at ${drawnAt(platform, entry.example.meta, entry.example.placed ?? {})}, ${schemeWords(platform)} · ${entry.count} board${entry.count === 1 ? '' : 's'}`,
     );
   }
+  const platformHelp = {
+    web: 'web',
+    phone: 'phone',
+    mac: 'mac',
+    slide: 'slide',
+    doc: 'doc (page=a4|letter)',
+    print: 'print (size=85x55mm,bleed=3mm,safe=4mm)',
+    game: 'game (device=phone, width=390,height=844)',
+    logo: 'logo',
+  };
+  const ownPlatforms = designKinds[design.kind].platforms;
+  const headExample =
+    design.kind === 'app'
+      ? 'width=390,height=844,platform=phone,source=Inbox.html'
+      : `platform=${ownPlatforms[0]}${boardSizeKeys[ownPlatforms[0]] ?? ''}`;
   lines.push(
-    '  A board says what it is in its head: <meta name="design-board" content="width=390,height=844,platform=phone,source=Inbox.html">',
+    `  A board says what it is in its head: <meta name="design-board" content="${headExample}">`,
   );
+  // A project of one kind lists that kind's platforms only; the app lists them all.
   lines.push(
-    '  Platforms: web, phone, mac, slide, doc (page=a4|letter), print (size=85x55mm,bleed=3mm,safe=4mm), game (device=phone), logo.',
+    `  Platforms: ${
+      design.kind === 'app'
+        ? Object.values(platformHelp).join(', ')
+        : ownPlatforms.map((platform) => platformHelp[platform] ?? platform).join(', ')
+    }.`,
   );
   lines.push(
     '  Also schemes=light dark, title=…, replaces=<Old>.html, copied_from=<Board>.html (commas between keys; semicolons work too).',
