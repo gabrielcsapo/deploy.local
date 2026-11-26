@@ -34,7 +34,9 @@ import {
   droppedActions,
   editedInstanceProblems,
   drawnNotes,
+  cutOffSideProblems,
   heightProblem,
+  inlineStyleNotes,
   noteOverlapProblems,
   phoneMappings,
   layerNameNote,
@@ -51,12 +53,19 @@ import {
   schemePinnedProblems,
   screenFamily,
   sourceNotes,
+  spaceScaleFor,
   spacingNotes,
   type DesignTokens,
 } from '../../design/board-quality.ts';
 import { parseBoardMeta, setBoardMetaHeight } from '../../../shared/v2/design-board-meta.ts';
 import { noteRect, placeBoard, rowGap } from '../../design/board-placement.ts';
 import { layerFates } from '../../design/board-layers.ts';
+import {
+  fixedHeight,
+  phoneScreen,
+  screenSafeAreaProblems,
+  statusBarNote,
+} from '../../design/kind-checks.ts';
 import { buildBoardPage } from '../../design/check-drawing.ts';
 import { designSystemFolder, designSystemPaths } from '../../../shared/v2/design-system-path.ts';
 import type { Inspection, InspectedText } from '../../../shared/v2/design-inspect.ts';
@@ -2372,4 +2381,362 @@ test('every platform says how it is drawn: sizes, schemes and guides', () => {
     )[0].width,
     800,
   );
+});
+
+// ── What the check says about style, the sides, scales, heights and iPhone games ────────────────
+
+test('inline style with a design value is a note naming the board and layer; data and library markup are not', () => {
+  const page = (body: string, head = '') =>
+    `<!doctype html><html><head>${head}</head><body>${body}</body></html>`;
+  const after = page(
+    '<div data-layer="card" style="margin-top: 4mm; color: #123456">a</div>' +
+      '<div data-layer="bar" style="--w: 62%">b</div>' +
+      '<div data-layer="hidden" style="display: none">c</div>' +
+      '<div data-component="row" data-layer="inst"><span data-layer="inner" style="padding: 9px">d</span></div>',
+  );
+  const [note, ...rest] = inlineStyleNotes({
+    file: 'Card.html',
+    title: 'Card',
+    before: null,
+    after,
+  });
+  assert.equal(rest.length, 0);
+  assert.equal(note.code, 'inline_style');
+  assert.equal(note.layer, 'card', 'one layer: named');
+  assert.match(note.detail, /2 inline values on card/);
+  assert.match(note.fix ?? '', /kind's css .* as a class/);
+  // What main's board already had is not new.
+  assert.deepEqual(
+    inlineStyleNotes({ file: 'Card.html', title: 'Card', before: after, after }),
+    [],
+  );
+});
+
+test('a style block for html and body, or a design-system class, is a note; the starter idiom is not', () => {
+  const page = (css: string) =>
+    `<html><head><style>${css}</style></head><body><div data-layer="a">x</div></body></html>`;
+  const idiom = page('html, body { margin: 0; background: var(--bg); }');
+  assert.deepEqual(
+    inlineStyleNotes({ file: 'A.html', title: 'A', before: null, after: idiom }),
+    [],
+  );
+  const body = page('html, body { margin: 0; background: #fff; font-size: 14px }');
+  assert.match(
+    inlineStyleNotes({ file: 'A.html', title: 'A', before: null, after: body })[0].detail,
+    /a <style> block sets html, body/,
+  );
+  const redefined = page('.ds-game-tile { border-radius: 4px }');
+  assert.match(
+    inlineStyleNotes({ file: 'A.html', title: 'A', before: null, after: redefined })[0].detail,
+    /\.ds-game-tile/,
+  );
+  const known = page('.tile { gap: 2px } .postcard { gap: 2px }');
+  assert.equal(
+    inlineStyleNotes({
+      file: 'A.html',
+      title: 'A',
+      before: null,
+      after: known,
+      systemClasses: new Set(['tile']),
+    }).length,
+    1,
+  );
+  assert.deepEqual(
+    inlineStyleNotes({ file: 'A.html', title: 'A', before: null, after: known }),
+    [],
+    'a class the board makes itself is its own',
+  );
+});
+
+const sideHit = (extra: Record<string, unknown> = {}) => ({
+  layer: 'room-4',
+  text: '4',
+  side: 'right' as const,
+  by: 'frame' as const,
+  frame: 'rooms-screen',
+  amount: 46,
+  plain: false,
+  ...extra,
+});
+
+test("content cut at the side is one problem for each edge; main's cuts, print bleed and a web page edge are not", () => {
+  const after = inspection({
+    clippedSide: [
+      sideHit(),
+      sideHit({ layer: 'room-8' }),
+      sideHit({ layer: 'glow', by: 'page', frame: null, plain: true }),
+    ],
+  });
+  const found = cutOffSideProblems({
+    file: 'Rooms.html',
+    title: 'Rooms',
+    width: 390,
+    after,
+    before: null,
+    platform: 'game',
+  });
+  assert.deepEqual(
+    found.map((problem) => [problem.code, problem.short]),
+    [
+      ['cut_off_side', 'cut off at the right'],
+      ['cut_off_side', 'cut off at the right'],
+    ],
+  );
+  assert.match(found[0].label, /2 layers cut off at rooms-screen's right edge/);
+  assert.match(found[0].detail, /room-4, room-8/);
+  assert.deepEqual(
+    cutOffSideProblems({
+      file: 'Rooms.html',
+      title: 'Rooms',
+      width: 390,
+      after,
+      before: after,
+      platform: 'game',
+    }),
+    [],
+  );
+  // A print piece's plain shapes run into the bleed on purpose; its text does not.
+  const print = cutOffSideProblems({
+    file: 'Card.html',
+    title: 'Card',
+    width: 400,
+    after: inspection({
+      clippedSide: [sideHit({ layer: 'wash', by: 'page', frame: null, plain: true })],
+    }),
+    before: null,
+    platform: 'print',
+  });
+  assert.deepEqual(print, []);
+  // The page's edge is judged only where the page has a fixed width.
+  const web = cutOffSideProblems({
+    file: 'W.html',
+    title: 'W',
+    width: 1440,
+    after: inspection({ clippedSide: [sideHit({ by: 'page', frame: null })] }),
+    before: null,
+    platform: 'web',
+  });
+  assert.deepEqual(web, []);
+});
+
+test('each platform is held to its own type scale and spacing scale, kit by kit', () => {
+  const css =
+    ':root{--text-body:16px;--space-1:4px;--space-2:8px;--text-phone-body:17px;--text-game-body:17px;--text-game-title:28px;--text-mac-body:13px;--text-slide-body:32px;--text-print-body:8pt;--text-doc-body:17px;--space-slide-1:40px;--space-slide-2:80px}';
+  const scale = tokensFromCss(css);
+  assert.deepEqual(typeScaleFor(scale, 'game'), [17, 28], 'game has its own, not the phone');
+  assert.deepEqual(typeScaleFor(scale, 'phone'), [17]);
+  assert.deepEqual(typeScaleFor(scale, 'mac'), [13]);
+  assert.deepEqual(typeScaleFor(scale, 'slide'), [32]);
+  assert.deepEqual(typeScaleFor(scale, 'doc'), [17]);
+  assert.equal(typeScaleFor(scale, 'print').length, 1);
+  assert.deepEqual(typeScaleFor(scale, 'logo'), []);
+  // A 22 px label is on the phone scale of a design system and off a game's.
+  const withPhone = tokensFromCss(`${css}:root{--text-phone-title:22px}`);
+  assert.ok(typeScaleFor(withPhone, 'phone').includes(22));
+  assert.ok(!typeScaleFor(withPhone, 'game').includes(22));
+  // The scales survive a scale.json beside the kit stylesheets.
+  const json = JSON.stringify({
+    color: { scale: [{ name: 'ink', value: '#111111' }] },
+    type: { groups: [{ name: 'App', styles: [{ fontSize: '16px' }] }] },
+  });
+  const merged = readTokens(json, css);
+  assert.deepEqual(typeScaleFor(merged, 'game'), [17, 28]);
+  assert.deepEqual(typeScaleFor(merged, 'mac'), [13]);
+  // Spacing: the base scale in px for screens; none for slides and print without a scale of their own.
+  assert.deepEqual(spaceScaleFor(scale, 'game'), [4, 8]);
+  assert.deepEqual(spaceScaleFor(scale, 'logo'), []);
+  assert.deepEqual(spaceScaleFor(scale, 'print'), []);
+  assert.deepEqual(
+    spaceScaleFor(scale, 'slide'),
+    [40, 80],
+    "a slide's own scale, when its kit has one",
+  );
+  assert.deepEqual(scale.space, [4, 8], 'the base scale leaves the kits scales out');
+});
+
+test('spacing off the scale is a note on screens, and none on a slide or print piece without a scale', () => {
+  const scale = tokensFromCss(':root{--space-1:4px;--space-2:8px}');
+  const sample = '<div data-layer="a" style="padding: 13px 8px; margin-top: 30mm">x</div>';
+  const run = (platform: string) =>
+    spacingNotes({
+      file: 'A.html',
+      title: 'A',
+      before: null,
+      after: sample,
+      tokens: scale,
+      platform,
+    });
+  assert.deepEqual(
+    run('game').map((note) => note.short),
+    ['13 px spacing'],
+  );
+  assert.deepEqual(
+    run('mac').map((note) => note.short),
+    ['13 px spacing'],
+  );
+  assert.deepEqual(run('slide'), []);
+  assert.deepEqual(run('print'), []);
+});
+
+test('--fix never sets a height under what the content needs', () => {
+  // A window drawn at 100% of a 100 px page: the short window gives 100 back; the content needs 281.
+  assert.equal(
+    fixedHeight({ platform: 'mac', fixedFrame: true, metaHeight: 300, natural: 100, needed: 281 }),
+    300,
+    'a frame is the size its head says',
+  );
+  assert.equal(
+    fixedHeight({ platform: 'mac', fixedFrame: true, metaHeight: 120, natural: 100, needed: 281 }),
+    281,
+    'but never shorter than its content',
+  );
+  assert.equal(
+    fixedHeight({ platform: 'mac', fixedFrame: true, metaHeight: null, natural: 100, needed: 281 }),
+    281,
+  );
+  assert.equal(
+    fixedHeight({
+      platform: 'web',
+      fixedFrame: false,
+      metaHeight: 900,
+      natural: 1240,
+      needed: 1240,
+    }),
+    1240,
+    'a page is as tall as it reads',
+  );
+  assert.equal(
+    fixedHeight({
+      platform: 'web',
+      fixedFrame: false,
+      metaHeight: 900,
+      natural: 100,
+      needed: 640.4,
+    }),
+    641,
+  );
+});
+
+test('a mac window whose short drawing gives 100 px is fixed to its head height, never the 100', async () => {
+  const { result } = await kindCheck({
+    head: 'platform=mac,width=640,height=300',
+    placed: { w: 640, h: 320 },
+    inspect: ({ width }) => ({ needed: width === 640 ? 281 : undefined, height: 100 }),
+  });
+  // The short window gives 100 back, the head says 300, the content needs 281: 300 wins.
+  assert.deepEqual(result.heights, { 'Board.html': 300 });
+});
+
+test('a game on a phone keeps clear of the status bar and home indicator unless it is immersive; a status bar is noted when missing', async () => {
+  const inside = {
+    texts: [
+      text('title', { left: 40, top: 70, width: 100, height: 28 }),
+      text('clock', { left: 44, top: 20, width: 40, height: 20 }),
+      text('badge', { left: 40, top: 30, width: 60, height: 16 }),
+      text('footer', { left: 40, top: 825, width: 100, height: 16 }),
+      text('below', { left: 40, top: 900, width: 100, height: 16 }),
+    ],
+    statusBars: [{ layer: 'statusbar', left: 0, top: 0, width: 390, height: 54 }],
+  };
+  const problems = screenSafeAreaProblems({
+    file: 'Play.html',
+    title: 'Play',
+    inspection: inspection(inside),
+    platform: 'game',
+    width: 390,
+    height: 844,
+  });
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0].code, 'outside_safe_area');
+  // The clock and the badge sit in the status bar and "below" is scrolled out of the screen, so only
+  // the footer, in the home indicator's room, is found.
+  assert.match(problems[0].detail, /footer/);
+  assert.doesNotMatch(problems[0].detail, /clock|below|title/);
+  assert.deepEqual(
+    screenSafeAreaProblems({
+      file: 'Play.html',
+      title: 'Play',
+      inspection: inspection(inside),
+      platform: 'game',
+      width: 390,
+      height: 844,
+      immersive: true,
+    }),
+    [],
+  );
+  assert.equal(phoneScreen('phone', 390, 844), null, 'an app phone board is not held to it');
+  assert.equal(phoneScreen('game', 1280, 720), null, 'a game on a bigger screen has no safe areas');
+  assert.deepEqual(phoneScreen('game', 844, 390), { landscape: true });
+  const side = screenSafeAreaProblems({
+    file: 'Play.html',
+    title: 'Play',
+    inspection: inspection({ texts: [text('hud', { left: 20, top: 100 })] }),
+    platform: 'game',
+    width: 844,
+    height: 390,
+  });
+  assert.match(side[0].label, /54 px at the sides/);
+  const noBar = statusBarNote({
+    file: 'Play.html',
+    title: 'Play',
+    inspection: inspection(),
+    platform: 'game',
+    width: 390,
+    height: 844,
+  });
+  assert.equal(noBar?.code, 'no_status_bar');
+  assert.equal(
+    statusBarNote({
+      file: 'Play.html',
+      title: 'Play',
+      inspection: inspection(inside),
+      platform: 'game',
+      width: 390,
+      height: 844,
+    }),
+    null,
+  );
+  assert.equal(
+    statusBarNote({
+      file: 'Play.html',
+      title: 'Play',
+      inspection: inspection(),
+      platform: 'game',
+      width: 390,
+      height: 844,
+      immersive: true,
+    }),
+    null,
+  );
+});
+
+test('the check draws a phone game with its safe areas and status bar, and immersive=true opts out', async () => {
+  const bar = { layer: 'statusbar', left: 0, top: 0, width: 390, height: 54 };
+  const drawn = await kindCheck({
+    head: 'platform=game,device=phone',
+    inspect: () => ({
+      texts: [text('hud', { left: 30, top: 10, width: 60, height: 16 })],
+      statusBars: [],
+    }),
+  });
+  assert.deepEqual(
+    drawn.result.problems.map((problem) => problem.code),
+    ['outside_safe_area'],
+  );
+  assert.ok(drawn.result.notes.some((note) => note.code === 'no_status_bar'));
+  const immersive = await kindCheck({
+    head: 'platform=game,device=phone,immersive=true',
+    inspect: () => ({ texts: [text('hud', { left: 30, top: 10, width: 60, height: 16 })] }),
+  });
+  assert.deepEqual(immersive.result.problems, []);
+  assert.ok(!immersive.result.notes.some((note) => note.code === 'no_status_bar'));
+  const fine = await kindCheck({
+    head: 'platform=game,device=phone',
+    inspect: () => ({
+      texts: [text('hud', { left: 30, top: 70, width: 60, height: 16 })],
+      statusBars: [bar],
+    }),
+  });
+  assert.deepEqual(fine.result.problems, []);
+  assert.ok(!fine.result.notes.some((note) => note.code === 'no_status_bar'));
 });

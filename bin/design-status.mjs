@@ -636,6 +636,16 @@ export function guideLines({ top, designSystem }) {
     '  Platforms: web, phone, mac, slide, doc (page=a4|letter), print (size=85x55mm,bleed=3mm,safe=4mm), game (device=phone), logo.',
   );
   lines.push(
+    '  A game board with device=phone is an iPhone screen (390 x 844, or 844 x 390 turned sideways): draw the status bar in its top 54 px, keep content out of',
+    '  the top 54 and bottom 34 px (the sides, 54 px, in landscape); outside_safe_area and no_status_bar say so. immersive=true in the head opts out for a',
+    "  full-screen game. An app's phone boards are not held to it (they are the app's content, without the device's chrome). Its type is the game scale",
+    "  (--text-game-*), never the phone's; every other platform is held to its own kit's scale too.",
+  );
+  lines.push(
+    '  Style lives in the design system, not the board: no style="…" with a colour, size, space or font, and no <style> block for html, body or a design-system class (inline_style).',
+    "  Put it in the kind's css (design/ds/<system>/<kind>.css) as a class. Anything that must scroll sideways says so (overflow-x: auto or data-scroll-x); the rest ends inside its edge (cut_off_side).",
+  );
+  lines.push(
     '  Also schemes=light dark, title=…, replaces=<Old>.html, copied_from=<Board>.html (commas between keys; semicolons work too).',
   );
   lines.push(

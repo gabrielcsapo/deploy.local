@@ -39,6 +39,31 @@ export type Inspection = {
    * bar pinned to its bottom.
    */
   clipped?: { layer: string | null; text: string; by: 'frame' | 'bar'; frame: string | null }[];
+  /**
+   * Content cut off at the left or right edge: a layer whose box runs past a clipping ancestor
+   * (overflow hidden or clip) or past the page, and no scroller of its own carries it. `by` says
+   * which: the page's edge, or a frame in the board.
+   */
+  clippedSide?: {
+    layer: string | null;
+    text: string;
+    side: 'left' | 'right';
+    by: 'page' | 'frame';
+    frame: string | null;
+    /** How far past the edge it runs, in px. */
+    amount: number;
+    /** Whether it carries no text: a shape, a picture. */
+    plain: boolean;
+  }[];
+  /** The page's width as drawn, for the edges above. */
+  width?: number;
+  /**
+   * What the board needs to show all its content, even where a frame the size of the window
+   * (a Mac window at 100% of a 100 px page) clips it: the measure --fix writes a height from.
+   */
+  needed?: number;
+  /** The status bar the board draws, when it draws one (.ds-statusbar, [data-statusbar]). */
+  statusBars?: Box[];
   /** Pictures and drawings that show (img, svg, canvas, video) and where, for a print piece's safe area. */
   figures?: Box[];
   /** Headings and where they end, for a document's page breaks. */
@@ -351,6 +376,163 @@ export function inspectBoard(doc: Document = document): Inspection {
     } catch {
       // A sheet from elsewhere cannot be read.
     }
+
+  // Content cut off at the sides: an element's box past a clipping ancestor, or past the page.
+  // A scroller that is meant to scroll sideways (overflow-x auto or scroll and not itself
+  // scrolling down, or marked data-scroll-x) carries its own overflow; decorative shapes with no
+  // text (aria-hidden, a backdrop, a bleed) and backgrounds that cover the page are meant to bleed.
+  const sideTolerance = 1.5;
+  const marked = (element: Element) =>
+    element.matches('[data-scroll-x], [data-scrolls="x"], [data-bleed], [data-decor]');
+  const scrollsSideways = (element: Element) => {
+    const style = view.getComputedStyle(element);
+    if (element.matches('[data-scroll-x], [data-scrolls="x"]')) return true;
+    if (!/(auto|scroll)/.test(style.overflowX)) return false;
+    // A column that scrolls down has overflow-x auto as a side effect of overflow-y: auto.
+    return !(
+      /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1
+    );
+  };
+  const isPlain = (element: Element) =>
+    !(element.textContent ?? '').trim() &&
+    !element.matches('input, select, textarea, button, img, svg, canvas, video');
+  const clippedSide: NonNullable<Inspection['clippedSide']> = [];
+  const sideHits = new Map<Element, (typeof clippedSide)[number]>();
+  for (const element of doc.body.querySelectorAll('*')) {
+    if (['SCRIPT', 'STYLE', 'TITLE', 'NOSCRIPT', 'BR', 'HR'].includes(element.tagName)) continue;
+    if (element.parentElement?.closest('svg') || !shown(element)) continue;
+    if (marked(element) || element.closest('[aria-hidden="true"], [data-bleed], [data-decor]'))
+      continue;
+    const style = view.getComputedStyle(element);
+    if (style.position === 'fixed' || style.pointerEvents === 'none') continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
+    // A shape with no text that covers most of the page is a background; one placed absolutely
+    // or with no box of its own (no border, no fill) is decoration: nothing is lost by cutting it.
+    if (isPlain(element)) {
+      if (rect.width >= pageWidth * 0.9 || style.position === 'absolute') continue;
+      const boxed =
+        Number.parseFloat(style.borderTopWidth) > 0 ||
+        Number.parseFloat(style.borderLeftWidth) > 0 ||
+        rgba(style.backgroundColor)[3] > 0 ||
+        style.backgroundImage !== 'none';
+      if (!boxed) continue;
+    }
+    // Walk up to what clips it: the first ancestor that hides overflow (its box decides), a
+    // scroller (it scrolls: fine), else the page.
+    let verdict: {
+      by: 'page' | 'frame';
+      frame: Element | null;
+      left: number;
+      right: number;
+    } | null = {
+      by: 'page',
+      frame: null,
+      left: 0,
+      right: pageWidth,
+    };
+    let abs = style.position === 'absolute';
+    const home = abs ? (element as HTMLElement).offsetParent : null;
+    for (
+      let at = element.parentElement;
+      at && at !== doc.body && at !== doc.documentElement;
+      at = at.parentElement
+    ) {
+      if (abs) {
+        // An absolute element is clipped only from its containing block outwards.
+        if (at !== home) continue;
+        abs = false;
+      }
+      const clip = view.getComputedStyle(at);
+      if (/(hidden|clip)/.test(clip.overflowX) && !scrollsSideways(at)) {
+        const box = at.getBoundingClientRect();
+        verdict = {
+          by: 'frame',
+          frame: at,
+          left: box.left + at.clientLeft,
+          right: box.left + at.clientLeft + at.clientWidth,
+        };
+        break;
+      }
+      if (scrollsSideways(at)) {
+        verdict = null;
+        break;
+      }
+    }
+    if (!verdict) continue;
+    const past = rect.right - verdict.right;
+    const before = verdict.left - rect.left;
+    if (past <= sideTolerance && before <= sideTolerance) continue;
+    // Frame: only what is partly cut counts (a closed drawer is wholly outside, on purpose).
+    // Page: a part off the page or all of it.
+    const visible = Math.min(rect.right, verdict.right) - Math.max(rect.left, verdict.left);
+    if (verdict.by === 'frame' && visible < 1) continue;
+    const side = past > before ? 'right' : 'left';
+    sideHits.set(element, {
+      layer: layerOf(element),
+      text: (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40),
+      side,
+      by: verdict.by,
+      frame: verdict.frame ? layerOf(verdict.frame) : null,
+      amount: Math.round(Math.max(past, before) * 10) / 10,
+      plain: isPlain(element),
+    });
+  }
+  // The outermost only: a card past the edge carries everything inside it.
+  for (const [element, hit] of sideHits) {
+    let covered = false;
+    for (let at = element.parentElement; at; at = at.parentElement)
+      if (sideHits.get(at)?.by === hit.by) {
+        covered = true;
+        break;
+      }
+    if (!covered) clippedSide.push(hit);
+  }
+
+  // What the board needs: the lowest content (fixed bars aside) and the true extent of any
+  // frame as tall as the page, whose own box is the window it is drawn in.
+  let needed = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
+  const contentBearing = 'img, svg, canvas, video, input, select, textarea, button';
+  for (const element of doc.body.querySelectorAll('*')) {
+    if (['SCRIPT', 'STYLE', 'TITLE', 'NOSCRIPT'].includes(element.tagName)) continue;
+    if (element.parentElement?.closest('svg') || !shown(element)) continue;
+    const style = view.getComputedStyle(element);
+    if (style.position === 'fixed') continue;
+    let scrolled = false;
+    for (let at = element.parentElement; at && at !== doc.body; at = at.parentElement)
+      if (/(auto|scroll)/.test(view.getComputedStyle(at).overflowY)) {
+        scrolled = true;
+        break;
+      }
+    if (scrolled) continue;
+    const rect = element.getBoundingClientRect();
+    const hasText = [...element.childNodes].some(
+      (node) => node.nodeType === 3 && node.textContent!.trim(),
+    );
+    if (hasText || element.matches(contentBearing))
+      needed = Math.max(needed, rect.bottom + view.scrollY);
+    if (
+      /(hidden|clip)/.test(style.overflowY) &&
+      rect.height >= view.innerHeight - 2 &&
+      element.scrollHeight > element.clientHeight + 1
+    )
+      needed = Math.max(
+        needed,
+        rect.top +
+          view.scrollY +
+          element.clientTop +
+          element.scrollHeight +
+          (rect.height - element.clientTop - element.clientHeight),
+      );
+  }
+
+  const statusBars = [
+    ...doc.body.querySelectorAll(
+      '.ds-statusbar, [data-statusbar], [data-layer="statusbar"], [data-layer="status-bar"]',
+    ),
+  ]
+    .filter(shown)
+    .map(boxOf);
   const figures = [...doc.body.querySelectorAll('img, svg, canvas, video')]
     .filter((element) => shown(element) && !element.parentElement?.closest('svg'))
     .map(boxOf);
@@ -363,6 +545,10 @@ export function inspectBoard(doc: Document = document): Inspection {
 
   return {
     height: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight),
+    width: pageWidth,
+    needed: Math.round(needed),
+    statusBars,
+    clippedSide,
     figures,
     headings,
     ...(pageMargin ? { pageMargin } : {}),

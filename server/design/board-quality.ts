@@ -35,6 +35,8 @@ export type DesignTokens = {
   /** Those scales' tokens as written ("--text-print-body: 8pt"), for what guide says. */
   typeTokens?: Record<string, { name: string; value: string }[]>;
   space: number[];
+  /** A platform's own spacing scale (--space-print-*, --space-slide-*), px, when its kit has one. */
+  platformSpace?: Record<string, number[]>;
 };
 
 const px = (value: unknown) => {
@@ -69,7 +71,18 @@ export function readTokens(json: string | null, css: string | null): DesignToken
       const space = (tokens.spacing?.tokens ?? [])
         .map((token: any) => px(token.value))
         .filter((size: number | null): size is number => size !== null);
-      return { colors, type, ...(phoneType ? { phoneType } : {}), space };
+      // The kinds' own scales live in their stylesheets, beside tokens.json: take them from there.
+      const fromCss = css ? tokensFromCss(css) : null;
+      return {
+        colors,
+        type,
+        ...(phoneType ? { phoneType } : {}),
+        ...(fromCss?.platformType
+          ? { platformType: fromCss.platformType, typeTokens: fromCss.typeTokens }
+          : {}),
+        space,
+        ...(fromCss?.platformSpace ? { platformSpace: fromCss.platformSpace } : {}),
+      };
     }
   } catch {
     // Fall through to the stylesheet.
@@ -173,12 +186,19 @@ export function tokensFromCss(css: string): DesignTokens {
       )
       .map((entry) => ({ name: `--${entry.name}`, value: entry.value }));
   }
+  // A kit's own spacing scale (--space-print-*, --space-slide-*), when it defines one.
+  const platformSpace: Record<string, number[]> = {};
+  for (const kind of kindScales) {
+    const own = sizes(new RegExp(`^(space|spacing)-.*\\b${kind}\\b`));
+    if (own.length) platformSpace[kind] = own;
+  }
   return {
     colors,
     type: sizes(/^(text|font-size|type|fs)-(?!.*\b(phone|ios|mac|slide|doc|print|game)\b)/),
     ...(phoneType.length ? { phoneType } : {}),
     ...(Object.keys(platformType).length ? { platformType, typeTokens } : {}),
-    space: sizes(/^(space|spacing)-/),
+    space: sizes(/^(space|spacing)-(?!.*\b(mac|slide|doc|print|game)\b)/),
+    ...(Object.keys(platformSpace).length ? { platformSpace } : {}),
   };
 }
 
@@ -364,6 +384,19 @@ export function notATokenProblems(input: {
   return findings;
 }
 
+/**
+ * The spacing a platform's boards are held to: its kit's own scale when it defines one, else the
+ * base --space-* scale (px, drawn for screens). A slide is drawn at 1920 and a printed piece is in
+ * millimetres, so the base scale says nothing about them: no scale, no note.
+ */
+export function spaceScaleFor(tokens: DesignTokens | null, platform: string): number[] {
+  if (!tokens) return [];
+  const own = tokens.platformSpace?.[platform];
+  if (own?.length) return own;
+  if (['slide', 'print', 'logo'].includes(platform)) return [];
+  return tokens.space;
+}
+
 const spacing =
   /^(margin|padding|gap|row-gap|column-gap)(-(top|right|bottom|left|inline|block)(-(start|end))?)?$/;
 /** Margins, padding and gaps the branch added that are not on the design system's spacing scale. */
@@ -373,9 +406,12 @@ export function spacingNotes(input: {
   before: string | null;
   after: string | null;
   tokens: DesignTokens | null;
+  /** The board's platform; each is judged by its own spacing scale, or none. */
+  platform?: string | null;
 }): Finding[] {
-  if (!input.tokens?.space.length) return [];
-  const scale = new Set([0, ...input.tokens.space]);
+  const spaces = spaceScaleFor(input.tokens, input.platform ?? 'web');
+  if (!spaces.length) return [];
+  const scale = new Set([0, ...spaces]);
   const off = new Map<number, string[]>();
   for (const declaration of addedDeclarations(
     boardDeclarations(input.before),
@@ -399,8 +435,128 @@ export function spacingNotes(input: {
     label: `${input.title} spaces by ${value} px`,
     detail: `${places.slice(0, 3).join(', ')}${places.length > 3 ? ` and ${places.length - 3} more` : ''}`,
     short: `${value} px spacing`,
-    fix: `use the spacing scale: ${[...input.tokens!.space].join(', ')} px (var(--space-…))`,
+    fix: `use the spacing scale: ${spaces.join(', ')} px (var(--space-…))`,
   }));
+}
+
+// ── Inline styles ───────────────────────────────────────────────────────────────────────────────
+
+/** Properties that carry a design value: a colour, a size, a space, a font, a corner, a shadow. */
+const designProperty =
+  /^(color|background(-[a-z]+)?|border(-[a-z-]+)?|outline(-[a-z]+)?|font(-[a-z-]+)?|letter-spacing|line-height|text-(align|transform|indent)|margin(-[a-z-]+)?|padding(-[a-z-]+)?|gap|row-gap|column-gap|width|height|min-(width|height)|max-(width|height)|inset(-[a-z-]+)?|top|right|bottom|left|border-radius|box-shadow|opacity|fill|stroke(-[a-z]+)?|flex(-[a-z]+)?|grid(-[a-z-]+)?)$/;
+
+/** The selectors of a <style> block that are the design system's to set: html, body, :root and its classes. */
+const pageSelector = /(^|[\s,>+~])(html|body|:root)(?=$|[\s,.:#[>+~])/;
+/** What the starter's own boards write for the page: no margin, the ground colour. */
+const pageIdiom = (body: string) => {
+  const parts = body
+    .split(';')
+    .map((part) => part.trim().replace(/\s+/g, ' ').toLowerCase())
+    .filter(Boolean);
+  return parts.every(
+    (part) =>
+      part === 'margin: 0' ||
+      /^background(-color)?: var\(--[\w-]+\)$/.test(part) ||
+      /^color-scheme: [a-z ]+$/.test(part),
+  );
+};
+
+/**
+ * Style a board writes outside the design system: a style attribute carrying a design value (a
+ * colour, a size, a space, a font, a margin, a padding, a gap, a width or a height), or a <style>
+ * block that sets rules for html and body, or for classes the design system already defines. A
+ * board holds markup, classes and tokens; its style belongs in the kind's css as a class. Custom
+ * properties ("--bar: 62%") are data, and a component instance's own markup is the library's.
+ * `systemClasses` are the class names the design system's stylesheets define.
+ */
+export function inlineStyleNotes(input: {
+  file: string;
+  title: string;
+  before: string | null;
+  after: string | null;
+  systemClasses?: Set<string> | null;
+}): Finding[] {
+  const { after } = input;
+  if (!after) return [];
+  const count = (html: string | null) => {
+    const found = new Map<string, number>();
+    if (!html) return found;
+    const elements = boardElements(html);
+    elements.forEach((element, at) => {
+      const tag = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
+      const style = attribute(tag, 'style');
+      if (!style) return;
+      // Inside a component instance, the library's markup is drawn again from its props.
+      for (let up = element.parent; up >= 0; up = elements[up].parent)
+        if (/^<[^>]*\sdata-component="/.test(elements[up].outer)) return;
+      const designed = style
+        .split(';')
+        .map((part) =>
+          part
+            .slice(0, Math.max(0, part.indexOf(':')))
+            .trim()
+            .toLowerCase(),
+        )
+        .filter(
+          (property) => property && !property.startsWith('--') && designProperty.test(property),
+        );
+      if (!designed.length) return;
+      const where =
+        element.layer ??
+        `a style attribute on <${/^<([\w-]+)/.exec(tag)?.[1] ?? 'element'}> #${at}`;
+      found.set(where, (found.get(where) ?? 0) + designed.length);
+    });
+    return found;
+  };
+  const now = count(after);
+  const old = count(input.before);
+  const where: { place: string; n: number }[] = [];
+  for (const [place, n] of now) if (n > (old.get(place) ?? 0)) where.push({ place, n });
+  const blocks: string[] = [];
+  const classPattern = /\.([a-zA-Z_][\w-]*)/g;
+  const oldBlocks = new Set(
+    [...(input.before ?? '').matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].flatMap((style) =>
+      cssRules(style[1]).map((rule) => `${rule.selector}{${rule.body.trim()}}`),
+    ),
+  );
+  for (const style of after.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi))
+    for (const rule of cssRules(style[1])) {
+      if (oldBlocks.has(`${rule.selector}{${rule.body.trim()}}`)) continue;
+      const page = pageSelector.test(rule.selector) && !pageIdiom(rule.body);
+      const system = [...rule.selector.matchAll(classPattern)].some(
+        (match) => /^(ds|dl)-/.test(match[1]) || input.systemClasses?.has(match[1]),
+      );
+      if ((page || system) && !blocks.includes(rule.selector)) blocks.push(rule.selector);
+    }
+  if (!where.length && !blocks.length) return [];
+  const total = where.reduce((sum, entry) => sum + entry.n, 0);
+  const detail = [
+    where.length
+      ? `${total} inline value${total === 1 ? '' : 's'} on ${where
+          .slice(0, 4)
+          .map((entry) => entry.place)
+          .join(', ')}${where.length > 4 ? ` and ${where.length - 4} more` : ''}`
+      : '',
+    blocks.length
+      ? `a <style> block sets ${blocks.slice(0, 3).join(', ')}${blocks.length > 3 ? ` and ${blocks.length - 3} more` : ''}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('; ');
+  return [
+    {
+      code: 'inline_style',
+      file: input.file,
+      board: input.title,
+      ...(where.length === 1 && !blocks.length && !where[0].place.startsWith('a style')
+        ? { layer: where[0].place }
+        : {}),
+      label: `${input.title} styles itself inline${where.length ? ` (${where.length} layer${where.length === 1 ? '' : 's'})` : ''}`,
+      detail,
+      short: 'inline styles',
+      fix: "move it into the kind's css (design/ds/<system>/<kind>.css) as a class and use the class in the board; the board keeps markup, classes and tokens only",
+    },
+  ];
 }
 
 // ── The canvas ──────────────────────────────────────────────────────────────────────────────────
@@ -1358,6 +1514,12 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: "text cut by a frame's bottom or under a bottom bar",
   },
   {
+    code: 'cut_off_side',
+    problem: true,
+    means:
+      "a layer cut by the board's left or right edge, or by a frame that hides overflow (a row that scrolls sideways on purpose is fine)",
+  },
+  {
     code: 'missing_scheme',
     problem: true,
     means:
@@ -1393,7 +1555,8 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   {
     code: 'outside_safe_area',
     problem: true,
-    means: 'print: text or a mark closer to the trim than the safe margin',
+    means:
+      'print: text or a mark closer to the trim than the safe margin; game on a phone: content under the status bar or the home indicator, or in the notch side in landscape (immersive=true in the head opts out)',
   },
   {
     code: 'taller_than_frame',
@@ -1407,7 +1570,23 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     problem: false,
     means: 'logo: contrast under 3:1 at 16 px on a ground',
   },
-  { code: 'spacing_off_scale', problem: false, means: 'a margin, padding or gap off the scale' },
+  {
+    code: 'spacing_off_scale',
+    problem: false,
+    means:
+      "a margin, padding or gap off the platform's spacing scale (the base --space-* in px; none for slides and print unless the kit has its own)",
+  },
+  {
+    code: 'inline_style',
+    problem: false,
+    means:
+      "a style attribute with a colour, size, space or font, or a <style> block for html, body or a design-system class; move it into the kind's css as a class",
+  },
+  {
+    code: 'no_status_bar',
+    problem: false,
+    means: 'game: an iPhone screen with no status bar drawn (immersive=true in the head opts out)',
+  },
   { code: 'nearly_aligned', problem: false, means: 'left edges 1 to 4 px apart' },
   {
     code: 'row_height_differs',
@@ -1567,6 +1746,65 @@ export function cutOffBottomProblems(input: {
           ? 'leave room above the bar (padding at the foot of the scrolling content), or end the content sooner'
           : 'make the board taller (deploy design check --fix measures it), show fewer rows, or end on a whole row',
     }));
+}
+
+/**
+ * Content cut by the left or right edge: a layer whose box runs past the page or past a frame
+ * that hides what overflows it, with no scroller of its own to carry it. Only the platforms with
+ * a page of fixed width are judged against the page's edge (a web page that is wider scrolls, and
+ * `overflows_sideways` says so); a frame's edge counts everywhere. A scroller that scrolls
+ * sideways on purpose (overflow-x auto or scroll, data-scroll-x) and a decorative shape
+ * (aria-hidden, data-bleed, a print piece's bleed) are left alone. What main's board already
+ * cut is left out.
+ */
+export function cutOffSideProblems(input: {
+  file: string;
+  title: string;
+  width: number;
+  after: Inspection | null;
+  before: Inspection | null;
+  platform: string;
+}): Finding[] {
+  const fixedPage = ['phone', 'mac', 'slide', 'game', 'print', 'tablet'].includes(input.platform);
+  const old = new Set(
+    (input.before?.clippedSide ?? []).map((entry) => `${entry.layer} ${entry.side} ${entry.by}`),
+  );
+  const kept = (input.after?.clippedSide ?? []).filter(
+    (entry) =>
+      (entry.by === 'frame' || fixedPage) &&
+      !old.has(`${entry.layer} ${entry.side} ${entry.by}`) &&
+      // A print piece's decorative shapes run into the bleed on purpose.
+      !(input.platform === 'print' && entry.plain),
+  );
+  // One problem for each edge that cuts: a column of tiles is one finding, not five.
+  const groups = new Map<string, typeof kept>();
+  for (const entry of kept) {
+    const edge = `${entry.by} ${entry.frame ?? ''} ${entry.side}`;
+    groups.set(edge, [...(groups.get(edge) ?? []), entry]);
+  }
+  return [...groups.values()].slice(0, 5).map((entries) => {
+    const first = entries[0];
+    const names = entries.map(
+      (entry) => entry.layer ?? (entry.text ? `"${entry.text}"` : 'a shape'),
+    );
+    const edge =
+      first.by === 'frame'
+        ? `${first.frame ?? 'its frame'}'s ${first.side} edge`
+        : `the ${first.side} edge`;
+    const amount = Math.max(...entries.map((entry) => entry.amount));
+    return {
+      code: 'cut_off_side',
+      file: input.file,
+      board: input.title,
+      width: input.width,
+      scheme: 'light' as const,
+      ...(first.layer && entries.length === 1 ? { layer: first.layer } : {}),
+      label: `${input.title} ${entries.length === 1 ? names[0] : `${entries.length} layers`} cut off at ${edge}`,
+      detail: `${names.slice(0, 4).join(', ')}${names.length > 4 ? ` and ${names.length - 4} more` : ''}: up to ${amount} px past ${first.by === 'frame' ? `the edge of ${first.frame ?? 'a frame that hides overflow'}` : `the ${first.side} of the board`}`,
+      short: `cut off at the ${first.side}`,
+      fix: 'make it narrower (fewer columns, smaller tiles, wrap the row) so it ends inside the edge; a row meant to scroll sideways says so with overflow-x: auto or data-scroll-x',
+    };
+  });
 }
 
 // ── Schemes ─────────────────────────────────────────────────────────────────────────────────────

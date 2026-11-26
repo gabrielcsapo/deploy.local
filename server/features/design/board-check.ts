@@ -38,8 +38,10 @@ import type { BoardQuestion } from '../../design/check-drawing.ts';
 import {
   contrastProblems,
   cutOffBottomProblems,
+  cutOffSideProblems,
   drawnNotes,
   heightProblem,
+  inlineStyleNotes,
   layerNameNote,
   localCopyNotes,
   notATokenProblems,
@@ -77,11 +79,16 @@ import {
   type Scheme,
 } from '../../../shared/v2/design-platforms.ts';
 import {
+  fixedHeight,
+  isImmersive,
   logoSmallNote,
   measuredHeightProblem,
   pageBreakNotes,
+  phoneScreen,
   safeAreaProblems,
+  screenSafeAreaProblems,
   smallContrast,
+  statusBarNote,
   tallerThanFrameProblem,
 } from '../../design/kind-checks.ts';
 import {
@@ -520,6 +527,16 @@ export async function checkDesign(
     kindCss ? `${baseCss ?? ''}\n${kindCss}` : baseCss,
   );
   const bundle = await systemFile(dsPaths?.bundle);
+  // The classes the design system's stylesheets define, for what a board's <style> block redefines.
+  const systemClasses = new Set(
+    [baseCss, kindCss, bundle]
+      .flatMap((css) =>
+        [...(css ?? '').replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.([a-zA-Z_][\w-]*)/g)].map(
+          (match) => match[1],
+        ),
+      )
+      .filter((name) => !/^\d/.test(name)),
+  );
   const branchLibrary = parseLibrary(await systemFile(dsPaths?.library));
   // Where the library is, for a change to a component.
   let ownLibrary = '';
@@ -839,7 +856,10 @@ export async function checkDesign(
         problems.push(nameProblem);
         renames[file] = renameMeaninglessLayers(baseline.before, text);
       }
-      notes.push(...spacingNotes({ ...baseline, tokens }));
+      notes.push(
+        ...spacingNotes({ ...baseline, tokens, platform: boardPlatform(meta, placedWidth(file)) }),
+      );
+      notes.push(...inlineStyleNotes({ ...baseline, systemClasses }));
       if (platformInfo(boardPlatform(meta, placedWidth(file))).appChecks)
         notes.push(...localCopyNotes({ ...board, bundle, library: branchLibrary, origin }));
       if (!isSpecimen(file)) {
@@ -1138,11 +1158,43 @@ export async function checkDesign(
                 inspect: true,
                 fullPage: false,
               });
-              heights[file] = natural?.inspected?.height ?? content;
+              // Never less than the content needs: a window-sized frame or an absolutely placed
+              // layer is no shorter for the short window it was measured in.
+              heights[file] = fixedHeight({
+                platform,
+                fixedFrame: info.fixedFrame,
+                metaHeight: meta.height,
+                natural: natural?.inspected?.height ?? content,
+                needed: Math.max(natural?.inspected?.needed ?? 0, afterShot.inspected.needed ?? 0),
+              });
             }
             if (info.fixedFrame && platform !== 'doc') {
               const tall = tallerThanFrameProblem({ file, title, content, frame: height });
               if (tall) found.problems.push(tall);
+            }
+            if (phoneScreen(platform, width, height)) {
+              const immersive = isImmersive(meta);
+              found.problems.push(
+                ...screenSafeAreaProblems({
+                  file,
+                  title,
+                  inspection: afterShot.inspected,
+                  platform,
+                  width,
+                  height,
+                  immersive,
+                }),
+              );
+              const bar = statusBarNote({
+                file,
+                title,
+                inspection: afterShot.inspected,
+                platform,
+                width,
+                height,
+                immersive,
+              });
+              if (bar) found.notes.push(bar);
             }
             if (platform === 'print') {
               const geometry = printGeometry(meta);
@@ -1186,6 +1238,10 @@ export async function checkDesign(
               (finding.code === 'second_primary' ? found.problems : found.notes).push(finding);
             if (!noBottomFrame.has(platform))
               found.problems.push(...cutOffBottomProblems({ file, title, width, ...inspected }));
+            if (platform !== 'logo')
+              found.problems.push(
+                ...cutOffSideProblems({ file, title, width, platform, ...inspected }),
+              );
           }
         }
         const png = await drawing.pair({

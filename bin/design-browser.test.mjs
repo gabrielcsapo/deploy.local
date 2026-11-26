@@ -595,3 +595,117 @@ test("Chromium's PDFs of boards at different sizes join into one, a page each, a
     await browser.close();
   }
 });
+
+test('content cut at the sides is found when drawn: a clipped grid is; a sideways scroller, a bleed and an ellipsis are not', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    const page = (body) =>
+      `<!doctype html><html><body style="margin:0;font:14px/20px system-ui">${body}</body></html>`;
+    const draw = async (body, width = 390) => {
+      const tab = await browser.newTab({ width, height: 600 });
+      try {
+        return (
+          await shootBoard(tab, page(body), { scheme: 'light', measure: true, inspect: true })
+        ).inspected;
+      } finally {
+        await tab.close();
+      }
+    };
+    // A frame that hides overflow, a grid wider than it: the right column is cut.
+    const cut = await draw(
+      `<div data-layer="screen" style="width:390px;overflow:hidden;padding:0 16px;box-sizing:border-box">
+        <div data-layer="grid" style="display:grid;grid-template-columns:repeat(4,96px);gap:12px;width:420px">
+          <div data-layer="t1">1</div><div data-layer="t2">2</div><div data-layer="t3">3</div><div data-layer="t4">4</div>
+        </div></div>`,
+    );
+    assert.deepEqual(
+      cut.clippedSide.map((entry) => [entry.layer, entry.side, entry.by, entry.frame]),
+      [['grid', 'right', 'frame', 'screen']],
+      'the outermost layer that runs past, not every tile in it',
+    );
+    // The same grid fitted inside: nothing is cut.
+    const fits = await draw(
+      `<div data-layer="screen" style="width:390px;overflow:hidden;padding:0 16px;box-sizing:border-box">
+        <div data-layer="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px"><div data-layer="t1">1</div><div data-layer="t4">4</div></div></div>`,
+    );
+    assert.deepEqual(fits.clippedSide, []);
+    // A row that scrolls sideways on purpose carries its chips, and the words there are no text_cut_off.
+    const scroller = await draw(
+      `<div data-layer="chips" style="display:flex;gap:8px;overflow-x:auto"><span data-layer="a" style="flex:none;width:200px">Alpha</span><span data-layer="b" style="flex:none;width:200px">Beta</span></div>`,
+    );
+    assert.deepEqual(scroller.clippedSide, []);
+    const scrollTab = await browser.newTab({ width: 390, height: 600 });
+    try {
+      const shot = await shootBoard(
+        scrollTab,
+        page(
+          `<div data-layer="chips" style="display:flex;gap:8px;overflow-x:auto"><span style="flex:none;width:200px">Alpha</span><span style="flex:none;width:200px">Beta</span></div>`,
+        ),
+        { scheme: 'light', measure: true },
+      );
+      assert.equal(shot.measured.cut, null);
+    } finally {
+      await scrollTab.close();
+    }
+    // A column that scrolls down is no sideways scroller: what runs past its side is cut.
+    const column = await draw(
+      `<div data-layer="col" style="width:390px;height:200px;overflow-y:auto"><div data-layer="wide" style="width:500px;height:400px">Wide</div></div>`,
+    );
+    assert.deepEqual(
+      column.clippedSide.map((entry) => [entry.layer, entry.by]),
+      [['wide', 'page']],
+    );
+    // Marked bleed, a decorative aria-hidden glow and ellipsised text are meant.
+    const meant = await draw(
+      `<div data-layer="stage" style="width:390px;overflow:hidden">
+        <div data-layer="glow" aria-hidden="true" style="width:200px;height:200px;margin-left:300px">g</div>
+        <div data-layer="art" data-bleed style="width:200px;height:50px;margin-left:300px">a</div>
+        <div data-layer="deco" style="position:absolute;width:200px;height:50px;left:300px;top:300px;background:#ccc"></div>
+        <div data-layer="empty" style="width:200px;height:50px;margin-left:300px"></div>
+        <div data-layer="plain" style="width:200px;height:50px;margin-left:300px;background:#ccc"></div>
+        <div data-layer="name" style="width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">A very long name that is ellipsised</div></div>`,
+    );
+    assert.deepEqual(
+      meant.clippedSide.map((entry) => [entry.layer, entry.plain]),
+      [['plain', true]],
+      'an unmarked shape is reported as plain, so a print piece can let its bleed through',
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test('what a board needs is measured through a window-sized frame and absolute layers, and a status bar is found', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    // A Mac window at 100% of a desk 100vh tall: in a short window its content is clipped.
+    const page = `<!doctype html><html><body style="margin:0;font:14px/20px system-ui">
+      <div data-layer="desk" style="width:100vw;height:100vh">
+        <div data-layer="window" style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;border:1px solid #999;box-sizing:border-box">
+          <header data-layer="titlebar" style="height:40px">Settings</header>
+          <div data-layer="form" style="padding:12px 12px 20px"><p style="margin:0;height:200px">Menu bar</p></div>
+          <div data-layer="note" style="position:absolute;left:12px;top:300px;height:20px">Pinned note</div>
+        </div></div>
+      <div class="ds-statusbar" data-layer="statusbar" style="height:54px">9:41</div>
+      </body></html>`;
+    const tab = await browser.newTab({ width: 640, height: 100 });
+    try {
+      const shot = await shootBoard(tab, page, { scheme: 'light', measure: false, inspect: true });
+      // The page itself is as short as the window; the board needs the form (40 + 12 + 200 + 20)
+      // and the pinned note at 300 + 20.
+      assert.equal(shot.inspected.height >= 100, true);
+      assert.ok(shot.inspected.needed >= 320, `needed ${shot.inspected.needed}`);
+      assert.ok(shot.inspected.needed < 420, `needed ${shot.inspected.needed}`);
+      assert.deepEqual(
+        shot.inspected.statusBars.map((bar) => bar.layer),
+        ['statusbar'],
+      );
+    } finally {
+      await tab.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});

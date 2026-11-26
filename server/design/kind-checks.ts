@@ -3,7 +3,7 @@
 // Plain arithmetic on what the drawn page gave back (an Inspection, or the picture's pixels), so
 // the same code runs on deploy.local and on the computer.
 import { inflateSync } from 'node:zlib';
-import { contrast, type Inspection, type Rgb } from '../../shared/v2/design-inspect.ts';
+import { contrast, type Box, type Inspection, type Rgb } from '../../shared/v2/design-inspect.ts';
 import { CSS_PX_PER_MM } from '../../shared/v2/design-platforms.ts';
 import type { Finding } from './board-quality.ts';
 
@@ -205,6 +205,154 @@ export function safeAreaProblems(input: {
       fix: `keep text and marks ${geometry.safe} mm inside the trim; only a background may run into the bleed`,
     },
   ];
+}
+
+// ── An iPhone screen ────────────────────────────────────────────────────────────────────────────
+
+/** What an iPhone keeps clear: the status bar and Dynamic Island on top, the home indicator below. */
+export const phoneSafe = { top: 54, bottom: 34, side: 54 };
+
+/** Whether a board's head opts out of the status bar and safe areas: immersive=true. */
+export const isImmersive = (meta: { other?: Record<string, string> }) =>
+  /^(true|yes|1)$/i.test(meta.other?.immersive ?? meta.other?.fullscreen ?? '');
+
+/**
+ * Whether a drawn board is an iPhone game screen with safe areas: a game board on a phone (390
+ * wide, or 844 x 390 turned sideways); a game on a bigger screen has none of these. An app's
+ * phone boards are not held to them: they are drawn as the app's content, without the device's
+ * chrome (deploy.local's own 170 phone boards draw no status bar), so a rule here would flag
+ * every one of them.
+ */
+export function phoneScreen(platform: string, width: number, height: number | null) {
+  if (platform !== 'game') return null;
+  if (width <= 500) return { landscape: false };
+  if (height !== null && width === 844 && height === 390) return { landscape: true };
+  return null;
+}
+
+/**
+ * Text and marks in the status bar's or the home indicator's room (or, sideways, the notch's), on
+ * an iPhone game screen: the system draws there. The status bar itself is allowed. A board that is
+ * immersive on purpose (immersive=true in its head) opts out.
+ */
+export function screenSafeAreaProblems(input: {
+  file: string;
+  title: string;
+  inspection: Inspection | null;
+  platform: string;
+  width: number;
+  height: number;
+  immersive?: boolean;
+}): Finding[] {
+  const { inspection } = input;
+  const screen = phoneScreen(input.platform, input.width, input.height);
+  if (!inspection || !screen || input.immersive) return [];
+  const slack = 0.75;
+  const bars = inspection.statusBars ?? [];
+  const inBar = (box: Box) =>
+    bars.some(
+      (bar) =>
+        box.left >= bar.left - slack &&
+        box.left + box.width <= bar.left + bar.width + slack &&
+        box.top >= bar.top - slack &&
+        box.top + box.height <= bar.top + bar.height + slack,
+    );
+  // A screen taller than a device (a long scroll drawn whole) has no bottom to keep clear.
+  const deviceTall = input.height <= 900;
+  // What is scrolled out of the screen is no part of it: the cut-off checks say that.
+  const onScreen = (box: Box) => box.top < input.height && box.top + box.height > 0;
+  const outside = (box: Box) =>
+    onScreen(box) &&
+    !inBar(box) &&
+    (screen.landscape
+      ? box.left < phoneSafe.side - slack ||
+        box.left + box.width > input.width - phoneSafe.side + slack
+      : box.top < phoneSafe.top - slack ||
+        (deviceTall && box.top + box.height > input.height - phoneSafe.bottom + slack));
+  const found: { layer: string | null; what: string }[] = [];
+  for (const text of inspection.texts)
+    if (outside(text)) found.push({ layer: text.layer, what: `"${text.text}"` });
+  for (const figure of inspection.figures ?? []) {
+    if (figure.width * figure.height > input.width * input.height * 0.5) continue;
+    // A shape across the whole width is a bar or a ground, not a mark under the clock.
+    if (figure.width >= input.width * 0.9) continue;
+    if (outside(figure)) found.push({ layer: figure.layer, what: figure.layer ?? 'a picture' });
+  }
+  if (!found.length) return [];
+  const first = found[0];
+  const where = screen.landscape
+    ? `the ${phoneSafe.side} px at the sides`
+    : `the ${phoneSafe.top} px under the status bar and the ${phoneSafe.bottom} px above the home indicator`;
+  return [
+    {
+      code: 'outside_safe_area',
+      file: input.file,
+      board: input.title,
+      width: input.width,
+      scheme: 'light',
+      ...(first.layer ? { layer: first.layer } : {}),
+      label: `${input.title} has content in ${where}`,
+      detail: `${found
+        .slice(0, 4)
+        .map((entry) => entry.layer ?? entry.what)
+        .join(', ')}${found.length > 4 ? ` and ${found.length - 4} more` : ''}`,
+      short: `${found.length} outside safe area`,
+      fix: screen.landscape
+        ? `keep everything ${phoneSafe.side} px in from the sides; or put immersive=true in the head if the screen is full-bleed on purpose`
+        : `start content ${phoneSafe.top} px down (the status bar's room) and end it ${phoneSafe.bottom} px above the bottom; or put immersive=true in the head if the screen is full-bleed on purpose`,
+    },
+  ];
+}
+
+/**
+ * A game screen on an iPhone with no status bar drawn: a note. A game board is the whole screen
+ * (390 x 844), so the clock and signal are part of it; an app's phone boards draw their own chrome
+ * (a title bar, a tab bar) and are held to the safe areas only.
+ */
+export function statusBarNote(input: {
+  file: string;
+  title: string;
+  inspection: Inspection | null;
+  platform: string;
+  width: number;
+  height: number;
+  immersive?: boolean;
+}): Finding | null {
+  const screen = phoneScreen(input.platform, input.width, input.height);
+  if (!input.inspection || !screen || screen.landscape || input.immersive) return null;
+  if (input.platform !== 'game') return null;
+  if (input.inspection.statusBars?.length) return null;
+  return {
+    code: 'no_status_bar',
+    file: input.file,
+    board: input.title,
+    width: input.width,
+    scheme: 'light',
+    label: `${input.title} draws no status bar`,
+    detail: `an iPhone screen has the time and signal in its top ${phoneSafe.top} px`,
+    short: 'no status bar',
+    fix: "draw the status bar in the top 54 px (the base kit's .ds-statusbar, or data-statusbar on your own markup), or put immersive=true in the board head if it is full-screen on purpose",
+  };
+}
+
+/**
+ * The height `deploy design check --fix` writes for a board whose head and canvas.json disagree.
+ * A frame (a window, a slide, a screen, a card) is the size its head says; a flowing page is as
+ * tall as it reads. Either way it is never less than the content the board needs, including
+ * what a window-sized frame clips and what is placed absolutely, or the fix would cut it off.
+ */
+export function fixedHeight(input: {
+  platform: string;
+  fixedFrame: boolean;
+  metaHeight: number | null;
+  /** The page's height as drawn in a short window. */
+  natural: number;
+  /** What the board needs to show everything (Inspection.needed). */
+  needed?: number;
+}): number {
+  const content = Math.max(input.natural, input.needed ?? 0);
+  const base = input.fixedFrame && input.metaHeight ? input.metaHeight : input.natural;
+  return Math.ceil(Math.max(base, content));
 }
 
 // ── A document ──────────────────────────────────────────────────────────────────────────────────

@@ -43,6 +43,23 @@ export function measureOverflow(doc: Document = document): Overflow {
     if (!own) continue;
     const style = view.getComputedStyle(element);
     if (style.visibility === 'hidden' || style.display === 'none') continue;
+    // A row that scrolls sideways on purpose carries its words past the edge.
+    let carried = false;
+    for (
+      let at: Element | null = element.parentElement;
+      at && at !== doc.body;
+      at = at.parentElement
+    ) {
+      const scroller = view.getComputedStyle(at);
+      if (
+        /(auto|scroll)/.test(scroller.overflowX) &&
+        !(/(auto|scroll)/.test(scroller.overflowY) && at.scrollHeight > at.clientHeight + 1)
+      ) {
+        carried = true;
+        break;
+      }
+    }
+    if (carried) continue;
     cut = own.slice(0, 40);
     break;
   }
