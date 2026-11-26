@@ -861,6 +861,11 @@ a.dl-asks-row:hover{background:color-mix(in srgb,var(--line) 35%,transparent)}
 .dl-nest:last-child{border-bottom:0}
 .dl-nest::before{content:"";position:absolute;left:23px;top:0;bottom:12px;border-left:1px solid var(--line)}
 .dl-item:has(+ .dl-nest){border-bottom:0}
+.dl-setting:has(+ .dl-nest){border-bottom:0;padding-bottom:4px}
+.dl-setting + .dl-nest{padding:0 0 8px 16px}
+.dl-setting + .dl-nest::before{left:0}
+.dl-nest-note{padding:4px 0 0;font-size:12px;line-height:16px;color:var(--muted)}
+.dl-ph-nest-note{padding:4px 0 0;font-size:13px;line-height:18px;color:var(--muted)}
 .dl-nest-row{display:flex;align-items:center;gap:12px;min-width:0;min-height:var(--size-row);font-size:13px;line-height:20px}
 .dl-ph-nest{position:relative;display:flex;flex-direction:column;padding:0 16px 8px 46px;border-bottom:1px solid var(--line)}
 .dl-ph-nest:last-child{border-bottom:0}
