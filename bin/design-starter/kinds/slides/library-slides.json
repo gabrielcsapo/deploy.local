@@ -234,7 +234,7 @@
       "name": "Figures slide",
       "group": "Slide layouts",
       "platform": "slide",
-      "description": "Two to four figures side by side, each a number and what it counts: a year in numbers. Use .n2, .n3 or .n4 on the row for the count; the figures are the brief's, never made up.",
+      "description": "Two to four figures side by side, each a number and what it counts: a year in numbers. Use .n2, .n3 or .n4 on the row for the count; each has a value, a short label and an optional .context line; the values are the brief's, or plausible and flagged with data-question.",
       "props": [
         {
           "id": "heading",
@@ -257,7 +257,7 @@
           "default": "1"
         }
       ],
-      "html": "<section class=\"ds-slide figures\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><div class=\"ds-slide-figures n3\"><div class=\"ds-slide-figure\" data-layer=\"figure-1\"><div class=\"value\">00</div><div class=\"label\">What figure 1 counts</div></div><div class=\"ds-slide-figure focus\" data-layer=\"figure-2\"><div class=\"value\">00</div><div class=\"label\">What figure 2 counts</div></div><div class=\"ds-slide-figure\" data-layer=\"figure-3\"><div class=\"value\">00</div><div class=\"label\">What figure 3 counts</div></div></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+      "html": "<section class=\"ds-slide figures\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><div class=\"ds-slide-figures n3\" data-question=\"Are these the real figures?\"><div class=\"ds-slide-figure\" data-layer=\"figure-1\"><div class=\"value\">38</div><div class=\"label\">Active members</div><div class=\"context\">Up from 31 last spring</div></div><div class=\"ds-slide-figure focus\" data-layer=\"figure-2\"><div class=\"value\">1,240<span class=\"unit\">kg</span></div><div class=\"label\">Harvested this season</div><div class=\"context\">Most of it given away</div></div><div class=\"ds-slide-figure\" data-layer=\"figure-3\"><div class=\"value\">12<span class=\"unit\">weeks</span></div><div class=\"label\">Open to everyone</div><div class=\"context\">May to August</div></div></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
     },
     {
       "id": "slide-closing",

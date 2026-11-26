@@ -1861,7 +1861,7 @@ test('init --kind copies the base, then the kind over it: css, rules, components
       y: 0,
       w: 344,
       h: 231,
-      title: 'Example card',
+      title: 'Cards card front',
     });
     assert.deepEqual(canvas.order, ['CardFront.html']);
 
@@ -1985,7 +1985,7 @@ test('init --kind with the real starter: only the kind, a starting board with tr
   const { designStarterFiles } = await import('./design-local-assets.mjs');
   const starter = designStarterFiles();
   const sizes = {
-    doc: [700, 1975],
+    doc: [700, 1000],
     slides: [1920, 1080],
     print: [344, 231],
     mac: [1280, 800],
@@ -2017,7 +2017,7 @@ test('init --kind with the real starter: only the kind, a starting board with tr
       assert.doesNotMatch(readFileSync(join(ds, 'README.md'), 'utf8'), /iPhone conventions/, kind);
       assert.match(
         readFileSync(join(ds, 'README.md'), 'utf8'),
-        /Invented figures|invented figures/i,
+        /Sample content and product facts/,
         kind,
       );
       const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
@@ -2028,6 +2028,37 @@ test('init --kind with the real starter: only the kind, a starting board with tr
       assert.doesNotMatch(html, /__DS__/);
       assert.match(html, new RegExp(`platform=${kind === 'slides' ? 'slide' : kind}`));
       if (kind === 'game') assert.match(html, /width=390,height=844/);
+      // The starting board is the project's own, marked as the starting point, and carries no style.
+      assert.match(html, /<title>Proj [a-z ]+<\/title>/, kind);
+      assert.doesNotMatch(html, /Example/, kind);
+      assert.equal(canvas.startingBoard, file, kind);
+      assert.match(place.title, /^Proj /, kind);
+      if (kind === 'doc') {
+        assert.doesNotMatch(
+          html,
+          /design-board[^>]*height=/,
+          'a doc board says no height; check --fix measures it',
+        );
+        // The one thing in a doc's style is its @page running header.
+        const style = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '';
+        assert.match(style.replace(/\/\*[\s\S]*?\*\//g, '').trim(), /^@page \{/);
+        assert.doesNotMatch(style, /body|margin/);
+      } else assert.doesNotMatch(html, /<style/, kind);
+      // status says it is the starting point.
+      const status = terminal(root, coordinator().api, {});
+      await runDesign('status', [], {}, status.deps);
+      assert.match(status.text(), /Starting board +placed by init/, kind);
+      // The guide for a kind project is the shared essentials and the kind, short, and says how to get the rest.
+      const guide = terminal(root, coordinator().api, {});
+      await runDesign('guide', [], {}, guide.deps);
+      assert.ok(guide.text().length < 12000, `${kind}: guide is ${guide.text().length} bytes`);
+      assert.match(guide.text(), /deploy design guide --all prints the full guide/, kind);
+      assert.doesNotMatch(guide.text(), /second_primary|source_action_missing/, kind);
+      assert.match(guide.text(), /Sample content, product facts and questions/, kind);
+      const all = terminal(root, coordinator().api, {});
+      await runDesign('guide', [], { all: true }, all.deps);
+      assert.ok(all.text().length > guide.text().length, `${kind}: --all prints more`);
+      assert.match(all.text(), /second_primary/, kind);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -2071,18 +2102,62 @@ test('the kind kits carry what the round-3 review asked for', async () => {
   // Logo: a small cut and fixed-ground tiles.
   assert.match(text('kinds/logo/logo.css'), /\.s16 \.full/);
   assert.match(text('kinds/logo/examples/LogoLockups.html'), /data-theme="dark"/);
-  // Every kind says no invented figures.
-  for (const kind of ['doc', 'slides', 'print', 'mac', 'game', 'logo'])
-    assert.match(text(`kinds/${kind}/${kind}.md`), /invented|made up/i, kind);
+  // Every kind tells sample content from product facts, with a worked example, and says boards carry no style.
+  for (const kind of ['doc', 'slides', 'print', 'mac', 'game', 'logo']) {
+    assert.match(text(`kinds/${kind}/${kind}.md`), /Sample content and product facts/, kind);
+    assert.match(text(`kinds/${kind}/${kind}.md`), /Worked example/, kind);
+    assert.match(text(`kinds/${kind}/${kind}.md`), /carries no `<style>`/, kind);
+    assert.match(
+      text(`kinds/${kind}/${kind}.css`),
+      /html,\s*body \{\s*margin: 0;\s*background: var\(--/,
+      kind,
+    );
+  }
 });
 
-test('the review brief makes a critic list every unflagged invented figure as a fact', async () => {
+test('the review brief flags unflagged product facts and filler, not realistic sample content', async () => {
   const { INIT_README, reviewBrief } = await import('./cli-design.mjs');
   const brief = reviewBrief({ top: '/p', boards: ['A.html'] });
-  assert.match(brief, /unflagged one separately as a \[fact\] finding/);
-  assert.match(INIT_README('p'), /No invented figures/);
-  assert.match(INIT_README('p'), /1,840 kg/);
-  const slides = INIT_README('p', 'slides');
-  assert.doesNotMatch(slides, /iPhone is iPhone/);
-  assert.match(slides, /No invented figures/);
+  assert.match(brief, /^Project folder: \/p\nRun every command from this folder\./);
+  assert.match(brief, /Product facts nobody gave/);
+  assert.match(brief, /\[fact\] finding of its own/);
+  assert.match(brief, /Wireframe filler\. "Item one"/);
+  assert.match(brief, /NOT a finding: sample user content/);
+  for (const kind of ['app', 'slides']) {
+    const readme = INIT_README('p', kind);
+    assert.match(readme, /Sample user content/);
+    assert.match(readme, /Product facts/);
+    assert.match(readme, /Never "Item one", "Note title one", "Lorem" or "00"/);
+    assert.match(readme, /1,240\s+kg/);
+    assert.doesNotMatch(readme, /obviously illustrative/);
+    assert.match(readme, /carries no `<style>`/);
+  }
+  assert.doesNotMatch(INIT_README('p', 'slides'), /iPhone is iPhone/);
+});
+
+test('review lists only the boards changed since the branch left main, not main’s own work', async () => {
+  const repo = repository();
+  try {
+    // Main moves on after the clone: a board this checkout never had.
+    const seed = join(repo.root, 'seed');
+    writeFileSync(join(seed, 'design/boards/MainOnly.html'), '<p data-layer="x">Main</p>');
+    git(['add', '.'], seed);
+    git(['commit', '-qm', 'Main moves on'], seed);
+    git(['push', '-q', 'origin', 'main'], seed);
+    git(['fetch', '-q', 'origin'], repo.clone);
+    // This checkout, behind main, has one board of its own, not committed yet.
+    writeFileSync(join(repo.clone, 'design/boards/Mine.html'), '<p data-layer="y">Mine</p>');
+    const run = terminal(repo.clone, coordinator().api);
+    const result = await runDesign('review', [], {}, run.deps);
+    assert.deepEqual(result.json.boards, ['Mine.html']);
+    assert.match(
+      result.json.brief,
+      new RegExp(
+        `^Project folder: ${repo.clone.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\nRun every command from this folder\\.`,
+      ),
+    );
+    assert.doesNotMatch(result.json.brief, /MainOnly/);
+  } finally {
+    repo.cleanup();
+  }
 });

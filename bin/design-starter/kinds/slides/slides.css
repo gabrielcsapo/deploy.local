@@ -3,6 +3,13 @@
    a big number up to 160. Colours come from tokens, so a deck is light (the default) or dark
    with data-theme on the slide. */
 
+/* A board carries no <style>: the page's margin and ground are set here. */
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
 :root {
   --text-slide-footer: 28px;
   --leading-slide-footer: 36px;
@@ -237,13 +244,15 @@
   gap: 64px;
   margin-top: auto;
   margin-bottom: auto;
+  align-items: start;
 }
 .ds-slide-figure {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding-top: 32px;
-  border-top: 2px solid var(--line-strong);
+  gap: 16px;
+  min-height: 440px;
+  padding-top: 40px;
+  border-top: 4px solid var(--ink);
   min-width: 0;
 }
 .ds-slide-figure .value {
@@ -253,6 +262,10 @@
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  /* One line tall whether or not it has a unit, so labels line up across figures. */
+  display: flex;
+  align-items: baseline;
+  height: 1lh;
 }
 .ds-slide-figures.n2 {
   --n: 2;
@@ -278,9 +291,19 @@
   color: var(--ink-secondary);
 }
 .ds-slide-figure .label {
+  font-size: var(--text-slide-lede);
+  line-height: var(--leading-slide-lede);
+  font-weight: var(--weight-medium, 500);
+  color: var(--ink);
+}
+/* An optional line of context under the label: "up from 31 last spring". */
+.ds-slide-figure .context {
   font-size: var(--text-slide-body);
   line-height: var(--leading-slide-body);
   color: var(--ink-secondary);
+}
+.ds-slide-figure.focus {
+  border-top-color: var(--accent);
 }
 .ds-slide-figure.focus .value {
   color: var(--accent);

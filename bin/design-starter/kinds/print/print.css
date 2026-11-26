@@ -3,6 +3,13 @@
    properties set on .ds-print-face to match the board's meta: --print-w, --print-h (trim),
    --print-bleed and --print-safe. Print is light only. */
 
+/* A board carries no <style>: the page's margin and ground are set here. */
+html,
+body {
+  margin: 0;
+  background: var(--surface);
+}
+
 :root {
   --text-print-fine: 6pt;
   --leading-print-fine: 8pt;

@@ -9,11 +9,6 @@
     <link rel="stylesheet" href="../ds/__DS__/components.css" />
     <link rel="stylesheet" href="../ds/__DS__/doc.css" />
     <style>
-      html,
-      body {
-        margin: 0;
-        background: var(--bg);
-      }
       /* The running header and footer on paper: the same words as the bars. */
       @page {
         @top-left {
@@ -23,7 +18,7 @@
           content: 'Settings';
         }
         @bottom-left {
-          content: 'Date of the last update';
+          content: 'Updated 14 March';
         }
       }
     </style>
@@ -37,7 +32,7 @@
         <table
           class="ds-doc-table"
           data-layer="settings-table"
-          data-question="What is each setting's real default?"
+          data-question="Are these the real defaults?"
         >
           <thead>
             <tr>
@@ -49,17 +44,17 @@
           <tbody>
             <tr>
               <td><code>retries</code></td>
-              <td data-label="Default">Value</td>
+              <td data-label="Default">3</td>
               <td data-label="What it does">How many times a failed step is tried again.</td>
             </tr>
             <tr>
               <td><code>timeout</code></td>
-              <td data-label="Default">Value</td>
+              <td data-label="Default">30 seconds</td>
               <td data-label="What it does">How long a step may take before it stops.</td>
             </tr>
             <tr>
               <td><code>notify</code></td>
-              <td data-label="Default">Value</td>
+              <td data-label="Default">Off</td>
               <td data-label="What it does">Sends a message when a run ends.</td>
             </tr>
           </tbody>
@@ -77,8 +72,12 @@
         <pre><code>setting = value
 another = value</code></pre>
       </main>
-      <footer class="ds-doc-foot">
-        <span>Reference</span><span>Date of the last update</span>
+      <footer
+        class="ds-doc-foot"
+        data-layer="foot"
+        data-question="Is this the real date of the last update?"
+      >
+        <span>Reference</span><span>Updated 14 March</span>
       </footer>
     </div>
   </body>

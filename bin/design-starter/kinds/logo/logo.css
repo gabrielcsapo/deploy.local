@@ -2,6 +2,13 @@
    Load tokens.css and components.css first. The mark is an inline SVG of simple shapes; the shapes
    take their colour from the classes below, so a mark never carries a literal colour. */
 
+/* A board carries no <style>: the page's margin and ground are set here. */
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
 :root {
   --text-logo-wordmark: 96px;
   --leading-logo-wordmark: 104px;

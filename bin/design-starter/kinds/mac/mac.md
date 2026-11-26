@@ -1,6 +1,6 @@
 ## Mac kind: a window that looks like it belongs on macOS
 
-A Mac board is one window: `<meta name="design-board" content="platform=mac,width=1280,height=800,schemes=light dark">`; width and height are the window's. Boards link `tokens.css`, `components.css` and `mac.css`, set `body` margin to 0 and start with `.ds-mac-desk` around one `.ds-mac-window`. The check draws it once at its own size, light and dark. Each pane is a screen: the main window, the settings window, the menu-bar extra.
+A Mac board is one window: `<meta name="design-board" content="platform=mac,width=1280,height=800,schemes=light dark">`; width and height are the window's. Boards link `tokens.css`, `components.css` and `mac.css`, start with `.ds-mac-desk` around one `.ds-mac-window`. The check draws it once at its own size, light and dark. A board carries no `<style>`: `mac.css` sets the page's margin and ground. Each pane is a screen: the main window, the settings window, the menu-bar extra.
 
 - **Type is macOS.** `--text-mac-body` 13 for everything you read and click, `--text-mac-small` 11 for secondary lines, section headers, counts and the subtitle, `--text-mac-headline` 15, `--text-mac-title` 20 and `--text-mac-large` 26 for a detail pane's title. Never 16 px body, never the web or phone scale.
 - **The window.** `.ds-mac-lights` (three dots) at the left of `.ds-mac-titlebar`, then the title (and one `.ds-mac-subtitle`), then toolbar items (`.ds-mac-tool`, 28 px, icons only, a search field at the right). A unified 52 px bar; no second row of tabs under it.
@@ -14,7 +14,7 @@ A Mac board is one window: `<meta name="design-board" content="platform=mac,widt
 - **Sheets** (`.ds-mac-sheet` over `.ds-mac-dim`) attach to the window's top, 420 px wide, one task, Cancel at the left of the buttons and the `.default` at the right. A dialog that floats free is an alert, with an icon, a bold line and two buttons.
 - **Light and dark** both, from tokens only. Corner radius 12 on the window, 6 on controls.
 
-- **No invented content.** Item names, counts, dates, sizes and times in a window are the product's. Without them use honest placeholders ("Item one", "Secondary line", "Item count") and `data-question`; a plausible `24 items`, `2 days ago`, `1.2 MB` or `Thu 09:41` that the brief never gave is a `[fact]` finding. The menu bar's clock is the system's, not yours.
+- **Sample content and product facts.** What a person would have in the app (note titles and text, folder names, a contact, a file's name and date) is drawn real, specific and plausible, with no flag: "Soup stock notes", "Recipes", "Edited yesterday". Never "Item one", "Secondary line" or "Item count": a window of filler is a wireframe. What the product does or decides (a shortcut, a setting's default, a sync interval, a policy, a price) is the brief's; when it isn't given, leave it out, or draw a plausible value and flag it with `data-question`. Worked example: the note "Soup stock notes" is sample; "Sync every 15 minutes" is a fact and carries the flag. The menu bar's clock is the system's. A reviewer lists each unflagged fact as a `[fact]` finding, and filler as one too.
 
 What agents get wrong for the Mac:
 

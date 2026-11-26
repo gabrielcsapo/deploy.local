@@ -3,6 +3,13 @@
    an inspector, a settings window with toolbar tabs, a menu-bar extra popover, sheets and native
    controls. Type is --text-mac-*: 13 body, 11 secondary. Light and dark come from the tokens. */
 
+/* A board carries no <style>: the page's margin and ground are set here. */
+html,
+body {
+  margin: 0;
+  background: var(--bg-sunken);
+}
+
 :root {
   --text-mac-small: 11px;
   --leading-mac-small: 14px;

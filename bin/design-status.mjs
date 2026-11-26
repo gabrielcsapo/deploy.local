@@ -458,6 +458,7 @@ export function designStatus({
       replacedBy: current(file) ? null : currentOf(file, design.replacedBy),
       replaces: board.meta.replaces,
       source: board.meta.source,
+      starting: design.canvas?.startingBoard === file,
       siblings: siblings.map((other) => ({ file: other, current: current(other) })),
       questions: boardQuestions(board.html).map(({ layer, question }) => ({ layer, question })),
       otherBranches: branches.get(`design/boards/${file}`) ?? [],
@@ -519,6 +520,10 @@ export function statusLines(status) {
       }`,
     );
     if (board.title) lines.push(`  ${label('Title')}${board.title}`);
+    if (board.starting)
+      lines.push(
+        `  ${label('Starting board')}placed by init as the example to start from: replace its words with this project's, rename it (git mv, and its key in canvas.json) if you like, and drop "startingBoard" from canvas.json`,
+      );
     if (board.source) lines.push(`  ${label('Source')}${board.source}`);
     if (board.replaces) lines.push(`  ${label('Replaces')}${board.replaces}`);
     if (board.siblings.length)
@@ -585,9 +590,21 @@ const kindWords = {
   logo: 'a logo (the mark from 512 down to 16 px)',
 };
 
+/** Check codes only an app's web and iPhone boards meet. */
+const appOnlyCodes = new Set([
+  'source_action_missing',
+  'second_primary',
+  'row_height_differs',
+  'box_in_card',
+  'differs_from_source',
+  'specimen_text',
+]);
+
 /** `deploy design guide`: how to work on this project's design, from its own files. */
-export function guideLines({ top, designSystem }) {
+export function guideLines({ top, designSystem, all = false }) {
   const design = readDesign(top, designSystem);
+  // A project of one non-app kind gets the shared essentials and its own kind; --all prints it all.
+  const trimmed = design.kind !== 'app' && !all;
   const lines = [];
   const section = (title) => {
     if (lines.length) lines.push('');
@@ -665,12 +682,13 @@ export function guideLines({ top, designSystem }) {
         : ownPlatforms.map((platform) => platformHelp[platform] ?? platform).join(', ')
     }.`,
   );
-  lines.push(
-    '  A game board with device=phone is an iPhone screen (390 x 844, or 844 x 390 turned sideways): draw the status bar in its top 54 px, keep content out of',
-    '  the top 54 and bottom 34 px (the sides, 54 px, in landscape); outside_safe_area and no_status_bar say so. immersive=true in the head opts out for a',
-    "  full-screen game. An app's phone boards are not held to it (they are the app's content, without the device's chrome). Its type is the game scale",
-    "  (--text-game-*), never the phone's; every other platform is held to its own kit's scale too.",
-  );
+  if (!trimmed || design.kind === 'game')
+    lines.push(
+      '  A game board with device=phone is an iPhone screen (390 x 844, or 844 x 390 turned sideways): draw the status bar in its top 54 px, keep content out of',
+      '  the top 54 and bottom 34 px (the sides, 54 px, in landscape); outside_safe_area and no_status_bar say so. immersive=true in the head opts out for a',
+      "  full-screen game. An app's phone boards are not held to it (they are the app's content, without the device's chrome). Its type is the game scale",
+      "  (--text-game-*), never the phone's; every other platform is held to its own kit's scale too.",
+    );
   lines.push(
     '  Style lives in the design system, not the board: no style="…" with a colour, size, space or font, and no <style> block for html, body or a design-system class (inline_style).',
     "  Put it in the kind's css (design/ds/<system>/<kind>.css) as a class. Anything that must scroll sideways says so (overflow-x: auto or data-scroll-x); the rest ends inside its edge (cut_off_side).",
@@ -679,7 +697,9 @@ export function guideLines({ top, designSystem }) {
     '  Also schemes=light dark, title=…, replaces=<Old>.html, copied_from=<Board>.html (commas between keys; semicolons work too).',
   );
   lines.push(
-    '  Its height in the head and in canvas.json must agree; deploy design check --fix writes both.',
+    design.kind === 'doc'
+      ? "  A doc's height is measured, never set: deploy design check --fix writes it into the head and canvas.json together."
+      : '  Its height in the head and in canvas.json must agree; deploy design check --fix writes both.',
   );
 
   const groups = design.tokensJson?.type?.groups ?? [];
@@ -743,14 +763,30 @@ export function guideLines({ top, designSystem }) {
     section('Fixtures (use these names, never invented ones)');
     lines.push(`  ${fixtures.trim().replace(/\.$/, '')}`);
   }
-  section('When the product does not say');
+  section('Sample content, product facts and questions');
   lines.push(
-    '  Mark the layer with data-question="How long are kept files kept?" and say only what is',
+    '  Sample user content (what someone using the product would type or make: a note title, a folder, a contact, a caption,',
   );
   lines.push(
-    "  true today, with no value: 'Kept with this run.' No placeholder, no guess, no promised setting.",
+    '  a recipe) is drawn real and specific, with no flag. Never "Item one", "Note title one", "Lorem" or "00": filler reads as a wireframe.',
   );
-  lines.push('  The check lists it for the owner; a date or number on that layer is a problem.');
+  lines.push(
+    '  Product facts (features, settings and defaults, prices, hours, dates, contact details, statistics, claims) the brief',
+  );
+  lines.push(
+    '  does not give: leave them out, or draw a value that reads as finished copy and put data-question="Are these the real hours?"',
+  );
+  lines.push(
+    '  on the layer. Report, slide and handbook figures are facts: draw plausibly shaped values at real density, flagged.',
+  );
+  lines.push(
+    '  Word a flag as a check, not "How many?" or "How long?": a layer that asks that and states a value is question_invented.',
+  );
+  lines.push(
+    '  A rule the product has not decided: mark the layer with data-question="How long are kept files kept?" and say only what is',
+  );
+  lines.push("  true today, with no value: 'Kept with this run.' No guess, no promised setting.");
+  lines.push('  The check lists every question for the owner.');
   lines.push(
     '  Inside a component instance, ask on its root, by inner layer ID, since the library draws the',
   );
@@ -765,8 +801,17 @@ export function guideLines({ top, designSystem }) {
     '  Change data-props, then deploy design sync [<Board>…] draws it again, keeping its layer IDs.',
   );
   section('Check codes (problems block; notes do not)');
-  const codeWidth = Math.max(...checkCodes.map((entry) => entry.code.length)) + 2;
-  for (const entry of checkCodes)
+  // A kind project lists the codes its boards can meet; --all lists every one.
+  const kindPlatforms = designKinds[design.kind].platforms;
+  const shownCodes = trimmed
+    ? checkCodes.filter((entry) => {
+        if (appOnlyCodes.has(entry.code)) return false;
+        const named = /^(print|doc|logo|game)\b/.exec(entry.means)?.[1];
+        return !named || kindPlatforms.includes(named);
+      })
+    : checkCodes;
+  const codeWidth = Math.max(...shownCodes.map((entry) => entry.code.length)) + 2;
+  for (const entry of shownCodes)
     lines.push(
       `  ${entry.code.padEnd(codeWidth)}${entry.problem ? 'problem' : 'note   '}  ${entry.means}`,
     );
@@ -784,5 +829,11 @@ export function guideLines({ top, designSystem }) {
     '     deploy design review               a brief for a second agent; act on its facts',
   );
   lines.push('  5. git commit, with the code the board pictures');
+  if (trimmed) {
+    section('Rules of this kind');
+    lines.push(
+      `  design/${design.ds ?? 'ds/<name>'}/README.md has the ${design.kind} section. deploy design guide --all prints the full guide (web, iPhone and every kind).`,
+    );
+  }
   return lines;
 }

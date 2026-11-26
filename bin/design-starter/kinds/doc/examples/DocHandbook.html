@@ -3,17 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="design-board" content="platform=doc,page=a4,schemes=light dark,height=1975" />
+    <meta name="design-board" content="platform=doc,page=a4,schemes=light dark" />
     <title>Example handbook</title>
     <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
     <link rel="stylesheet" href="../ds/__DS__/components.css" />
     <link rel="stylesheet" href="../ds/__DS__/doc.css" />
     <style>
-      html,
-      body {
-        margin: 0;
-        background: var(--bg);
-      }
       /* The running header and footer on paper: the same words as the bars. */
       @page {
         @top-left {
@@ -23,7 +18,7 @@
           content: 'Working together';
         }
         @bottom-left {
-          content: 'Date of the last update';
+          content: 'Updated 14 March';
         }
       }
     </style>
@@ -66,7 +61,7 @@
         <table
           class="ds-doc-table"
           data-layer="roles-table"
-          data-question="Which hours is each role reachable, and what share of a cycle does it take?"
+          data-question="Are these the real hours and shares?"
         >
           <caption>
             Who to ask, and when
@@ -83,20 +78,20 @@
             <tr>
               <td>Lead</td>
               <td data-label="Reviews">Plans and scope</td>
-              <td data-label="Reachable">Hours to be confirmed</td>
-              <td data-label="Cycle share" class="num">Share</td>
+              <td data-label="Reachable">Mon–Thu, 9:00–12:00</td>
+              <td data-label="Cycle share" class="num">30%</td>
             </tr>
             <tr>
               <td>Maker</td>
               <td data-label="Reviews">Own work, then a peer</td>
-              <td data-label="Reachable">Hours to be confirmed</td>
-              <td data-label="Cycle share" class="num">Share</td>
+              <td data-label="Reachable">Mon–Fri, 10:00–16:00</td>
+              <td data-label="Cycle share" class="num">60%</td>
             </tr>
             <tr>
               <td>Support</td>
               <td data-label="Reviews">Answers and handovers</td>
-              <td data-label="Reachable">Hours to be confirmed</td>
-              <td data-label="Cycle share" class="num">Share</td>
+              <td data-label="Reachable">Tue and Thu, 13:00–15:00</td>
+              <td data-label="Cycle share" class="num">10%</td>
             </tr>
           </tbody>
         </table>
@@ -156,8 +151,12 @@
           same thread, not in a new one.
         </p>
       </main>
-      <footer class="ds-doc-foot">
-        <span>Date of the last update</span><span>Team handbook</span>
+      <footer
+        class="ds-doc-foot"
+        data-layer="foot"
+        data-question="Is this the real date of the last update?"
+      >
+        <span>Updated 14 March</span><span>Team handbook</span>
       </footer>
     </div>
   </body>

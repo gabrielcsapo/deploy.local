@@ -4,6 +4,12 @@
    bottom sheet and the iOS controls. Every colour, size and space comes from a token. */
 
 /* ---------- Base ---------- */
+/* A board carries no <style>: the page's margin and ground are set here. */
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+}
 .ds-app,
 .ds-phone,
 .ds-board {

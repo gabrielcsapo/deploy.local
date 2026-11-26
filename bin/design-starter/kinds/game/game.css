@@ -2,6 +2,13 @@
    A stage frame (390 x 844, or landscape 844 x 390), a HUD bar, round thumb-sized buttons, level
    tiles, a result card and a pause sheet. Type is --text-game-*. Light and dark from the tokens. */
 
+/* A board carries no <style>: the page's margin and ground are set here. */
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
 :root {
   --text-game-label: 13px;
   --leading-game-label: 18px;

@@ -59,6 +59,7 @@ Flags
                            propose: answer its questions up front
   --drop-instances         check: put carried boards back as on main
   --kind <kind>            init: what this project makes (default app)
+  --all                    guide: the full guide, not only this project's kind
   --pdf                    export: the PDF (the default, and only, format)
 
 Check exits 0 clean, 1 with problems, 2 on wrong usage, 4 when deploy.local
@@ -101,8 +102,11 @@ asks for review, and deploy design feedback --wait hears back.
  */
 export function reviewBrief({ top, boards }) {
   const list = boards.map((board) => `  - design/boards/${board}`).join('\n');
-  return `You are a second reviewer for a design change in ${top}. Another agent made it; you did
-not. Read only; change nothing.
+  return `Project folder: ${top}
+Run every command from this folder.
+
+You are a second reviewer for a design change in it. Another agent made it; you did not. Read
+only; change nothing.
 
 The boards it changed or added:
 ${list}
@@ -117,14 +121,25 @@ Reply with a short numbered list of what a demanding owner would reject or ask t
 important first. Mark each [fact] (the brief, the code or the boards show it; say where) or
 [judgement] (a design opinion; it must agree with the READMEs, and cite them where they settle
 it). For each: the board, width and scheme, the layer, what is wrong, and the fix. Cover:
-anything invented beyond the brief, and in particular every specific figure, date, time, name
-or claim that is neither in the brief nor replaced by an honest placeholder nor marked with
-data-question on its layer: list each unflagged one separately as a [fact] finding, with the
-layer and the text; questions asked rather than values made up; only the design
-system's tokens and components; one primary action and calm restraint; consistency across boards
-and between web and iPhone; every width and scheme readable, nothing cut off, words true to the
-render; layer IDs kept and named; a sensible canvas. Skip praise. If nothing needs fixing, say so
-in one line.
+
+- Product facts nobody gave. A product fact is what the product or organisation does or decides:
+  a feature, a setting and its default, a shortcut, a policy, a price, opening hours, a date,
+  contact details, a statistic, a claim ("free delivery", "loved by 2,000 families"), or a figure
+  in a report, slide or handbook. If it is neither in the brief nor left out nor marked with
+  data-question on its layer, list it as a [fact] finding of its own, with the layer and the text.
+  A flagged plausible value is fine; a question worded "How many?" or "How long?" beside a stated
+  value is not.
+- Wireframe filler. "Item one", "Note title one", "Lorem", "00", or "to be confirmed" everywhere
+  makes the board read as a sketch and cannot be judged: list it as a [fact] finding too, and say
+  what realistic content belongs there.
+- NOT a finding: sample user content, what a person using the product would have typed or made
+  (note titles and text, folder names, a contact in a list, a photo caption, a level's room number,
+  a recipe) when it is realistic, specific and plausible. Do not ask for it to be flagged or removed.
+- Only the design system's tokens and components; one primary action and calm restraint;
+  consistency across boards and between web and iPhone; every width and scheme readable, nothing
+  cut off, words true to the render; layer IDs kept and named; a sensible canvas.
+
+Skip praise. If nothing needs fixing, say so in one line.
 
 Then the author fixes what is fact, and what is judgement only where the READMEs agree, and runs
 deploy design check --fix again.`;
@@ -149,14 +164,23 @@ One board per screen, drawn before it is built, on the same branch as the code.
 - **Read first.** The brief, the product's code if there is any, and \`ds/${name}/README.md\`
   (its rules and iPhone conventions). Draw what the product does, in its words.
 - **Nothing beyond the brief.** No extra tabs, screens, banners, notes fields or counts the brief
-  didn't ask for. Sample names and numbers are placeholders; make them add up to what is drawn.
-- **No invented figures.** Every specific figure, date, time, name or claim that is not in the
-  brief is either replaced by an honest placeholder that reads as finished copy ("the year's
-  total", "this spring", "to be confirmed") or carries \`data-question\` on its layer. 64 plots,
-  1,840 kg, $9,800, a 4:00 to 4:45 session or a named person nobody gave you are the usual
-  ones. A sample is kept only when it is obviously illustrative (\`00\`, "Item one") and flagged.
-- **Don't invent; ask.** A rule the product doesn't decide gets \`data-question\` on the layer that
-  shows it, and the layer says only what is true today, with no value and no promised setting.
+  didn't ask for.
+- **Draw sample content real; don't invent product facts.** Two kinds of content:
+  - *Sample user content* is what a person using the product would type or make: note titles and
+    text, folder names, a contact in a list, a photo caption, a level's room number, a recipe.
+    Draw it realistic, specific and plausible, in the brief's language and setting. It needs no
+    \`data-question\`. Never "Item one", "Note title one", "Lorem" or "00": a board of filler is a
+    wireframe, and is judged as one.
+  - *Product facts* are what the product or organisation does or decides: features, settings and
+    their defaults, shortcuts, policies, prices, opening hours, dates, contact details,
+    statistics, claims ("free delivery", "loved by 2,000 families"). If the brief doesn't give
+    it, either leave it out with the layout working without it, or draw a value that reads as
+    finished copy and put \`data-question\` on that layer.
+  - Figures in a report, slide or handbook (harvest totals, budget lines, timetables) are product
+    facts: ask. Still draw the layout at its real density with a plausibly shaped value ("1,240
+    kg", "Mon 4:00-4:45 pm") flagged with \`data-question\`, never "00" or "to be confirmed", so the
+    design can be judged. Word the question as a check ("Are these the real totals?"), not "How
+    many?" or "How long?", which the check reads as "this layer must state no value".
 - **Stay on the system.** Tokens and components only; one accent; one primary action per view;
   roomy rows; no box inside a card; type and spacing on the scale.
 - **Light and dark, every width.** Web at 1440 and 700, iPhone at 390. Words that describe the
@@ -174,13 +198,17 @@ sized in its head:
 
     <meta name="design-board" content="width=390,height=844,platform=phone,source=Pantry.html">
 
+A board carries no \`<style>\`: the design system's CSS sets the page's margin and ground.
+
 Keys: width, height, platform (web or phone), schemes (light dark by default), title, source
 (the board it is drawn from on another platform), copied_from, replaces. Every element someone
 might point at carries a data-layer ID; the check names new ones.
 
 ## When the product does not decide
-Put data-question="How long is a shelf kept?" on the layer and say only what is true today, with
-no value. Never invent one.
+A rule or fact the product doesn't decide: put data-question="How long is a shelf kept?" on the
+layer and say only what is true today, with no value. A figure the layout needs to be judged (a
+total, a time) may be drawn as a plausible value, flagged with a question worded as a check ("Is
+this the real total?"). Sample user content (a note's title, a folder's name) needs none.
 
 ## canvas.json
 Where each board sits ({ "boards": { "<Board>.html": { "x", "y", "w", "h", "title" } } }), the
@@ -202,7 +230,7 @@ export const INIT_README = (name, kind = 'app') => {
     .replace('platform (web or phone)', `platform (${kind}: see \`deploy design guide\`)`)
     .replace(
       '3. Draw `design/boards/<Board>.html`',
-      `3. Start from the board \`init\` placed in \`design/boards/\` (and its siblings in \`ds/${name}/examples/\`); draw \`design/boards/<Board>.html\``,
+      `3. Start from the board \`init\` placed in \`design/boards/\`: it is named for the project and marked "startingBoard" in \`canvas.json\`. Replace its words with this project's own and rename it with \`git mv\` if you like (update its key in \`canvas.json\` and drop "startingBoard"); never leave it as it came. Its siblings are in \`ds/${name}/examples/\`. Draw other boards as \`design/boards/<Board>.html\``,
     );
 };
 
@@ -311,12 +339,14 @@ export function initDesign(top, name, starter, kind = 'app') {
   const startFile = startingBoards[kind];
   const startBytes = startFile ? own.get(`examples/${startFile}.html`) : undefined;
   if (startFile && startBytes) {
-    const html = fill('x.html', startBytes).toString('utf8');
+    let html = fill('x.html', startBytes).toString('utf8');
     const file = `${startFile}.html`;
+    // The starting board is the project's own: "<Name> title slide", not "Example title slide".
+    const title = `${displayName(name)} ${startingLabels[kind] ?? 'board'}`;
+    html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
     const meta = parseBoardMeta(html);
     const platform = boardPlatform(meta);
     const frame = boardFrame(platform, meta);
-    const title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? startFile;
     // A document is as tall as it reads; the canvas shows it at a reading height until measured.
     const box = { w: frame.width, h: frame.height ?? 1000 };
     put(`design/boards/${file}`, html);
@@ -325,6 +355,8 @@ export function initDesign(top, name, starter, kind = 'app') {
     const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
     canvas.boards[file] = { x: 0, y: 0, ...box, title };
     canvas.order = [file];
+    // status says this is the starting point, until the board is renamed or replaced.
+    canvas.startingBoard = file;
     writeFileSync(canvasPath, `${JSON.stringify(canvas, null, 2)}\n`);
   }
   for (const [path, bytes] of [...base].sort(([a], [b]) => a.localeCompare(b)))
@@ -340,6 +372,22 @@ const startingBoards = {
   mac: 'MacMain',
   game: 'GameTitle',
   logo: 'LogoMark',
+};
+
+/** What each kind's starting board is called after the project: "<Name> title slide". */
+const startingLabels = {
+  doc: 'handbook',
+  slides: 'title slide',
+  print: 'card front',
+  mac: 'main window',
+  game: 'title screen',
+  logo: 'mark',
+};
+
+/** "garden-club" as a person would write it on a title: "Garden club". */
+const displayName = (name) => {
+  const words = String(name).replace(/[-_]+/g, ' ').trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : 'Project';
 };
 
 /** A project's first board: a standalone page, styled by its own <style>. */
@@ -1288,16 +1336,9 @@ export async function runDesign(sub, args, options, deps) {
     case 'review': {
       // A second agent finds what the author and the check missed; this is its brief.
       const top = needsDesign(root());
-      const main = `origin/${mainName(top)}`;
-      const changed = [
-        ...(tryGit(['diff', '--name-only', main, '--', 'design/boards'], top) ?? '').split('\n'),
-        ...(
-          tryGit(['ls-files', '--others', '--exclude-standard', '--', 'design/boards'], top) ?? ''
-        ).split('\n'),
-      ]
-        .map((path) => path.trim())
-        .filter((path) => path.endsWith('.html'));
-      const boards = [...new Set(changed)].map((path) => basename(path));
+      // Boards changed since this branch left main (its merge-base, not main's own tip), whether
+      // committed, uncommitted or new.
+      const boards = changedBoards(top, deps.git, mainName(top));
       if (!boards.length)
         throw cliError('This branch changes no boards yet.', 'deploy design status <Board>', 1);
       const brief = reviewBrief({ top, boards });
@@ -1308,7 +1349,7 @@ export async function runDesign(sub, args, options, deps) {
     case 'guide': {
       if (args.length) throw cliError('guide takes no names.', 'deploy design guide', 2);
       const top = needsDesign(root());
-      const lines = guideLines({ top, designSystem: deps.designSystem });
+      const lines = guideLines({ top, designSystem: deps.designSystem, all: Boolean(options.all) });
       for (const line of lines) out(line);
       return { exitCode: 0, json: { ok: true, code: 'guide', guide: lines.join('\n') } };
     }

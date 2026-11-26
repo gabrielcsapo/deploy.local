@@ -2,6 +2,13 @@
    One column of about 66 characters, a real table, notices and figures, a running header and
    footer for print. Type is the --text-doc-* scale below (px on screen, pt when printed). */
 
+/* A board carries no <style>: the page's margin and ground are set here. */
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
 :root {
   --text-doc-meta: 13px;
   --leading-doc-meta: 20px;
