@@ -147,6 +147,8 @@ export function freeSpot(
     const best = found.sort((a, b) => a.travelled - b.travelled)[0];
     if (best) return { x: best.x, y: best.y, side: best.side };
   }
+  // An empty canvas starts at its corner.
+  if (!taken.length) return { x: 0, y: 0, side: 'bottom' };
   const bottom = Math.max(0, ...taken.map((other) => other.y + other.h));
   return { x: near?.x ?? 0, y: bottom + gap, side: 'bottom' };
 }

@@ -56,7 +56,11 @@ export async function buildBoardPage(html: string, sources: BoardSources) {
     const library = await sources.library();
     if (library) page = syncInstances(page, library);
   }
-  for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
+  // A design system stylesheet beside the board, however the tag is written (a formatter
+  // writes <link … />).
+  for (const match of page.matchAll(
+    /<link\b(?=[^>]*\srel="stylesheet")[^>]*\shref="\.\.\/(ds\/[^"]+\.css)"[^>]*>/g,
+  )) {
     const css = await sources.css(match[1]);
     page = page.replace(match[0], () => `<style>${css?.toString() ?? ''}</style>`);
   }

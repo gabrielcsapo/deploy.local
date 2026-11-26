@@ -392,7 +392,17 @@ export function designStatus({
         sourceOn: source ? design.boards.get(source)?.platform : null,
         templates: templates.map((component) => component.id),
         // A project's first board starts from its design system's examples, if any.
-        ...(design.files.length ? {} : { examples: design.examples, ds: design.ds }),
+        ...(design.files.length
+          ? {}
+          : {
+              // Examples of this platform first.
+              examples: [...design.examples].sort(
+                (a, b) =>
+                  Number(platformOfName(b.split('/').pop()) === platform) -
+                  Number(platformOfName(a.split('/').pop()) === platform),
+              ),
+              ds: design.ds,
+            }),
         ...(platform === 'phone' && phoneConventions(top, designSystem)
           ? { conventions: phoneConventions(top, designSystem) }
           : {}),
@@ -562,6 +572,10 @@ export function guideLines({ top, designSystem }) {
     lines.push('  deploy design init makes design/ with a starter one in design/ds/<name>/.');
   }
   section('Platforms and sizes');
+  if (!design.boards.size) {
+    lines.push('  web     1440  drawn at 1440 and 700, light and dark');
+    lines.push('  phone   390   drawn at 390 (844 tall), light and dark');
+  }
   const platforms = new Map();
   for (const board of design.boards.values()) {
     const entry = platforms.get(board.platform) ?? { count: 0, widths: new Map() };

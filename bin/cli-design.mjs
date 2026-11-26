@@ -150,7 +150,11 @@ export function initDesign(top, name, starter) {
   mkdirSync(join(design, 'ds', name), { recursive: true });
   for (const [path, bytes] of Object.entries(starter).sort(([a], [b]) => a.localeCompare(b))) {
     if (path.split('/').includes('..')) continue;
-    put(`design/ds/${name}/${path}`, bytes);
+    // The starter's examples link ../ds/__DS__/…: this project's folder.
+    const text = /\.(html|css|md|json)$/.test(path)
+      ? Buffer.from(Buffer.from(bytes).toString('utf8').replaceAll('__DS__', name))
+      : bytes;
+    put(`design/ds/${name}/${path}`, text);
   }
   return written;
 }
@@ -489,7 +493,9 @@ export async function runDesign(sub, args, options, deps) {
           // Where and why, so an agent that placed it by hand sees what changed.
           const where = near
             ? `${side === 'below' ? 'below' : `${side} of`} ${screenName(near)}`
-            : 'under the rest of the canvas';
+            : rect.x === 0 && rect.y === 0
+              ? 'first on the canvas'
+              : 'under the rest of the canvas';
           fixed.push(
             `${screenName(file)} placed at x ${rect.x}, y ${rect.y} in canvas.json, ${where} (${why ?? 'it was misplaced'})`,
           );

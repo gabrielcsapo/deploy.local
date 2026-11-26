@@ -48,6 +48,7 @@ import {
 import { parseBoardMeta, setBoardMetaHeight } from '../../../shared/v2/design-board-meta.ts';
 import { noteRect, placeBoard, rowGap } from '../../design/board-placement.ts';
 import { layerFates } from '../../design/board-layers.ts';
+import { buildBoardPage } from '../../design/check-drawing.ts';
 import { designSystemFolder, designSystemPaths } from '../../../shared/v2/design-system-path.ts';
 import type { Inspection, InspectedText } from '../../../shared/v2/design-inspect.ts';
 
@@ -1904,4 +1905,34 @@ test('a new project is judged by its own tokens, and a board without dark is mis
   } finally {
     repo.cleanup();
   }
+});
+
+test("the starter's tokens read as a CSS-only system, with either quote, and its examples link their system", async () => {
+  const css = readFileSync(
+    join(import.meta.dirname, '../../../bin/design-starter/tokens.css'),
+    'utf8',
+  );
+  for (const text of [css, css.replaceAll('"', "'")]) {
+    const tokens = tokensFromCss(text);
+    assert.ok(
+      tokens.type.includes(15) && !tokens.type.includes(17),
+      'web sizes without the phone ones',
+    );
+    assert.ok(tokens.phoneType?.includes(17));
+    assert.ok(tokens.space.includes(16));
+    const ink = tokens.colors.find((token) => token.name === 'ink');
+    assert.ok(ink?.light && ink.dark && ink.light !== ink.dark, 'ink has a dark value');
+  }
+  const page = await buildBoardPage(
+    '<head><link rel="stylesheet" href="../ds/larder/tokens.css" /><link href="../ds/larder/components.css" rel="stylesheet"></head>',
+    {
+      library: async () => null,
+      css: async (path) => Buffer.from(`/* ${path} */`),
+      capture: async () => null,
+    },
+  );
+  assert.equal(
+    page,
+    '<head><style>/* ds/larder/tokens.css */</style><style>/* ds/larder/components.css */</style></head>',
+  );
 });

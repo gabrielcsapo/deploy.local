@@ -1765,3 +1765,31 @@ test('guide in a project with design/ but no design system says so and points at
     repo.cleanup();
   }
 });
+
+test("init copies the real starter, with its examples pointing at this project's system", async () => {
+  const { designStarterFiles } = await import('./design-local-assets.mjs');
+  const starter = designStarterFiles();
+  assert.ok(starter['tokens.css'] && starter['library.json'], 'the CLI carries the starter');
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-starter-')));
+  try {
+    git(['init', '-q', '--initial-branch=main'], root);
+    const result = await runDesign(
+      'init',
+      ['Larder'],
+      { json: true },
+      terminal(root, coordinator().api, { starter: () => starter }).deps,
+    );
+    assert.equal(result.json.name, 'larder');
+    for (const path of Object.keys(starter)) {
+      const copied = readFileSync(join(root, 'design/ds/larder', path), 'utf8');
+      assert.doesNotMatch(copied, /__DS__/, path);
+    }
+    const example = Object.keys(starter).find((path) => path.startsWith('examples/'));
+    assert.match(
+      readFileSync(join(root, 'design/ds/larder', example), 'utf8'),
+      /\.\.\/ds\/larder\/tokens\.css/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

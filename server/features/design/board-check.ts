@@ -884,7 +884,9 @@ export async function checkDesign(
     // Beside the board it came from, else beside a board of the same screen already placed.
     const placedSibling = screenFamily(
       file,
-      Object.keys(placing.boards).filter((other) => other !== file && !own.includes(other)),
+      Object.keys(placing.boards).filter(
+        (other) => other !== file && (!own.includes(other) || other in places),
+      ),
     )[0];
     const spot = placeBoard({
       canvas: placing,
@@ -908,7 +910,9 @@ export async function checkDesign(
     placing.boards[file] = { ...placing.boards[file], x: spot.x, y: spot.y, ...size };
     const where = spot.near
       ? `${spot.side === 'below' ? 'below' : `${spot.side} of`} ${spot.near}`
-      : 'under the rest of the canvas';
+      : spot.x === 0 && spot.y === 0
+        ? 'first on the canvas'
+        : 'under the rest of the canvas';
     for (const problem of problems)
       if (problem.file === file)
         if (['boards_overlap', 'board_overlaps_note', 'not_on_canvas'].includes(problem.code ?? ''))
