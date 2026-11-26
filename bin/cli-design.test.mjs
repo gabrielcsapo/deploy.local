@@ -1349,7 +1349,10 @@ test('status says where to start: platform, sizes, current or replaced, source, 
 
     const guide = terminal(repo.clone, coordinator().api);
     await runDesign('guide', [], {}, guide.deps);
-    assert.match(guide.text(), /^Platforms and sizes\n {2}web {5}1440 {2}drawn at 1440 and 700/);
+    assert.match(
+      guide.text(),
+      /^Design system\n {2}design\/ds\/deploy-local: components\/library.json\n\nPlatforms and sizes\n {2}web {5}1440 {2}drawn at 1440 and 700/,
+    );
     assert.match(guide.text(), /\n {2}list-group {13}Rows in a group\n/);
     assert.match(guide.text(), /\n {2}low_contrast +problem {2}/);
     assert.match(guide.text(), /data-question=/);
@@ -1578,9 +1581,9 @@ test('a clean check ends with the pairs to open and the questions a reviewer ask
 test("status prints the design system's phone conventions for a new phone board", async () => {
   const repo = repository();
   try {
-    mkdirSync(join(repo.clone, 'design/ds'), { recursive: true });
+    mkdirSync(join(repo.clone, 'design/ds/site'), { recursive: true });
     writeFileSync(
-      join(repo.clone, 'design/ds/README.md'),
+      join(repo.clone, 'design/ds/site/README.md'),
       '# System\n\n## Phone screens\n\n- Detail screens have a back button and the title in the bar.\n- Rows are 52 px.\n\n## Lists\n\nOther.\n',
     );
     const run = terminal(repo.clone, coordinator().api);
@@ -1642,6 +1645,122 @@ test('sync draws instances again from their data-props on the changed boards, ke
       runDesign('sync', ['Nope'], {}, run.deps),
       (error) => error.exitCode === 2,
     );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('init starts design/ in an empty repository with the starter, here, and the rest point at it', async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-init-')));
+  try {
+    const folder = join(root, 'larder');
+    mkdirSync(folder);
+    git(['init', '-q', '--initial-branch=main'], folder);
+    const starter = {
+      'tokens.css': Buffer.from(':root{--shelf:#f4efe6;--text-body:16px;--space-4:16px}\n'),
+      'components.css': Buffer.from('.lr-row{padding:12px 16px}\n'),
+      'library.json': Buffer.from(
+        JSON.stringify({
+          components: [
+            {
+              id: 'row',
+              name: 'Row',
+              description: 'A pantry row. More.',
+              props: [],
+              html: '<div class="lr-row"></div>',
+            },
+          ],
+        }),
+      ),
+      'README.md': Buffer.from('# Larder design system\n'),
+      'examples/PhoneScreen.html': Buffer.from(
+        '<meta name="design-board" content="width=390,height=844">\n<main>Example</main>\n',
+      ),
+    };
+    const run = (extra = {}) =>
+      terminal(folder, coordinator().api, { starter: () => starter, ...extra });
+    // Before init, every command says to run it.
+    for (const sub of ['check', 'status', 'sync', 'guide'])
+      await assert.rejects(
+        runDesign(sub, [], {}, run().deps),
+        (error) => error.next === 'deploy design init' && error.exitCode === 1,
+      );
+    const made = run();
+    const result = await runDesign('init', [], {}, made.deps);
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.json.name, 'larder');
+    assert.match(
+      made.text(),
+      /Next: deploy design guide, then draw your first board in design\/boards\/\n$/,
+    );
+    const canvas = JSON.parse(readFileSync(join(folder, 'design/canvas.json'), 'utf8'));
+    assert.deepEqual(canvas, {
+      title: 'larder',
+      designSystem: 'ds/larder',
+      schemes: ['light', 'dark'],
+      boards: {},
+      order: [],
+      notes: {},
+    });
+    assert.ok(existsSync(join(folder, 'design/boards')));
+    assert.equal(
+      readFileSync(join(folder, 'design/ds/larder/examples/PhoneScreen.html'), 'utf8'),
+      starter['examples/PhoneScreen.html'].toString(),
+    );
+    assert.match(
+      readFileSync(join(folder, 'design/README.md'), 'utf8'),
+      /deploy design check --fix/,
+    );
+    // Nothing on a branch, no worktree, nothing sent.
+    assert.equal(git(['branch', '--show-current'], folder), 'main');
+    // Again: refused politely.
+    await assert.rejects(runDesign('init', [], {}, run().deps), /already has design/);
+
+    // The guide reads Larder's own system, never deploy.local's.
+    const guide = run({ designSystem: () => Buffer.from('deploy.local tokens') });
+    await runDesign('guide', [], {}, guide.deps);
+    const text = guide.text();
+    assert.match(
+      text,
+      /^Design system\n {2}design\/ds\/larder: tokens\.css, library\.json, components\.css, README\.md, examples\n {2}Examples to start from: design\/ds\/larder\/examples\/PhoneScreen\.html\n/,
+    );
+    assert.match(text, /\nType scale \(px, from tokens\.css\)\n {2}16\n/);
+    assert.match(
+      text,
+      /\nComponents \(design\/ds\/larder\/library\.json\)\n {2}row {2}A pantry row\n/,
+    );
+    assert.doesNotMatch(text, /deploy-local|button-primary/);
+
+    // A first board starts from the starter's examples.
+    const status = run();
+    const first = await runDesign('status', ['Pantry'], {}, status.deps);
+    assert.deepEqual(
+      first.json.components.map((component) => component.id),
+      ['row'],
+    );
+    assert.match(
+      status.text(),
+      /\n {2}First board {5}start from the starter's examples in design\/ds\/larder\/: PhoneScreen\.html\n/,
+    );
+    assert.match(
+      status.text(),
+      /\nNext {2}copy design\/ds\/larder\/examples\/PhoneScreen\.html to design\/boards\/Pantry\.html/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('guide in a project with design/ but no design system says so and points at init', async () => {
+  const repo = repository();
+  try {
+    const run = terminal(repo.clone, coordinator().api, { designSystem: () => Buffer.from('{}') });
+    await runDesign('guide', [], {}, run.deps);
+    assert.match(
+      run.text(),
+      /^Design system\n {2}This project has no design system yet\.\n {2}deploy design init/,
+    );
+    assert.doesNotMatch(run.text(), /deploy-local/);
   } finally {
     repo.cleanup();
   }

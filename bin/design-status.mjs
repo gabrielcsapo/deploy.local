@@ -13,15 +13,44 @@ import {
   screenBase,
   screenFamily,
 } from '../server/design/board-quality.ts';
+import { designSystemFolder, designSystemPaths } from '../shared/v2/design-system-path.ts';
 
 const readOnly = { GIT_OPTIONAL_LOCKS: '0' };
 
-/** A file under design/: the project's own, else deploy.local's design system for ds/ paths. */
+/**
+ * A file under design/: the project's own. Only deploy.local's own design system (ds/deploy-local)
+ * falls back to the copy the CLI carries; no other project gets deploy.local's.
+ */
 function designText(top, path, designSystem) {
   const full = join(top, 'design', path);
   if (existsSync(full)) return readFileSync(full, 'utf8');
-  return path.startsWith('ds/') ? (designSystem?.(path)?.toString() ?? null) : null;
+  return /^ds\/(deploy-local\/|README\.md$)/.test(path) &&
+    existsSync(join(top, 'design', 'ds', 'deploy-local'))
+    ? (designSystem?.(path)?.toString() ?? null)
+    : null;
 }
+
+/** The project's design system folder under design/ ("ds/larder"), or null when it has none. */
+export function projectDesignSystem(top, canvas) {
+  let folders = [];
+  try {
+    folders = readdirSync(join(top, 'design', 'ds'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    folders = [];
+  }
+  return designSystemFolder(canvas, folders);
+}
+
+/** The first of a design system's files for a role that exists, as text. */
+const systemText = (top, paths, designSystem) => {
+  for (const path of paths ?? []) {
+    const text = designText(top, path, designSystem);
+    if (text !== null) return text;
+  }
+  return null;
+};
 
 /** "PipelineRun.html" from "PipelineRun", "PipelineRun.html" or "design/boards/PipelineRun.html". */
 export const boardFileName = (name) =>
@@ -64,25 +93,49 @@ export function readDesign(top, designSystem) {
   for (const board of boards.values())
     for (const old of board.meta.replacesAll ?? [])
       if (old !== board.file) replacedBy.set(old, board.file);
+  // The project's own design system, never deploy.local's unless this is deploy.local.
+  const ds = projectDesignSystem(top, canvas);
+  const paths = ds ? designSystemPaths(ds) : null;
   let library = null;
   try {
-    library = JSON.parse(
-      designText(top, 'ds/deploy-local/components/library.json', designSystem) ?? 'null',
-    );
+    library = JSON.parse(systemText(top, paths?.library, designSystem) ?? 'null');
   } catch {
     library = null;
   }
-  const tokens = readTokens(
-    designText(top, 'ds/deploy-local/tokens.json', designSystem),
-    designText(top, 'ds/deploy-local/tokens.css', designSystem),
-  );
+  const tokensJsonText = systemText(top, paths?.tokensJson, designSystem);
+  const tokensCss = systemText(top, paths?.tokensCss, designSystem);
+  const tokens = readTokens(tokensJsonText, tokensCss);
   let tokensJson = null;
   try {
-    tokensJson = JSON.parse(designText(top, 'ds/deploy-local/tokens.json', designSystem) ?? 'null');
+    tokensJson = JSON.parse(tokensJsonText ?? 'null');
   } catch {
     tokensJson = null;
   }
-  return { files, boards, canvas, replacedBy, library, tokens, tokensJson };
+  const readme = systemText(top, paths?.readme, designSystem);
+  let examples = [];
+  try {
+    examples = paths
+      ? readdirSync(join(top, 'design', paths.examples))
+          .filter((file) => file.endsWith('.html'))
+          .map((file) => `design/${paths.examples}/${file}`)
+      : [];
+  } catch {
+    examples = [];
+  }
+  return {
+    files,
+    boards,
+    canvas,
+    replacedBy,
+    library,
+    tokens,
+    tokensJson,
+    ds,
+    paths,
+    readme,
+    examples,
+    hasDesign: existsSync(join(top, 'design')),
+  };
 }
 
 /** The board that is current for one that was replaced, following replaces= to the end. */
@@ -190,7 +243,14 @@ const ago = (ms) => {
  * screens" in design/ds/README.md, when it has one.
  */
 export function phoneConventions(top, designSystem) {
-  const readme = designText(top, 'ds/README.md', designSystem) ?? '';
+  let canvas = null;
+  try {
+    canvas = JSON.parse(designText(top, 'canvas.json') ?? 'null');
+  } catch {
+    canvas = null;
+  }
+  const ds = projectDesignSystem(top, canvas);
+  const readme = (ds && systemText(top, designSystemPaths(ds).readme, designSystem)) ?? '';
   const match = /^(#{2,4})\s+Phone screens\b[^\n]*\n([\s\S]*?)(?=^#{1,4}\s|(?![\s\S]))/im.exec(
     readme,
   );
@@ -331,6 +391,8 @@ export function designStatus({
         source,
         sourceOn: source ? design.boards.get(source)?.platform : null,
         templates: templates.map((component) => component.id),
+        // A project's first board starts from its design system's examples, if any.
+        ...(design.files.length ? {} : { examples: design.examples, ds: design.ds }),
         ...(platform === 'phone' && phoneConventions(top, designSystem)
           ? { conventions: phoneConventions(top, designSystem) }
           : {}),
@@ -391,8 +453,18 @@ export function statusLines(status) {
           lines.push(`  ${label(at ? '' : 'Conventions')}${line}`);
       if (board.templates.length && !board.means)
         lines.push(`  ${label('Templates')}${board.templates.join(', ')}`);
-      if (!board.source && !board.startFrom.length && !board.means && !board.copyFrom)
-        lines.push(`  ${label('Start from')}no board of this screen; use a page template`);
+      if (board.examples && board.ds)
+        lines.push(
+          `  ${label('First board')}start from the starter's examples in design/${board.ds}/${board.examples.length ? `: ${board.examples.map((path) => path.split('/').pop()).join(', ')}` : ''}`,
+        );
+      else if (board.examples)
+        lines.push(
+          `  ${label('First board')}this project has no design system: deploy design init`,
+        );
+      else if (!board.source && !board.startFrom.length && !board.means && !board.copyFrom)
+        lines.push(
+          `  ${label('Start from')}no board of this screen; ${board.templates.length ? 'use a page template' : 'copy the nearest board of this project'}`,
+        );
       for (const other of board.otherBranches)
         lines.push(
           `  ${label('Also changing')}branch ${other.branch} (${other.by}, ${ago(status.now - other.at)})`,
@@ -440,7 +512,11 @@ export function statusLines(status) {
       ? `Next  edit design/boards/${target} instead (${first.file} was replaced), then deploy design check --fix`
       : first.exists
         ? `Next  edit design/boards/${target}, then deploy design check --fix`
-        : `Next  copy design/boards/${first.copyFrom ?? '<Board>.html'} to design/boards/${target}${first.source ? `, draw it from ${first.source}` : ''}, then deploy design check --fix (it places it on the canvas)`,
+        : first.copyFrom
+          ? `Next  copy design/boards/${first.copyFrom} to design/boards/${target}${first.source ? `, draw it from ${first.source}` : ''}, then deploy design check --fix (it places it on the canvas)`
+          : first.examples?.length
+            ? `Next  copy ${first.examples[0]} to design/boards/${target}, then deploy design check --fix (it places it on the canvas)`
+            : `Next  draw design/boards/${target}, then deploy design check --fix (it places it on the canvas)`,
   );
   return lines;
 }
@@ -466,6 +542,25 @@ export function guideLines({ top, designSystem }) {
     if (lines.length) lines.push('');
     lines.push(title);
   };
+  section('Design system');
+  if (design.ds) {
+    const files = Object.values(design.paths)
+      .flat()
+      .filter(
+        (path) =>
+          typeof path === 'string' &&
+          path.startsWith(design.ds) &&
+          existsSync(join(top, 'design', path)),
+      );
+    lines.push(
+      `  design/${design.ds}: ${files.map((path) => path.slice(design.ds.length + 1)).join(', ') || 'empty'}`,
+    );
+    if (design.examples.length)
+      lines.push(`  Examples to start from: ${design.examples.join(', ')}`);
+  } else {
+    lines.push('  This project has no design system yet.');
+    lines.push('  deploy design init makes design/ with a starter one in design/ds/<name>/.');
+  }
   section('Platforms and sizes');
   const platforms = new Map();
   for (const board of design.boards.values()) {
@@ -498,6 +593,11 @@ export function guideLines({ top, designSystem }) {
         lines.push(
           `  ${`${style.name}`.padEnd(14)}${`${Number.parseFloat(style.fontSize)}/${Number.parseFloat(style.lineHeight)}`.padEnd(8)}${String(style.fontWeight ?? 400).padEnd(5)}${(style.usage ?? '').split('. ')[0]}`,
         );
+  } else if (design.tokens?.type.length) {
+    section('Type scale (px, from tokens.css)');
+    lines.push(`  ${design.tokens.type.join(', ')}`);
+    if (design.tokens.phoneType?.length)
+      lines.push(`  phone: ${design.tokens.phoneType.join(', ')}`);
   }
   if (design.tokens?.space.length) {
     section('Spacing');
@@ -511,7 +611,9 @@ export function guideLines({ top, designSystem }) {
   }
   const components = design.library?.components ?? [];
   if (components.length) {
-    section('Components (design/ds/deploy-local/components/library.json)');
+    section(
+      `Components (design/${design.paths.library.find((path) => existsSync(join(top, 'design', path))) ?? design.paths.library[0]})`,
+    );
     const width = Math.max(...components.map((component) => component.id.length)) + 2;
     const icons = components.filter((component) => component.group === 'Icons and art');
     for (const component of components.filter((entry) => entry.group !== 'Icons and art'))
@@ -524,7 +626,7 @@ export function guideLines({ top, designSystem }) {
       const iconWidth = Math.max(...shown.map((entry) => entry.name.length)) + 2;
       for (const entry of shown)
         lines.push(
-          `  ${entry.name.padEnd(iconWidth)}${entry.board ?? 'design/ds/deploy-local/components/library.json'}`,
+          `  ${entry.name.padEnd(iconWidth)}${entry.board ?? `design/${design.paths.library[0]}`}`,
         );
     }
   }

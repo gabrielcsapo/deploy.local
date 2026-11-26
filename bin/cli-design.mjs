@@ -11,6 +11,7 @@ import {
   boardFileName,
   changedBoards,
   designStatus,
+  readDesign,
   guideLines,
   statusLines,
 } from './design-status.mjs';
@@ -26,6 +27,7 @@ export const DESIGN_HELP = `deploy design — change what people see, on the sam
 
 Usage  deploy design <command> [flags]
 
+  init [<name>]            Start design/ here, with a starter design system
   guide                    How to work on this project's design
   status [<Board>…]        Where to start a board: its source, siblings, questions
   check                    Draw what you changed beside main and check it, here
@@ -80,6 +82,78 @@ deploy design start "<title>", then deploy design dev to see
 the boards on the Design page as you save. deploy design propose
 asks for review, and deploy design feedback --wait hears back.
 `;
+
+/** design/README.md for a project deploy design init starts: how to work, in short. */
+export const INIT_README = (name) => `# Design
+
+One board per screen, drawn before it is built, on the same branch as the code.
+
+## The loop
+1. \`deploy design guide\`: platforms, sizes, the type and spacing scale, components, check codes.
+2. \`deploy design status <Board>\`: where to start a board, its source and its siblings.
+3. Draw \`design/boards/<Board>.html\` with the design system in \`ds/${name}/\`.
+4. \`deploy design check --fix\`: draws each changed board in light and dark into
+   \`output/design/pairs\`, places new boards on the canvas, and lists problems and notes.
+5. Look at every pair, fix every problem, commit with the code.
+
+## A board
+A standalone HTML page that links \`../ds/${name}/tokens.css\` and \`../ds/${name}/components.css\`,
+sized in its head:
+
+    <meta name="design-board" content="width=390,height=844,platform=phone,source=Pantry.html">
+
+Keys: width, height, platform (web or phone), schemes (light dark by default), title, source
+(the board it is drawn from on another platform), copied_from, replaces. Every element someone
+might point at carries a data-layer ID; the check names new ones.
+
+## When the product does not decide
+Put data-question="How long is a shelf kept?" on the layer and say only what is true today, with
+no value. Never invent one.
+
+## canvas.json
+Where each board sits ({ "boards": { "<Board>.html": { "x", "y", "w", "h", "title" } } }), the
+notes beside them, the design system ("designSystem": "ds/${name}") and the schemes every board
+draws ("schemes": ["light", "dark"]).
+`;
+
+/**
+ * design/ for a project: an empty canvas, its README, boards/, and the starter design system
+ * copied into ds/<name>/. Returns the paths it wrote, relative to the project.
+ */
+export function initDesign(top, name, starter) {
+  const design = join(top, 'design');
+  const written = [];
+  const put = (path, bytes) => {
+    mkdirSync(dirname(join(top, path)), { recursive: true });
+    writeFileSync(join(top, path), bytes);
+    written.push(path);
+  };
+  put(
+    'design/canvas.json',
+    `${JSON.stringify(
+      {
+        title: name,
+        designSystem: `ds/${name}`,
+        schemes: ['light', 'dark'],
+        boards: {},
+        order: [],
+        notes: {},
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  put('design/README.md', INIT_README(name));
+  mkdirSync(join(design, 'boards'), { recursive: true });
+  writeFileSync(join(design, 'boards', '.gitkeep'), '');
+  written.push('design/boards/');
+  mkdirSync(join(design, 'ds', name), { recursive: true });
+  for (const [path, bytes] of Object.entries(starter).sort(([a], [b]) => a.localeCompare(b))) {
+    if (path.split('/').includes('..')) continue;
+    put(`design/ds/${name}/${path}`, bytes);
+  }
+  return written;
+}
 
 /** A project's first board: a standalone page, styled by its own <style>. */
 export function firstBoard(title = 'Board', width = 1440, height = 900) {
@@ -267,6 +341,12 @@ export async function runDesign(sub, args, options, deps) {
     return id;
   };
   const designApi = (id) => `/api/projects/${encodeURIComponent(id)}/design`;
+  /** A folder with no design/ is pointed at init. */
+  const needsDesign = (top) => {
+    if (!existsSync(join(top, 'design')))
+      throw cliError('This project has no design yet.', 'deploy design init', 1);
+    return top;
+  };
   const mainName = (top) =>
     (tryGit(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], top) ?? 'origin/main').replace(
       /^origin\//,
@@ -312,7 +392,7 @@ export async function runDesign(sub, args, options, deps) {
    */
   const check = async (top, { quiet = false, drop = false, fix = false } = {}) => {
     if (!existsSync(join(top, 'design')))
-      throw cliError('This project has no design yet.', 'deploy design start "<title>"', 1);
+      throw cliError('This project has no design yet.', 'deploy design init', 1);
     const opened = deps.openLocalDrawing
       ? await deps.openLocalDrawing(top)
       : { reason: 'this terminal has no browser' };
@@ -844,7 +924,7 @@ export async function runDesign(sub, args, options, deps) {
     }
 
     case 'status': {
-      const top = root();
+      const top = needsDesign(root());
       const status = designStatus({
         top,
         git: deps.git,
@@ -860,13 +940,8 @@ export async function runDesign(sub, args, options, deps) {
 
     case 'sync': {
       // Instances drawn again from their data-props, keeping their layer IDs and questions.
-      const top = root();
-      const libraryFile = join(top, 'design', 'ds', 'deploy-local', 'components', 'library.json');
-      const library = parseLibrary(
-        existsSync(libraryFile)
-          ? readFileSync(libraryFile, 'utf8')
-          : deps.designSystem?.('ds/deploy-local/components/library.json')?.toString(),
-      );
+      const top = needsDesign(root());
+      const library = parseLibrary(JSON.stringify(readDesign(top, deps.designSystem).library));
       if (!library)
         throw cliError('This project has no component library.', 'deploy design guide', 1);
       const files = args.length
@@ -902,9 +977,30 @@ export async function runDesign(sub, args, options, deps) {
       };
     }
 
+    case 'init': {
+      // A design for this project, here: no branch, no worktree, no network.
+      const top = root();
+      if (args.length > 1) throw cliError('Give one name.', 'deploy design init larder', 2);
+      if (existsSync(join(top, 'design')))
+        throw cliError('This project already has design/.', 'deploy design guide', 1);
+      const name = designSlug(args[0] ?? basename(top)) || 'project';
+      const written = initDesign(top, name, deps.starter?.() ?? {});
+      for (const path of written.slice(0, 6)) step('✓', 'Made', path);
+      if (written.length > 6)
+        step('✓', 'Made', `and ${written.length - 6} more in design/ds/${name}/`);
+      if (!Object.keys(deps.starter?.() ?? {}).length)
+        step('!', 'No starter design system', `this CLI carries none; design/ds/${name}/ is empty`);
+      out();
+      out('Next: deploy design guide, then draw your first board in design/boards/');
+      return {
+        exitCode: 0,
+        json: { ok: true, code: 'initialized', name, written, next: 'deploy design guide' },
+      };
+    }
+
     case 'guide': {
       if (args.length) throw cliError('guide takes no names.', 'deploy design guide', 2);
-      const top = root();
+      const top = needsDesign(root());
       const lines = guideLines({ top, designSystem: deps.designSystem });
       for (const line of lines) out(line);
       return { exitCode: 0, json: { ok: true, code: 'guide', guide: lines.join('\n') } };
@@ -1124,7 +1220,7 @@ export async function runDesign(sub, args, options, deps) {
     case 'dev': {
       const top = root();
       if (!existsSync(join(top, 'design', 'canvas.json')))
-        throw cliError('This folder has no design yet.', 'deploy design start "<title>"', 1);
+        throw cliError('This folder has no design yet.', 'deploy design init', 1);
       const branch = tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], top) ?? 'HEAD';
       // The project by the name of its main checkout, which a design folder sits beside.
       const mainFolder = (tryGit(['worktree', 'list', '--porcelain'], top) ?? '')

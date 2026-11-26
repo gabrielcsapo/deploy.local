@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
-/* global __DESIGN_LOCAL_ASSETS__, __DESIGN_SYSTEM_FILES__ */
+/* global __DESIGN_LOCAL_ASSETS__, __DESIGN_SYSTEM_FILES__, __DESIGN_STARTER_FILES__ */
 
 /** Every file under a folder, as { "relative/path": Buffer }. */
 export function readTree(folder) {
@@ -44,4 +44,13 @@ export function designSystemFiles() {
       bytes,
     ]),
   );
+}
+
+/**
+ * The starter design system deploy design init copies into a new project, by its path inside the
+ * starter ("tokens.css", "examples/Page.html"). Empty until the CLI carries one.
+ */
+export function designStarterFiles() {
+  if (typeof __DESIGN_STARTER_FILES__ !== 'undefined') return decode(__DESIGN_STARTER_FILES__);
+  return readTree(join(source, 'bin/design-starter'));
 }

@@ -184,11 +184,16 @@ export function inspectBoard(doc: Document = document): Inspection {
     }
 
   const pageWidth = doc.documentElement.clientWidth;
+  // Form controls are boxes by nature: a field, a select, a segmented control inside a card or a
+  // dialog is how a form looks, not a box in a card.
+  const control =
+    'button, input, select, textarea, [role="textbox"], [role="searchbox"], [role="combobox"], [role="radiogroup"], [role="tablist"], [role="switch"], [contenteditable=""], [contenteditable="true"], a.dl-btn, .dl-btn, .dl-field, .dl-input, .dl-chip, .dl-seg, .dl-segmented, .dl-composer, .dl-ph-composer';
   const boxy = (element: Element) => {
-    if (element.matches('button, input, select, textarea, a.dl-btn, .dl-btn, .dl-field, .dl-chip'))
-      return false;
+    if (element.matches(control) || element.closest(control) !== null) return false;
     const style = view.getComputedStyle(element);
     const rect = element.getBoundingClientRect();
+    // A control's wrapper: a short box that holds a field and little else.
+    if (rect.height < 80 && element.querySelector(control)) return false;
     if (rect.width < 120 || rect.height < 40 || rect.width > pageWidth * 0.9) return false;
     if (Number.parseFloat(style.borderTopLeftRadius) < 4) return false;
     if (rgba(style.backgroundColor)[3] === 0) return false;
@@ -229,6 +234,12 @@ export function inspectBoard(doc: Document = document): Inspection {
     if (rect.height < 120 || rect.width < 200) continue;
     frames.push({ element, bottom: rect.bottom, left: rect.left, right: rect.right });
   }
+  // A phone screen drawn inside a wider board: its bars hide what runs under them too.
+  for (const element of doc.body.querySelectorAll('.dl-phone, [data-platform="phone"]')) {
+    if (!shown(element) || frames.some((frame) => frame.element === element)) continue;
+    const rect = element.getBoundingClientRect();
+    frames.push({ element, bottom: rect.bottom, left: rect.left, right: rect.right });
+  }
   const clipped: NonNullable<Inspection['clipped']> = [];
   const noted = new Set<Element>();
   for (const frame of frames) {
@@ -251,31 +262,42 @@ export function inspectBoard(doc: Document = document): Inspection {
           frame: frame.element ? layerOf(frame.element) : null,
         });
       }
-    // Bars pinned to the frame's bottom: a tab bar, a composer, a toolbar.
+    // Bars along the frame's bottom: a tab bar, a composer, a toolbar, pinned (fixed, sticky,
+    // absolute) or last in the frame's column. What sits under one is found as drawn: the
+    // element painted at a point is the bar, not the text.
     const scope = frame.element ?? doc.body;
+    const width = frame.right - frame.left;
     for (const bar of scope.querySelectorAll('*')) {
+      if (!shown(bar)) continue;
       const style = view.getComputedStyle(bar);
-      if (!['fixed', 'sticky', 'absolute'].includes(style.position) || !shown(bar)) continue;
       const rect = bar.getBoundingClientRect();
       if (
         Math.abs(rect.bottom - frame.bottom) > 2 ||
         rect.height < 20 ||
         rect.height > 120 ||
-        rect.width < (frame.right - frame.left) * 0.8 ||
-        rgba(style.backgroundColor)[3] === 0
+        rect.width < width * 0.8 ||
+        (rgba(style.backgroundColor)[3] === 0 && style.backdropFilter === 'none')
       )
         continue;
       for (const entry of inside) {
         if (bar.contains(entry.element) || entry.element.contains(bar) || noted.has(entry.element))
           continue;
-        const overlap =
-          Math.min(entry.rect.bottom, rect.bottom) - Math.max(entry.rect.top, rect.top);
-        const across =
-          Math.min(entry.rect.right, rect.right) - Math.max(entry.rect.left, rect.left);
-        if (overlap > 4 && across > 4) {
-          noted.add(entry.element);
-          clipped.push({ layer: entry.layer, text: entry.text, by: 'bar', frame: layerOf(bar) });
-        }
+        // An action is judged by its whole box (a row's tap area), text by its own.
+        const action = entry.element.closest('button, a, [role="button"], .dl-btn');
+        const box = action && !bar.contains(action) ? action.getBoundingClientRect() : entry.rect;
+        const top = Math.max(box.top, rect.top);
+        const bottom = Math.min(box.bottom, rect.bottom);
+        const left = Math.max(box.left, rect.left);
+        const right = Math.min(box.right, rect.right);
+        if (bottom - top <= 4 || right - left <= 4) continue;
+        const hit = doc.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+        if (!hit || !bar.contains(hit) || entry.element.contains(hit)) continue;
+        // An action under the bar can never be taken; text running on under it is the scroll,
+        // unless the bar cuts through it.
+        const cut = box.top < rect.top - 1;
+        if (!action && !cut) continue;
+        noted.add(entry.element);
+        clipped.push({ layer: entry.layer, text: entry.text, by: 'bar', frame: layerOf(bar) });
       }
     }
   }

@@ -15,6 +15,7 @@ import {
   shootBoard,
 } from '../server/design/check-drawing.ts';
 import { openChromium } from './design-browser.mjs';
+import { designSystemFolder, designSystemPaths } from '../shared/v2/design-system-path.ts';
 
 /** What checkDesign calls the folder's working copy; never a name Git would take for a commit. */
 export const WORKTREE = ':worktree:';
@@ -62,7 +63,7 @@ export function worktreeGit({ top, git }) {
       const dir = rest.at(-1).slice(WORKTREE.length + 1);
       try {
         return readdirSync(join(top, dir), { withFileTypes: true })
-          .filter((entry) => entry.isFile())
+          .filter((entry) => entry.isFile() || entry.isDirectory())
           .map((entry) => entry.name)
           .sort()
           .join('\n');
@@ -81,6 +82,31 @@ export function worktreeGit({ top, git }) {
     return null;
   };
   return { read, sent };
+}
+
+/** The folders under design/ds at a commit (or the working copy). */
+export function designSystemFolders(top, at) {
+  if (at === WORKTREE) {
+    try {
+      return readdirSync(join(top, 'design', 'ds'), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+    } catch {
+      return [];
+    }
+  }
+  try {
+    return execFileSync('git', ['ls-tree', '-d', '--name-only', `${at}:design/ds`], {
+      cwd: top,
+      env: { ...process.env, ...readOnly },
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 /** The design system file under design/ at a commit (or the working copy), as bytes. */
@@ -124,10 +150,29 @@ export async function openLocalDrawing({
   const fonts = new Map();
   const missingFonts = new Set();
   const read = (at, path) => designFile(top, at, path);
+  // The project's own component library at a commit (or the working copy), read once.
+  const libraries = new Map();
+  const libraryAt = (at) => {
+    if (!libraries.has(at)) {
+      let canvas = null;
+      try {
+        canvas = JSON.parse(read(at, 'canvas.json')?.toString() ?? 'null');
+      } catch {
+        canvas = null;
+      }
+      const ds = designSystemFolder(canvas, designSystemFolders(top, at));
+      const found = ds
+        ? designSystemPaths(ds)
+            .library.map((path) => read(at, path))
+            .find(Boolean)
+        : null;
+      libraries.set(at, parseLibrary(found?.toString()));
+    }
+    return libraries.get(at);
+  };
   const page = async (at, html) => {
     const built = await buildBoardPage(html, {
-      library: async () =>
-        parseLibrary(read(at, 'ds/deploy-local/components/library.json')?.toString()),
+      library: async () => libraryAt(at),
       css: async (path) => read(at, path) ?? designSystem(path),
       capture: async (path) => read(at, `boards/${path}`),
     });

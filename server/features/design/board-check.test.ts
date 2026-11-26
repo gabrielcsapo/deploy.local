@@ -37,6 +37,7 @@ import {
   overlapProblems,
   questionFindings,
   readTokens,
+  tokensFromCss,
   schemeDroppedProblem,
   schemePinnedProblems,
   screenFamily,
@@ -47,6 +48,7 @@ import {
 import { parseBoardMeta, setBoardMetaHeight } from '../../../shared/v2/design-board-meta.ts';
 import { noteRect, placeBoard, rowGap } from '../../design/board-placement.ts';
 import { layerFates } from '../../design/board-layers.ts';
+import { designSystemFolder, designSystemPaths } from '../../../shared/v2/design-system-path.ts';
 import type { Inspection, InspectedText } from '../../../shared/v2/design-inspect.ts';
 
 test('only board files in the design folder count as changed boards', () => {
@@ -1035,7 +1037,7 @@ test('the check reports drawn problems and notes, measures heights for --fix, an
     assert.deepEqual(result.schemes, ['dark']);
     assert.deepEqual(
       result.problems.map((problem) => problem.code),
-      ['not_a_token', 'height_differs', 'low_contrast'],
+      ['not_a_token', 'missing_scheme', 'height_differs', 'low_contrast'],
     );
     assert.deepEqual(
       result.notes.map((note) => note.code),
@@ -1806,6 +1808,8 @@ test('a board drawn in fewer schemes than its source or siblings, or a page pinn
     repo.write(
       'design/canvas.json',
       JSON.stringify({
+        // This project opts out of dark; its Design boards still draw both, and so must a new one.
+        schemes: ['light'],
         boards: {
           'DesignCanvas.html': { x: 0, y: 0, w: 1440, h: 900 },
           'DesignBoard.html': { x: 1600, y: 0, w: 1440, h: 900 },
@@ -1821,6 +1825,81 @@ test('a board drawn in fewer schemes than its source or siblings, or a page pinn
     assert.deepEqual(
       result.problems.map((problem) => [problem.code, problem.file]),
       [['scheme_dropped', 'DesignComment.html']],
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("a project's own design system is found and read; deploy.local's is never assumed", () => {
+  assert.equal(designSystemFolder({ designSystem: 'ds/larder' }, ['larder', 'old']), 'ds/larder');
+  assert.equal(designSystemFolder({}, ['larder']), 'ds/larder');
+  assert.equal(designSystemFolder(null, ['deploy-local']), 'ds/deploy-local');
+  assert.equal(designSystemFolder(null, []), null);
+  assert.deepEqual(designSystemPaths('ds/larder').library, [
+    'ds/larder/components/library.json',
+    'ds/larder/library.json',
+  ]);
+  const tokens = tokensFromCss(`
+    :root { --surface: #ffffff; --ink: #1d1b16; --text-body: 16px; --text-title: 1.5rem;
+      --text-phone-body: 17px; --space-2: 8px; --space-4: 16px; --radius: 8px; }
+    @media (prefers-color-scheme: dark) { :root { --surface: #1b1a17; --ink: #f4f1ea; } }
+    [data-theme="dark"] { --ink: #f5f2eb; }
+  `);
+  assert.deepEqual(tokens.colors, [
+    { name: 'surface', light: '#ffffff', dark: '#1b1a17' },
+    { name: 'ink', light: '#1d1b16', dark: '#f5f2eb' },
+  ]);
+  assert.deepEqual(tokens.type, [16, 24]);
+  assert.deepEqual(tokens.phoneType, [17]);
+  assert.deepEqual(tokens.space, [8, 16]);
+});
+
+test('a new project is judged by its own tokens, and a board without dark is missing_scheme', async () => {
+  const repo = repository();
+  try {
+    repo.write(
+      'design/ds/larder/tokens.css',
+      ':root{--shelf:#f4efe6;--ink:#1d1b16;--text-body:16px;--space-4:16px}\n@media (prefers-color-scheme: dark){:root{--shelf:#22201b;--ink:#f4f1ea}}\n',
+    );
+    repo.write('design/canvas.json', JSON.stringify({ designSystem: 'ds/larder', boards: {} }));
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Init']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'pantry']);
+    repo.write(
+      'design/boards/Pantry.html',
+      board(
+        '.row{background:#f4efe6}',
+        '<main data-layer="pantry"><p data-layer="title">Pantry</p></main>',
+      ).replace('width=1440,height=900', 'width=1440,height=900,schemes=light'),
+    );
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        designSystem: 'ds/larder',
+        boards: { 'Pantry.html': { x: 0, y: 0, w: 1440, h: 900 } },
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Pantry']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const { drawer } = drawing();
+    // The CLI carries deploy.local's system; a Larder check must not read it.
+    const result = await checkDesign(
+      { commit, base: main, systemFile: () => ':root{--surface:#f4efe6}' },
+      git(repo.root),
+      drawer,
+    );
+    assert.deepEqual(
+      result.problems.map((problem) => [problem.code, problem.fix]),
+      [
+        ['not_a_token', 'use var(--shelf), which is #f4efe6, so it works in dark too'],
+        [
+          'missing_scheme',
+          'take schemes= out of its head (or list light dark) and draw it with tokens, so dark reads too',
+        ],
+      ],
     );
   } finally {
     repo.cleanup();

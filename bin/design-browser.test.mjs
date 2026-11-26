@@ -186,7 +186,7 @@ test("text cut by a phone screen's bottom or hidden under its tab bar is found w
     const page = `<!doctype html><html><body style="margin:0;font:17px/24px system-ui">
       <main data-layer="list"><p data-layer="row-1" style="margin:0;height:300px">Builds</p>
       <p data-layer="row-2" style="margin:0;height:300px">Releases</p>
-      <p data-layer="row-3" style="margin:0;padding-top:170px;height:40px">Logs</p></main>
+      <a data-layer="row-3" href="Logs.html" style="display:block;margin:0;padding-top:170px;height:40px">Logs</a></main>
       <nav data-layer="tab-bar" style="position:fixed;left:0;right:0;bottom:0;height:83px;background:#fff">Home</nav>
       </body></html>`;
     const tab = await browser.newTab({ width: 390, height: 844 });
@@ -336,6 +336,60 @@ test('a real design-editor instance keeps its data-questions through sync, and i
       assert.deepEqual(shot.questions, [
         { n: 1, layer: 'draft-size', question: questions['draft-size'] },
       ]);
+    } finally {
+      await tab.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a list row behind a phone tab bar is found when drawn; plain text running on under it is the scroll', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    // A phone frame as the starter draws one: a scrolling body above a tab bar in a column.
+    const page = `<!doctype html><html><body style="margin:0;font:17px/24px system-ui">
+      <div class="dl-phone" data-layer="phone" style="display:flex;flex-direction:column;width:390px;height:844px;overflow:hidden">
+        <div data-layer="body" style="flex:1;overflow:auto">
+          <div style="height:740px">Pantry</div>
+          <a data-layer="show-more" class="dl-ph-row" href="#" style="display:block;height:44px">Show 10 more</a>
+          <p data-layer="footnote" style="margin:200px 0 0">Kept with this run.</p>
+        </div>
+        <nav data-layer="tab-bar" class="dl-tabbar" style="height:83px;flex:none;background:#fff">Pantry</nav>
+      </div></body></html>`;
+    const tab = await browser.newTab({ width: 390, height: 844 });
+    try {
+      const shot = await shootBoard(tab, page, { scheme: 'light', measure: false, inspect: true });
+      assert.deepEqual(shot.inspected.clipped, [
+        { layer: 'show-more', text: 'Show 10 more', by: 'bar', frame: 'tab-bar' },
+      ]);
+    } finally {
+      await tab.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
+test('form fields in a dialog card are no box in a card; a bordered box in a card still is', async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  try {
+    const box = 'border:1px solid #ddd;border-radius:8px;background:#fff';
+    const page = `<!doctype html><html><body style="margin:0;padding:40px;font:15px system-ui">
+      <div data-layer="dialog" role="dialog" style="${box};width:480px;padding:24px">
+        <label>Name</label>
+        <input data-layer="name" style="${box};display:block;width:300px;height:44px">
+        <div data-layer="name-field" style="${box};width:300px;height:44px"><input style="border:0;width:280px"></div>
+        <textarea data-layer="note" style="${box};width:300px;height:80px"></textarea>
+        <div data-layer="seg" role="radiogroup" style="${box};width:300px;height:44px"><button>Pantry</button><button>Fridge</button></div>
+        <div data-layer="inner-card" style="${box};width:300px;height:100px">A card in a card</div>
+      </div></body></html>`;
+    const tab = await browser.newTab({ width: 600, height: 700 });
+    try {
+      const shot = await shootBoard(tab, page, { scheme: 'light', measure: false, inspect: true });
+      assert.deepEqual(shot.inspected.boxes, [{ layer: 'inner-card', inside: 'dialog' }]);
     } finally {
       await tab.close();
     }

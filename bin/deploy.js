@@ -45,7 +45,11 @@ import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
 import { serveDesignFolder } from './design-dev.mjs';
 import { openLocalDrawing } from './design-check-local.mjs';
-import { designLocalAssets, designSystemFiles } from './design-local-assets.mjs';
+import {
+  designLocalAssets,
+  designStarterFiles,
+  designSystemFiles,
+} from './design-local-assets.mjs';
 import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
 import { createRelayController } from './relay-client.mjs';
 import { runRelayProcess } from './relay-process.mjs';
@@ -3812,6 +3816,7 @@ function designDeps() {
     now: Date.now,
     sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
     designSystem: ownDesignSystem,
+    starter: () => designStarterFiles(),
     // The check draws on this computer when a browser starts here; otherwise deploy.local draws.
     openLocalDrawing: (top) => openLocalDrawing({ top, designSystem: ownDesignSystem }),
     serveDesign: (options) => {

@@ -28,6 +28,11 @@ import { layerLabel } from '../../../shared/v2/design.ts';
 import { boardPlatform, parseBoardMeta } from '../../../shared/v2/design-board-meta.ts';
 import type { Inspection } from '../../../shared/v2/design-inspect.ts';
 import { layerFates } from '../../design/board-layers.ts';
+import {
+  designSystemFolder,
+  designSystemPaths,
+  firstFile,
+} from '../../../shared/v2/design-system-path.ts';
 import { placeBoard } from '../../design/board-placement.ts';
 import type { BoardQuestion } from '../../design/check-drawing.ts';
 import {
@@ -210,6 +215,7 @@ export function brokenLinks(html: string, boards: string[]) {
 }
 
 /** The design system's components, which boards hold instances of. */
+/** deploy.local's own component library, where the Design page and local-design read it. */
 export const libraryPath = 'design/ds/deploy-local/components/library.json';
 export function parseLibrary(text: string | null | undefined): Library | null {
   try {
@@ -442,15 +448,43 @@ export async function checkDesign(
     return mainTexts.get(file)!;
   };
 
-  // The design system the boards are drawn with: the branch's, else the one the project falls
-  // back to.
-  const system = async (name: string) =>
-    (await show(commit, `${folder}/ds/deploy-local/${name}`)) ??
-    input.systemFile?.(`ds/deploy-local/${name}`) ??
-    null;
-  const tokens = readTokens(await system('tokens.json'), await system('tokens.css'));
-  const bundle = await system('components/bundle.css');
-  const branchLibrary = parseLibrary(await system('components/library.json'));
+  // The project's own design system: the one canvas.json names, else the single one in ds/. Only
+  // deploy.local's own falls back to the copy the CLI carries; another project's never does.
+  const dsFolders = ((await git.read(['ls-tree', '--name-only', `${commit}:${folder}/ds`])) ?? '')
+    .split('\n')
+    .filter((name) => name && !/\.[a-z]+$/i.test(name));
+  const dsFolder = designSystemFolder(canvas, dsFolders);
+  const dsPaths = dsFolder ? designSystemPaths(dsFolder) : null;
+  // The schemes every board of this project draws: canvas.json's, else light and dark.
+  const projectSchemes: ('light' | 'dark')[] = Array.isArray(canvas?.schemes)
+    ? canvas.schemes.filter((scheme: unknown) => scheme === 'light' || scheme === 'dark')
+    : ['light', 'dark'];
+  const systemFile = async (candidates: string[] | undefined) =>
+    candidates
+      ? ((
+          await firstFile(candidates, async (path) => {
+            const own = await show(commit, `${folder}/${path}`);
+            if (own !== null) return own;
+            return dsFolder === 'ds/deploy-local' ? (input.systemFile?.(path) ?? null) : null;
+          })
+        )?.text ?? null)
+      : null;
+  const tokens = readTokens(
+    await systemFile(dsPaths?.tokensJson),
+    await systemFile(dsPaths?.tokensCss),
+  );
+  const bundle = await systemFile(dsPaths?.bundle);
+  const branchLibrary = parseLibrary(await systemFile(dsPaths?.library));
+  // Where the library is, for a change to a component.
+  let ownLibrary = '';
+  for (const path of dsPaths?.library ?? [])
+    if (
+      (await show(commit, `${folder}/${path}`)) !== null ||
+      (await show(base, `${folder}/${path}`)) !== null
+    ) {
+      ownLibrary = `${folder}/${path}`;
+      break;
+    }
 
   // A component the branch changed is one row, with the screens that show it. Boards the branch
   // carries only because their instances were drawn again are left to the landing, which draws
@@ -460,9 +494,9 @@ export async function checkDesign(
   const carried = new Map<string, string>();
   let dropped = 0;
   const restore: CheckResult['restore'] = [];
-  if (paths.includes(libraryPath)) {
-    const library = parseLibrary(await show(commit, libraryPath));
-    const changed = changedComponents(parseLibrary(await show(forkedAt, libraryPath)), library);
+  if (ownLibrary && paths.includes(ownLibrary)) {
+    const library = parseLibrary(await show(commit, ownLibrary));
+    const changed = changedComponents(parseLibrary(await show(forkedAt, ownLibrary)), library);
     if (changed.length)
       for (const file of files) {
         const text = await after(file);
@@ -695,7 +729,20 @@ export async function checkDesign(
       // Every scheme its source or siblings draw, and no page pinned to one.
       const schemes = boardSchemes(meta);
       const mainSchemes = before ? boardSchemes(parseBoardMeta(before)).join(' ') : null;
-      if (schemes.join(' ') !== mainSchemes && schemes.length < 2) {
+      // Every board draws the project's schemes (canvas.json "schemes", light and dark unless it
+      // says otherwise); a board that leaves one out is a problem of its own.
+      const missing = projectSchemes.filter((scheme) => !schemes.includes(scheme));
+      if (missing.length && schemes.join(' ') !== mainSchemes)
+        problems.push({
+          code: 'missing_scheme',
+          file,
+          board: title,
+          label: `${title} is not drawn in ${missing.join(' or ')}`,
+          detail: `its head says schemes=${schemes.join(' ')}; this project draws ${projectSchemes.join(' and ')}`,
+          short: `no ${missing.join(' or ')}`,
+          fix: `take schemes= out of its head (or list ${projectSchemes.join(' ')}) and draw it with tokens, so ${missing.join(' and ')} reads too`,
+        });
+      else if (schemes.join(' ') !== mainSchemes && schemes.length < 2) {
         const drawnFrom = meta.source ?? meta.copiedFrom;
         const fromText = drawnFrom && drawnFrom !== file ? await after(drawnFrom) : null;
         const platform = boardPlatform(meta, Number(canvas?.boards?.[file]?.w) || undefined);
@@ -760,12 +807,7 @@ export async function checkDesign(
         // counterpart: a board drawn from it, or its name with Phone.
         const counterparts: Record<string, string[]> = {};
         const drawnFrom = await phoneSources();
-        const mapped = phoneMappings(
-          (await show(commit, `${folder}/ds/README.md`)) ??
-            input.systemFile?.('ds/README.md') ??
-            null,
-          disk,
-        );
+        const mapped = phoneMappings((await systemFile(dsPaths?.readme)) ?? null, disk);
         for (const link of boardContent(await after(meta.source)).links) {
           const phoneName = `${link.replace(/\.html$/, '')}Phone.html`;
           const found = [

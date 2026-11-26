@@ -70,27 +70,84 @@ export function readTokens(json: string | null, css: string | null): DesignToken
     // Fall through to the stylesheet.
   }
   if (!css) return null;
-  const light = /(?::root|\[data-theme="light"\])[^{]*\{([^}]*)\}/.exec(css)?.[1] ?? '';
-  const dark = /\[data-theme="dark"\][^{]*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  return tokensFromCss(css);
+}
+
+/** px from "16px" or "1rem" (16 px a rem). */
+const cssPx = (value: string) => {
+  const match = /^(-?\d*\.?\d+)(px|rem)$/.exec(value.trim());
+  return match ? Number(match[1]) * (match[2] === 'rem' ? 16 : 1) : null;
+};
+
+/**
+ * Tokens from a stylesheet's custom properties: colours from :root (or [data-theme="light"]) for
+ * light and from [data-theme="dark"] or a prefers-color-scheme: dark block for dark; the type scale
+ * from --text-*, --font-size-*, --type-* or --fs-*; spacing from --space-* or --spacing-*.
+ */
+export function tokensFromCss(css: string): DesignTokens {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Take out the prefers-color-scheme: dark blocks (with their braces), keeping what they set.
+  let outside = '';
+  const darkBlocks: string[] = [];
+  for (let at = 0; at < text.length;) {
+    const media = text.slice(at).search(/@media[^{]*prefers-color-scheme\s*:\s*dark[^{]*\{/);
+    if (media < 0) {
+      outside += text.slice(at);
+      break;
+    }
+    const start = at + media;
+    outside += text.slice(at, start);
+    let depth = 0;
+    let end = text.indexOf('{', start);
+    for (; end < text.length; end++) {
+      if (text[end] === '{') depth++;
+      else if (text[end] === '}' && --depth === 0) break;
+    }
+    darkBlocks.push(text.slice(text.indexOf('{', start) + 1, end));
+    at = end + 1;
+  }
   const values = (block: string) =>
     Object.fromEntries(
-      [...block.matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)].map((match) => [match[1], match[2].trim()]),
+      [...block.matchAll(/--([\w-]+)\s*:\s*([^;}]+)[;}]?/g)].map((match) => [
+        match[1],
+        match[2].trim(),
+      ]),
     );
-  const lightValues = values(light);
-  const darkValues = values(dark);
-  const colors = Object.keys(lightValues)
-    .filter((name) => parseHex(lightValues[name]))
-    .map((name) => ({ name, light: lightValues[name], dark: darkValues[name] ?? null }));
-  const all = values(css.replace(/\}/g, ';}'));
-  const space = Object.entries(all)
-    .filter(([name]) => /^space-/.test(name))
-    .map(([, value]) => px(value))
-    .filter((size): size is number => size !== null);
-  const type = Object.entries(all)
-    .filter(([name]) => /^(text|font-size|type)-/.test(name))
-    .map(([, value]) => px(value))
-    .filter((size): size is number => size !== null);
-  return { colors, type: [...new Set(type)].sort((a, b) => a - b), space };
+  const blocks = (source: string, selector: RegExp) =>
+    [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter((match) => selector.test(match[1]))
+      .map((match) => match[2]);
+  const light: Record<string, string> = {};
+  for (const block of blocks(
+    outside,
+    /(^|[\s,]):root\b|\[data-theme=["']?light["']?\]|(^|[\s,])html\b/,
+  ))
+    Object.assign(light, values(block));
+  const dark: Record<string, string> = {};
+  for (const block of darkBlocks) Object.assign(dark, values(block));
+  for (const block of blocks(outside, /\[data-theme=["']?dark["']?\]/))
+    Object.assign(dark, values(block));
+  const colors = Object.keys(light)
+    .filter((name) => parseHex(light[name]))
+    .map((name) => ({ name, light: light[name], dark: dark[name] ?? null }));
+  const all = { ...light, ...values(outside) };
+  const sizes = (pattern: RegExp) =>
+    [
+      ...new Set(
+        Object.entries(all)
+          .filter(([name]) => pattern.test(name))
+          .map(([, value]) => cssPx(value))
+          .filter((size): size is number => size !== null && size > 0),
+      ),
+    ].sort((a, b) => a - b);
+  // Phone (iOS) sizes, named so, are the phone's own scale.
+  const phoneType = sizes(/^(text|font-size|type|fs)-.*\b(phone|ios)\b/);
+  return {
+    colors,
+    type: sizes(/^(text|font-size|type|fs)-(?!.*\b(phone|ios)\b)/),
+    ...(phoneType.length ? { phoneType } : {}),
+    space: sizes(/^(space|spacing)-/),
+  };
 }
 
 // ── Reading a board's CSS ───────────────────────────────────────────────────────────────────────
@@ -1090,7 +1147,7 @@ export function localCopyNotes(input: {
 }): Finding[] {
   if (!input.bundle || !input.after) return [];
   const systemRules = cssRules(input.bundle)
-    .filter((rule) => /^\.dl-[\w-]+$/.test(rule.selector))
+    .filter((rule) => /^\.[\w-]+$/.test(rule.selector))
     .map((rule) => ({
       selector: rule.selector,
       set: new Set(
@@ -1101,9 +1158,16 @@ export function localCopyNotes(input: {
       ),
     }))
     .filter((rule) => rule.set.size >= 3);
+  const systemClasses = new Set(
+    [...input.bundle.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((match) => match[1]),
+  );
   const local = (html: string | null) =>
     [...(html ?? '').matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].flatMap((style) =>
-      cssRules(style[1]).filter((rule) => !/(^|[\s,>+~])\.dl-/.test(rule.selector)),
+      // The board's own rules: those that style no class of the design system.
+      cssRules(style[1]).filter(
+        (rule) =>
+          ![...rule.selector.matchAll(/\.([\w-]+)/g)].some((match) => systemClasses.has(match[1])),
+      ),
     );
   // Only rules the branch added: a selector main's board (or, for a new board, the board it was
   // drawn from) did not have. A rule that changed is the board's own and was judged before.
@@ -1202,6 +1266,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: "text cut by a frame's bottom or under a bottom bar",
   },
   {
+    code: 'missing_scheme',
+    problem: true,
+    means: "fewer schemes than the project's (light and dark)",
+  },
+  {
     code: 'scheme_dropped',
     problem: true,
     means: 'drawn in fewer schemes than its source or siblings',
@@ -1239,7 +1308,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'box_in_card', problem: false, means: 'a bordered box inside a card' },
   { code: 'second_primary', problem: true, means: 'more than one primary button shows' },
   { code: 'layer_name_says_nothing', problem: true, means: 'new layer IDs like a, t-2, svg-3' },
-  { code: 'local_copy_of_component', problem: false, means: 'board CSS copying a dl-* class' },
+  {
+    code: 'local_copy_of_component',
+    problem: false,
+    means: 'board CSS copying a design system class',
+  },
   { code: 'layer_removed', problem: false, means: 'layer IDs whose elements the branch removed' },
   { code: 'specimen_text', problem: false, means: 'sample words from a DesignSystem board' },
   { code: 'open_question', problem: false, means: 'a data-question the owner has not answered' },

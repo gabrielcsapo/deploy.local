@@ -139,6 +139,8 @@ export async function bundleCli(buildInfo, output = CLI_DIR) {
       bytes,
     ]),
   );
+  // deploy design init copies the starter design system from the binary.
+  const designStarter = readTree(resolve(ROOT, 'bin/design-starter'));
   await esbuild.build({
     // Static imports include the internal `agent relay` entry in the same SEA as the worker.
     // The supervisor launches itself with that subcommand; no sidecar download is required.
@@ -162,6 +164,7 @@ export async function bundleCli(buildInfo, output = CLI_DIR) {
       ),
       __DESIGN_LOCAL_ASSETS__: embedded(designPage),
       __DESIGN_SYSTEM_FILES__: embedded(designSystem),
+      __DESIGN_STARTER_FILES__: embedded(designStarter),
       __DEPLOY_BUILD_INFO__: JSON.stringify(
         JSON.stringify({ ...buildInfo, runtime: NODE_VERSION }),
       ),
