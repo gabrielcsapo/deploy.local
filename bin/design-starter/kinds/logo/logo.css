@@ -175,7 +175,10 @@ body {
   opacity: 0.8;
 }
 
-/* ---------- Small-size strip: the mark at 64, 32, 24 and 16 px, on light and on dark ---------- */
+/* ---------- Small-size strip: the mark at 64, 32, 24 and 16 px ----------
+   A strip is a fixed ground like a tile: pin it with data-theme="light" (the plain strip, and the
+   reversed one, whose --primary is near-black only in the light tokens). Unpinned, the dark render
+   flips the plain strip and turns the reversed one pale. */
 .ds-logo-strip {
   display: flex;
   align-items: center;
@@ -228,4 +231,70 @@ body {
   fill: none;
   stroke: var(--accent);
   stroke-width: 1;
+}
+
+/* ---------- Concepts: two or three marks side by side, each tried at 16 px, one chosen ----------
+   A .ds-logo-artboard.sheet holding .ds-logo-concepts: one .ds-logo-concept per idea (the mark at
+   160, then .at-size, the mark at 16 px beside the name as a tab or a list shows it, then the idea
+   in one line), and a .ds-logo-choice line under them saying which goes forward and why. */
+.ds-logo-concepts {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.ds-logo-concept {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 48px 32px;
+  border-right: 1px solid var(--line);
+}
+.ds-logo-concept:last-child {
+  border-right: 0;
+}
+.ds-logo-concept.chosen {
+  background: var(--surface);
+}
+.ds-logo-concept > .ds-logo-mark {
+  --size-logo-mark: 160px;
+}
+.ds-logo-concept .at-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 16px;
+}
+.ds-logo-concept .at-size .ds-logo-mark {
+  --size-logo-mark: 16px;
+}
+.ds-logo-concept .idea {
+  margin: 0;
+  max-width: 24ch;
+  font-size: 22px;
+  line-height: 28px;
+  text-align: center;
+}
+.ds-logo-concept .tag {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: var(--weight-semibold);
+  color: var(--ink-secondary);
+}
+.ds-logo-concept.chosen .tag {
+  color: var(--accent);
+}
+.ds-logo-choice {
+  margin: 0;
+  padding: 32px 48px;
+  border-top: 1px solid var(--line);
+  font-size: 24px;
+  line-height: 32px;
 }

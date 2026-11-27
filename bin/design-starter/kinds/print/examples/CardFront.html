@@ -15,16 +15,21 @@
   <body>
     <div
       class="ds-print-face ground-quiet"
+      data-layer="front"
       style="--print-w: 85mm; --print-h: 55mm; --print-bleed: 3mm; --print-safe: 4mm"
     >
-      <div class="ds-print-safe">
-        <div>
-          <p class="ds-print-name">Person Name</p>
-          <p class="ds-print-small ds-print-muted">Role or title</p>
+      <div class="ds-print-safe" data-layer="front-content">
+        <div data-layer="person" data-question="Whose card is this, and what is their role?">
+          <p class="ds-print-name">Ines Moreau</p>
+          <p class="ds-print-small ds-print-muted">Head of studio, __NAME__</p>
         </div>
-        <div class="ds-print-contact">
-          <span>name@example.com</span>
-          <span>+00 000 000 000</span>
+        <div
+          class="ds-print-contact"
+          data-layer="contact"
+          data-question="Are these the real email, phone number and website?"
+        >
+          <span>ines@example.com</span>
+          <span>+33 4 78 21 56 09</span>
           <span>example.com</span>
         </div>
       </div>

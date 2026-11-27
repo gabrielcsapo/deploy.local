@@ -15,10 +15,11 @@
   <body>
     <div
       class="ds-print-face ground-brand"
+      data-layer="front"
       style="--print-w: 148mm; --print-h: 105mm; --print-bleed: 3mm; --print-safe: 5mm"
     >
-      <div class="ds-print-safe">
-        <div class="ds-print-wordmark">
+      <div class="ds-print-safe" data-layer="front-content">
+        <div class="ds-print-wordmark" data-layer="wordmark">
           <svg viewBox="0 0 64 64" aria-hidden="true">
             <path
               fill-rule="evenodd"
@@ -27,11 +28,17 @@
             />
             <circle cx="32" cy="32" r="8" fill="currentColor" />
           </svg>
-          Product name
+          __NAME__
         </div>
-        <div>
-          <p class="ds-print-display">A short line for the front</p>
-          <p class="ds-print-body lead">One sentence that says what this card is about.</p>
+        <div data-layer="headline">
+          <p class="ds-print-display" data-layer="headline-text">Swim first, breakfast after</p>
+          <p
+            class="ds-print-body lead"
+            data-layer="hours"
+            data-question="Are these the real opening days and hours?"
+          >
+            On the north shore, open daily 7 am to 3 pm from June to September.
+          </p>
         </div>
       </div>
     </div>

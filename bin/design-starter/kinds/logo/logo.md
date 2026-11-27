@@ -2,6 +2,7 @@
 
 A logo board is a square artboard: `<meta name="design-board" content="platform=logo,width=1024,height=1024,schemes=light dark">`. Boards link `tokens.css`, `components.css` and `logo.css`; the body starts with `.ds-logo-artboard`. A board carries no `<style>`: `logo.css` sets the page's margin and ground. The check draws one sheet: the mark at 512, 128, 64, 32 and 16 px on a light and a dark ground, so small-size legibility is judged from it. App-only notes do not apply.
 
+- **Concepts first, then one.** Before the final mark, draw two or three different ideas on one `LogoConcepts` board (`.ds-logo-artboard.sheet` with `.ds-logo-concepts`, as `examples/LogoConcepts.html`): each `.ds-logo-concept` shows the mark at 160 px, the mark at 16 px beside the name (`.at-size`, as a tab or a list shows it) and the idea in one line. Mark the one that goes forward `.chosen` and say why in the `.ds-logo-choice` line, in terms the 16 px test shows. Then draw the chosen mark on its own board. A single concept is not a choice; three variations of one shape are one concept.
 - **Build the mark in SVG from simple shapes.** Circles, rectangles, rounded rectangles and straight or arc paths on a 64 × 64 grid (`viewBox="0 0 64 64"`), no raster images, no text in the mark, no filters. Round numbers for every coordinate; a mark that needs a decimal is too complicated.
 - **One or two colours, from tokens.** `.a` fills with `currentColor` (the ink), `.b` with `--accent`. Never a literal colour in the SVG. The accent is the product's `--brand`; if the product has no colour yet, the mark is one colour.
 - **Legible at 16 px.** The smallest shape is at least 2 units of 64 (1 px at 16); gaps between shapes the same. Look at the 16 px strip before anything else. If detail disappears there, remove it from the mark.
@@ -18,6 +19,8 @@ A logo board is a square artboard: `<meta name="design-board" content="platform=
 - **Sample content and product facts.** A logo sheet has almost no sample content; the one place is the sample line a lockup is shown beside ("Tuesday market stall sign"), drawn real with no flag. The product's name, tagline, founding year or any figure is a product fact: the brief's, or a plausible value flagged with `data-question`, or left off (a tagline is optional). With no name given the wordmark says what the brief calls the product. Worked example: "Fernway" is the brief's; "Since 1987" is a fact and carries the flag. A reviewer lists each unflagged fact as a `[fact]` finding.
 
 What agents get wrong for logos:
+
+- One mark drawn straight to final, with no other idea beside it and no reason it won.
 
 - Scaling one mark down to 16 px instead of drawing the small cut.
 - A wordmark centred by line box, so it sits low or high beside the mark.

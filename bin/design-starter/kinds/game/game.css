@@ -452,3 +452,63 @@ body {
   min-height: 0;
   overflow: hidden;
 }
+
+/* ---------- HUD with nothing at the right ----------
+   A game with no lives or timer still keeps the middle centred: .slot is an empty box the width of
+   the pause button at the right, so the level name sits over the middle of the screen. */
+.ds-game-hud .slot {
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+
+/* ---------- A night stage: the playfield dark in both schemes ----------
+   For a game whose art is light on dark (a beam, stars, glowing pieces), .night on the stage with
+   data-theme="dark" pins the dark tokens inside it, so the light render keeps the same near-black
+   field and only the frame around it follows the scheme. */
+.ds-game-stage.night {
+  background: var(--bg);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+/* ---------- Puzzle art: a grid, pieces, and a beam, in flat SVG ----------
+   Inside the stage's <svg>: .cell for a square of the grid, .wall for a fixed block, .mirror for a
+   piece the player turns (a thick ink bar at 45 degrees), .emitter where the beam starts, .target
+   where it must end (.lit once it does), and .beam for the light's path, a polyline with round ends.
+   One accent, the beam's; everything else is ink and grey. */
+.ds-game-stage svg .cell {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.ds-game-stage svg .wall {
+  fill: var(--fill-strong);
+}
+.ds-game-stage svg .mirror {
+  stroke: var(--ink);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.ds-game-stage svg .mirror.fixed {
+  stroke: var(--ink-tertiary);
+}
+.ds-game-stage svg .emitter {
+  fill: var(--ink);
+}
+.ds-game-stage svg .target {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+.ds-game-stage svg .target.lit {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+.ds-game-stage svg .beam {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

@@ -2086,6 +2086,12 @@ test('init --kind with the real starter: only the kind, a starting board with tr
       assert.deepEqual(canvas.order, [file]);
       const html = readFileSync(join(root, 'design/boards', file), 'utf8');
       assert.doesNotMatch(html, /__DS__/);
+      // No kit file is left with filler or a name to fill in: the project's name is in its place.
+      const filler =
+        /__NAME__|Product name|Person Name|Role or title|\+00 000|Recipient name|Street and number|Postcode and town|Item one|Item two|Secondary line|Placeholder (?:name|text)|A few lines of message|Front line/;
+      for (const entry of readdirSync(ds, { recursive: true }).map(String))
+        if (/\.(html|json|css)$/.test(entry))
+          assert.doesNotMatch(readFileSync(join(ds, entry), 'utf8'), filler, `${kind}: ${entry}`);
       assert.match(html, new RegExp(`platform=${kind === 'slides' ? 'slide' : kind}`));
       if (kind === 'game') assert.match(html, /width=390,height=844/);
       // The starting board is the project's own, marked as the starting point, and carries no style.

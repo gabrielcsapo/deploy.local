@@ -15,12 +15,14 @@
   <body>
     <div
       class="ds-print-face ds-print-back"
+      data-layer="back"
       style="--print-w: 148mm; --print-h: 105mm; --print-bleed: 3mm; --print-safe: 5mm"
     >
-      <div class="ds-print-safe">
+      <div class="ds-print-safe" data-layer="back-content">
         <div class="ds-print-back-message" data-layer="message">
           <p class="ds-print-body" data-layer="message-text">
-            A few lines of message, set at body size.
+            The lake was warm enough to swim by nine. We found the bakery you told us about, and the
+            almond buns were worth the walk. Back on Friday. Ines
           </p>
           <div class="ds-print-lines" data-layer="message-lines"></div>
           <div class="ds-print-wordmark" data-layer="wordmark">
@@ -32,16 +34,16 @@
               />
               <circle cx="32" cy="32" r="8" fill="currentColor" />
             </svg>
-            Product name
+            __NAME__
           </div>
         </div>
         <div class="ds-print-back-side" data-layer="side">
           <div class="ds-print-stamp" data-layer="stamp">Stamp</div>
           <address class="ds-print-address ruled" data-layer="address">
-            <span class="line">Recipient name</span>
-            <span class="line">Street and number</span>
-            <span class="line">Postcode and town</span>
-            <span class="line">Country</span>
+            <span class="line">Tom and Ana Lindqvist</span>
+            <span class="line">Södra Vägen 12</span>
+            <span class="line">412 54 Göteborg</span>
+            <span class="line">Sweden</span>
           </address>
         </div>
       </div>

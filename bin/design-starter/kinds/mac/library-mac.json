@@ -11,12 +11,12 @@
         {
           "id": "title",
           "label": "Title",
-          "default": "Window title"
+          "default": "All notes"
         },
         {
           "id": "sub",
           "label": "Subtitle",
-          "default": "Secondary"
+          "default": "11 notes"
         }
       ],
       "html": "<div class=\"ds-mac-desk\"><div class=\"ds-mac-window\"><header class=\"ds-mac-titlebar\"><div class=\"ds-mac-lights\" aria-hidden=\"true\"><i></i><i></i><i></i></div><div class=\"ds-mac-titles\"><span class=\"ds-mac-title\">{{title}}</span><span class=\"ds-mac-subtitle\">{{sub}}</span></div><div class=\"ds-mac-spacer\"></div></header><div class=\"ds-mac-body\"></div></div></div>"
@@ -34,7 +34,7 @@
           "default": "Library"
         }
       ],
-      "html": "<nav class=\"ds-mac-sidebar\"><div class=\"ds-mac-section\">{{section}}</div><div class=\"ds-mac-sideitem on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg>Place one<span class=\"count\">24</span></div><div class=\"ds-mac-sideitem\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Place two</div></nav>"
+      "html": "<nav class=\"ds-mac-sidebar\"><div class=\"ds-mac-section\">{{section}}</div><div class=\"ds-mac-sideitem on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg>All notes<span class=\"count\">11</span></div><div class=\"ds-mac-sideitem\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Recipes</div></nav>"
     },
     {
       "id": "mac-list",
@@ -46,10 +46,10 @@
         {
           "id": "name",
           "label": "Selected item",
-          "default": "Item one"
+          "default": "Soup stock notes"
         }
       ],
-      "html": "<section class=\"ds-mac-list\"><div class=\"ds-mac-item on\"><span class=\"name\">{{name}}</span><span class=\"sub\">Secondary line</span></div><div class=\"ds-mac-item\"><span class=\"name\">Item two</span><span class=\"sub\">Secondary line</span></div></section>"
+      "html": "<section class=\"ds-mac-list\"><div class=\"ds-mac-item on\"><span class=\"name\">{{name}}</span><span class=\"sub\">Edited yesterday</span></div><div class=\"ds-mac-item\"><span class=\"name\">Sourdough starter log</span><span class=\"sub\">Edited Monday</span></div></section>"
     },
     {
       "id": "mac-detail",
@@ -61,10 +61,10 @@
         {
           "id": "title",
           "label": "Title",
-          "default": "Item one"
+          "default": "Soup stock notes"
         }
       ],
-      "html": "<main class=\"ds-mac-detail\"><h1>{{title}}</h1><p class=\"ds-mac-secondary\">Created 12 January</p></main>"
+      "html": "<main class=\"ds-mac-detail\"><h1>{{title}}</h1><p class=\"ds-mac-secondary\">Created 3 March, edited yesterday</p></main>"
     },
     {
       "id": "mac-inspector",
@@ -79,7 +79,7 @@
           "default": "Name"
         }
       ],
-      "html": "<aside class=\"ds-mac-inspector\"><div class=\"ds-mac-prop\"><span class=\"label\">{{label}}</span><div class=\"ds-mac-field\" style=\"min-width: 0\">Value</div></div></aside>"
+      "html": "<aside class=\"ds-mac-inspector\"><div class=\"ds-mac-prop\"><span class=\"label\">{{label}}</span><div class=\"ds-mac-field\" style=\"min-width: 0\">Soup stock notes</div></div></aside>"
     },
     {
       "id": "mac-table",
@@ -91,10 +91,10 @@
         {
           "id": "row",
           "label": "Selected row",
-          "default": "Row two"
+          "default": "onion-ratios.png"
         }
       ],
-      "html": "<table class=\"ds-mac-table\"><thead><tr><th>Name</th><th class=\"num\">Size</th></tr></thead><tbody><tr><td>Row one</td><td class=\"num\">1 MB</td></tr><tr class=\"on\"><td>{{row}}</td><td class=\"num\">2 MB</td></tr></tbody></table>"
+      "html": "<table class=\"ds-mac-table\"><thead><tr><th>Name</th><th class=\"num\">Size</th></tr></thead><tbody><tr><td>stock-timings.pdf</td><td class=\"num\">184 KB</td></tr><tr class=\"on\"><td>{{row}}</td><td class=\"num\">1.2 MB</td></tr></tbody></table>"
     },
     {
       "id": "mac-popup",
@@ -106,7 +106,7 @@
         {
           "id": "value",
           "label": "Value",
-          "default": "Choice"
+          "default": "All items"
         }
       ],
       "html": "<div class=\"ds-mac-popup\"><span>{{value}}</span><span class=\"arrows\"><svg viewBox=\"0 0 12 12\"><path d=\"M3.5 4.5 6 2l2.5 2.5M3.5 7.5 6 10l2.5-2.5\"/></svg></span></div>"
@@ -121,7 +121,7 @@
         {
           "id": "label",
           "label": "Label",
-          "default": "Option"
+          "default": "Show in the menu bar"
         }
       ],
       "html": "<div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>{{label}}</div>"
@@ -136,10 +136,10 @@
         {
           "id": "one",
           "label": "Selected",
-          "default": "One"
+          "default": "List"
         }
       ],
-      "html": "<div class=\"ds-mac-seg\"><span class=\"on\">{{one}}</span><span>Two</span></div>"
+      "html": "<div class=\"ds-mac-seg\"><span class=\"on\">{{one}}</span><span>Grid</span></div>"
     },
     {
       "id": "mac-search",
@@ -184,7 +184,7 @@
           "default": "General"
         }
       ],
-      "html": "<nav class=\"ds-mac-tabs\"><div class=\"ds-mac-tab on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/></svg>{{tab}}</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 6v6l4 2\"/></svg>Second</div></nav>"
+      "html": "<nav class=\"ds-mac-tabs\"><div class=\"ds-mac-tab on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/></svg>{{tab}}</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 6v6l4 2\"/></svg>Sync</div></nav>"
     },
     {
       "id": "mac-form",
@@ -196,10 +196,10 @@
         {
           "id": "label",
           "label": "Label",
-          "default": "Setting"
+          "default": "Startup"
         }
       ],
-      "html": "<div class=\"ds-mac-form\"><span class=\"label\">{{label}}</span><div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>Option</div><div class=\"ds-mac-check\"><span class=\"box\"></span>Another option</div><span class=\"note\">One line of explanation.</span></div></div>"
+      "html": "<div class=\"ds-mac-form\"><span class=\"label\">{{label}}</span><div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>Open the last note at launch</div><div class=\"ds-mac-check\"><span class=\"box\"></span>Show in the menu bar</div><span class=\"note\">The note you were reading opens where you left it.</span></div></div>"
     },
     {
       "id": "mac-menubar-extra",
@@ -211,7 +211,7 @@
         {
           "id": "name",
           "label": "Name",
-          "default": "Product name"
+          "default": "__NAME__"
         }
       ],
       "html": "<div class=\"ds-mac-menubar\"><span class=\"app-name\">App</span><span class=\"grow\"></span><span class=\"extra on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 7v5l3 2\"/></svg></span></div><div class=\"ds-mac-popover\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">Open window<span class=\"value\">Cmd O</span></div><hr class=\"ds-mac-rule\" /><div class=\"ds-mac-menu-row\">Quit<span class=\"value\">Cmd Q</span></div></div>"
@@ -226,10 +226,10 @@
         {
           "id": "title",
           "label": "Title",
-          "default": "New item"
+          "default": "New collection"
         }
       ],
-      "html": "<div class=\"ds-mac-dim\"></div><div class=\"ds-mac-sheet\"><h2>{{title}}</h2><p>One sentence of explanation.</p><div class=\"ds-mac-sheet-foot\"><button type=\"button\" class=\"ds-mac-btn\">Cancel</button><button type=\"button\" class=\"ds-mac-btn default\">Add</button></div></div>"
+      "html": "<div class=\"ds-mac-dim\"></div><div class=\"ds-mac-sheet\"><h2>{{title}}</h2><p>Collections group notes from any folder; a note can be in more than one.</p><div class=\"ds-mac-sheet-foot\"><button type=\"button\" class=\"ds-mac-btn\">Cancel</button><button type=\"button\" class=\"ds-mac-btn default\">Create</button></div></div>"
     },
     {
       "id": "mac-settings-window",
@@ -244,7 +244,7 @@
           "default": "General"
         }
       ],
-      "html": "<div class=\"ds-mac-window\"><header class=\"ds-mac-titlebar plain\"><div class=\"ds-mac-lights\" aria-hidden=\"true\"><i></i><i></i><i></i></div><span class=\"ds-mac-title\">{{tab}}</span></header><nav class=\"ds-mac-tabs\"><div class=\"ds-mac-tab on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 3v3M12 18v3M3 12h3M18 12h3\"/></svg>{{tab}}</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/></svg>Second</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>Third</div></nav><div class=\"ds-mac-settings-body\"><div class=\"ds-mac-form\"><span class=\"label\">Startup</span><div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>Option</div><div class=\"ds-mac-check\"><span class=\"box\"></span>Another option</div></div><span class=\"label\">Choice</span><div><div class=\"ds-mac-popup\"><span>Choice</span><span class=\"arrows\"><svg viewBox=\"0 0 12 12\"><path d=\"M3.5 4.5 6 2l2.5 2.5M3.5 7.5 6 10l2.5-2.5\"/></svg></span></div></div><span class=\"label\">Notes</span><div class=\"ds-mac-textarea\">Placeholder text</div></div></div></div>"
+      "html": "<div class=\"ds-mac-window\"><header class=\"ds-mac-titlebar plain\"><div class=\"ds-mac-lights\" aria-hidden=\"true\"><i></i><i></i><i></i></div><span class=\"ds-mac-title\">{{tab}}</span></header><nav class=\"ds-mac-tabs\"><div class=\"ds-mac-tab on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 3v3M12 18v3M3 12h3M18 12h3\"/></svg>{{tab}}</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/></svg>Sync</div><div class=\"ds-mac-tab\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>Updates</div></nav><div class=\"ds-mac-settings-body\"><div class=\"ds-mac-form\"><span class=\"label\">Startup</span><div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>Open the last note at launch</div><div class=\"ds-mac-check\"><span class=\"box\"></span>Show in the menu bar</div></div><span class=\"label\">Start in</span><div><div class=\"ds-mac-popup\"><span>All notes</span><span class=\"arrows\"><svg viewBox=\"0 0 12 12\"><path d=\"M3.5 4.5 6 2l2.5 2.5M3.5 7.5 6 10l2.5-2.5\"/></svg></span></div></div><span class=\"label\">New notes</span><div class=\"ds-mac-textarea\">Start with the date, then a line for the title.</div></div></div></div>"
     },
     {
       "id": "mac-checks",
@@ -256,10 +256,10 @@
         {
           "id": "label",
           "label": "First option",
-          "default": "Option"
+          "default": "Open the last note at launch"
         }
       ],
-      "html": "<div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>{{label}}</div><span class=\"note\">One line of explanation.</span><div class=\"ds-mac-check\"><span class=\"box\"></span>Another option</div></div>"
+      "html": "<div class=\"ds-mac-checks\"><div class=\"ds-mac-check on\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span>{{label}}</div><span class=\"note\">The note you were reading opens where you left it.</span><div class=\"ds-mac-check\"><span class=\"box\"></span>Show in the menu bar</div></div>"
     },
     {
       "id": "mac-textarea",
@@ -271,7 +271,7 @@
         {
           "id": "text",
           "label": "Text",
-          "default": "Placeholder text"
+          "default": "Stock keeps five days in the fridge, three months frozen."
         }
       ],
       "html": "<div class=\"ds-mac-textarea\">{{text}}<span class=\"caret\"></span></div>"
@@ -286,10 +286,64 @@
         {
           "id": "name",
           "label": "Title",
-          "default": "Popover title"
+          "default": "Share note"
         }
       ],
-      "html": "<div class=\"ds-mac-popover under-tool\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">First action</div><div class=\"ds-mac-menu-row\">Second action</div></div>"
+      "html": "<div class=\"ds-mac-popover under-tool\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">Copy link</div><div class=\"ds-mac-menu-row\">Send a copy</div></div>"
+    },
+    {
+      "id": "mac-note",
+      "name": "Note text",
+      "group": "Mac content",
+      "platform": "mac",
+      "description": "What the person wrote, in the detail pane: body text at 13 px with bold, a highlight, a heading, a list. Write it as their own note, never as filler.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Soup stock notes"
+        }
+      ],
+      "html": "<main class=\"ds-mac-detail\"><h1>{{title}}</h1><p class=\"ds-mac-secondary\">Created 3 March, edited yesterday</p><div class=\"ds-mac-note\"><p>Roast the bones first: <strong>45 minutes at 220</strong>, turned once. Pale bones make a <mark>grey stock</mark>.</p><h2>For four litres</h2><ul><li>2 kg chicken wings and backs</li><li>2 onions, halved, skins on</li><li>1 leek, the green tops only</li></ul><p>Simmer, never boil, for four hours. Skim in the first half hour and leave it after.</p></div></main>"
+    },
+    {
+      "id": "mac-checklist",
+      "name": "Checklist",
+      "group": "Mac content",
+      "platform": "mac",
+      "description": "A checklist inside a note: the round box, done items struck through in grey. Three to six items the person would really write.",
+      "props": [
+        {
+          "id": "item",
+          "label": "First item",
+          "default": "Buy a 12 litre pot"
+        }
+      ],
+      "html": "<ul class=\"ds-mac-checklist\"><li class=\"done\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span><span>{{item}}</span></li><li class=\"done\"><span class=\"box\"><svg viewBox=\"0 0 12 12\"><path d=\"M2.5 6.2 5 8.7l4.5-5\"/></svg></span><span>Ask the butcher for backs on Friday</span></li><li><span class=\"box\"></span><span>Freeze in 500 ml tubs, labelled with the date</span></li></ul>"
+    },
+    {
+      "id": "mac-format-bar",
+      "name": "Format bar",
+      "group": "Mac toolbar",
+      "platform": "mac",
+      "description": "The text tools in the title bar of a note window: style, then bold, italic and underline, then lists and the checklist. Icons and short glyphs, 28 px, the current style on.",
+      "props": [],
+      "html": "<div class=\"ds-mac-format\" role=\"toolbar\" aria-label=\"Format\"><button type=\"button\" class=\"ds-mac-tool\" aria-label=\"Paragraph style\">Aa</button><span class=\"sep\"></span><button type=\"button\" class=\"ds-mac-tool on\" aria-label=\"Bold\"><strong>B</strong></button><button type=\"button\" class=\"ds-mac-tool\" aria-label=\"Italic\"><em>I</em></button><button type=\"button\" class=\"ds-mac-tool\" aria-label=\"Underline\"><u>U</u></button><span class=\"sep\"></span><button type=\"button\" class=\"ds-mac-tool\" aria-label=\"Bulleted list\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg></button><button type=\"button\" class=\"ds-mac-tool\" aria-label=\"Checklist\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"6\" cy=\"7\" r=\"2.5\"/><circle cx=\"6\" cy=\"17\" r=\"2.5\"/><path d=\"M11 7h9M11 17h9\"/></svg></button></div>"
+    },
+    {
+      "id": "mac-folder-picker",
+      "name": "Folder picker",
+      "group": "Mac controls",
+      "platform": "mac",
+      "description": "Moving a note: a popup with its menu open under it, the folders with their icons, the current one ticked and highlighted.",
+      "props": [
+        {
+          "id": "folder",
+          "label": "Current folder",
+          "default": "Recipes"
+        }
+      ],
+      "html": "<div><div class=\"ds-mac-popup\" style=\"width: 220px\"><span>{{folder}}</span><span class=\"arrows\"><svg viewBox=\"0 0 12 12\"><path d=\"M3.5 4.5 6 2l2.5 2.5M3.5 7.5 6 10l2.5-2.5\"/></svg></span></div><div class=\"ds-mac-menu\" role=\"menu\" style=\"margin-top: 4px\"><div class=\"ds-mac-menu-row\"><span class=\"tick\"></span><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>All notes</div><div class=\"ds-mac-menu-row on\"><span class=\"tick\">✓</span><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>{{folder}}</div><div class=\"ds-mac-menu-row\"><span class=\"tick\"></span><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Garden</div><div class=\"ds-mac-menu-row\"><span class=\"tick\"></span><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Trips</div><hr class=\"ds-mac-rule\" /><div class=\"ds-mac-menu-row\"><span class=\"tick\"></span>New folder…</div></div></div>"
     }
   ]
 }

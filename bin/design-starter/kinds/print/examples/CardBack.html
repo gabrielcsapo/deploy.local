@@ -15,10 +15,11 @@
   <body>
     <div
       class="ds-print-face ground-ink"
+      data-layer="back"
       style="--print-w: 85mm; --print-h: 55mm; --print-bleed: 3mm; --print-safe: 4mm"
     >
-      <div class="ds-print-safe center">
-        <div class="ds-print-wordmark large">
+      <div class="ds-print-safe center" data-layer="back-content">
+        <div class="ds-print-wordmark large" data-layer="wordmark">
           <svg viewBox="0 0 64 64" aria-hidden="true">
             <path
               fill-rule="evenodd"
@@ -27,7 +28,7 @@
             />
             <circle cx="32" cy="32" r="8" fill="currentColor" />
           </svg>
-          Product name
+          __NAME__
         </div>
       </div>
     </div>

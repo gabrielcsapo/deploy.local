@@ -34,7 +34,7 @@ import {
   type CheckDrawing,
   type CheckShot,
 } from './board-check.ts';
-import type { LogoMarks } from '../../design/kind-checks.ts';
+import { shortLastPageNote, type LogoMarks } from '../../design/kind-checks.ts';
 import {
   contentDifferences,
   contrastProblems,
@@ -2205,6 +2205,72 @@ test('a project that asks for light and dark still gets a printed card in light 
   assert.deepEqual(result.notes, []);
 });
 
+test('a card with a front and a back gets a proof of both faces after the back; a lone face does not', async () => {
+  const repo = repository();
+  try {
+    repo.write('design/ds/k/tokens.css', ':root{--space-4:16px}');
+    repo.write('design/canvas.json', JSON.stringify({ designSystem: 'ds/k', boards: {} }));
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'card']);
+    const card = 'platform=print,size=85x55mm,bleed=3mm,safe=4mm';
+    const boards: Record<string, string> = {
+      'CardFront.html': card,
+      'CardBack.html': card,
+      'FlyerFront.html': 'platform=print,size=148x210mm,bleed=3mm,safe=5mm',
+    };
+    for (const [file, head] of Object.entries(boards))
+      repo.write(`design/boards/${file}`, kindBoard(head));
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        designSystem: 'ds/k',
+        boards: {
+          'CardFront.html': { x: 0, y: 0, w: 344, h: 231 },
+          'CardBack.html': { x: 400, y: 0, w: 344, h: 231 },
+          'FlyerFront.html': { x: 0, y: 300, w: 582, h: 816 },
+        },
+      }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Card']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const pairs: { before: string | null; after: string; labels?: unknown; layout?: unknown }[] =
+      [];
+    const drawer: CheckDrawing = {
+      shoot: async (input) => ({
+        png: Buffer.from(input.file),
+        measured: null,
+        inspected: input.inspect ? inspection({ height: input.height }) : null,
+      }),
+      pair: async ({ before, after, labels, layout }) => {
+        pairs.push({ before: before?.toString() ?? null, after: after.toString(), labels, layout });
+        return Buffer.from('pair');
+      },
+    };
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.ok(result.pictures.some((picture) => picture.name === 'Card-proof-light.png'));
+    const proof = pairs.find((pair) => pair.labels);
+    assert.deepEqual(proof && [proof.before, proof.after, proof.labels], [
+      'CardFront.html',
+      'CardBack.html',
+      { before: 'Front', after: 'Back' },
+    ]);
+    assert.equal((proof?.layout as { kind?: string })?.kind, 'print');
+    assert.equal(pairs.filter((pair) => pair.labels).length, 1, 'the flyer has no back: no proof');
+    const names = result.pictures.map((picture) => picture.name);
+    assert.equal(
+      names.indexOf('Card-proof-light.png'),
+      Math.max(names.indexOf('CardBack-728-light.png'), names.indexOf('CardFront-728-light.png')) +
+        1,
+      'after both faces',
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test('text inside the safe margin of a printed piece is a problem; a bleeding picture is not', async () => {
   const { result } = await kindCheck({
     head: 'platform=print',
@@ -2479,6 +2545,38 @@ function pngOf(
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
+
+test('a last printed page of a few lines is a note; a fuller one, or the running foot alone, is not', () => {
+  // A sheet 100 x 200 with 20 px margins: the text area runs from 20 to 180. Ink is grey text
+  // rows down to `to`, and a page number in the bottom margin.
+  const sheet = (to: number) =>
+    pngOf(100, 200, (x, y) =>
+      (y >= 20 && y < to && y % 4 === 0 && x > 10 && x < 90) || (y === 190 && x > 45 && x < 55)
+        ? [60, 60, 60]
+        : [255, 255, 255],
+    );
+  const full = sheet(180);
+  const margin = { top: 20, bottom: 20 };
+  const note = (last: Buffer, pages = [full, last]) =>
+    shortLastPageNote({ file: 'Guide.html', title: 'Guide', pages, margin, pageHeight: 200 });
+  const short = note(sheet(36));
+  assert.equal(short?.code, 'last_page_short');
+  assert.match(short?.detail ?? '', /^page 2 of 2 is used for 8% of its text area$/);
+  assert.equal(note(sheet(120)), null, 'a page half full is a page');
+  assert.equal(note(sheet(20)), null, 'only the running foot: nothing to say');
+  assert.equal(note(sheet(36), [sheet(36)]), null, 'one page is the whole document');
+  assert.equal(
+    shortLastPageNote({
+      file: 'G',
+      title: 'G',
+      pages: [full, sheet(36)],
+      margin: undefined,
+      pageHeight: 200,
+    }),
+    null,
+    'no margins read: no guess',
+  );
+});
 
 test('type scales come from each platform own tokens, in pt where they say pt', () => {
   const css =

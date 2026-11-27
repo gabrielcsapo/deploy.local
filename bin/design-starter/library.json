@@ -11,7 +11,7 @@
         {
           "id": "product",
           "label": "Product",
-          "default": "Product name"
+          "default": "__NAME__"
         }
       ],
       "html": "<div class=\"ds-app\"><nav class=\"ds-sidebar\" aria-label=\"Places\"><div class=\"ds-brand\"><span class=\"ds-brand-mark\"></span>{{product}}</div><a href=\"#\" class=\"ds-nav on\" aria-current=\"page\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01\"/></svg>Place one</a><a href=\"#\" class=\"ds-nav\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Place two</a><div class=\"ds-sidebar-foot\"><a href=\"#\" class=\"ds-nav\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/><circle cx=\"15\" cy=\"7\" r=\"2\"/><circle cx=\"9\" cy=\"17\" r=\"2\"/></svg>Settings</a></div></nav><div class=\"ds-main\"><header class=\"ds-topbar\"><button type=\"button\" class=\"ds-btn quiet\" aria-label=\"Menu\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h16M4 17h16\"/></svg></button><div class=\"ds-brand\"><span class=\"ds-brand-mark\"></span>{{product}}</div></header><main class=\"ds-page\"></main></div></div>"

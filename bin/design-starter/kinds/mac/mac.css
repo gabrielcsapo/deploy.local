@@ -779,3 +779,112 @@ body {
 .ds-mac-detail .lead {
   margin-top: var(--space-4);
 }
+
+/* ---------- A note's own text: rich text, a checklist, the format bar ---------- */
+/* .ds-mac-note is what the person wrote, in the detail pane: body text with bold, italic,
+   a heading, lists and a checklist, as the system's text view draws them. */
+.ds-mac-note {
+  max-width: 62ch;
+}
+.ds-mac-note h2 {
+  margin: var(--space-5) 0 var(--space-2);
+}
+.ds-mac-note ul,
+.ds-mac-note ol {
+  margin: 0 0 var(--space-3);
+  padding-left: 20px;
+}
+.ds-mac-note li {
+  margin: 0 0 var(--space-1);
+}
+.ds-mac-note strong {
+  font-weight: var(--weight-semibold);
+}
+.ds-mac-note mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+}
+/* A checklist: the round box the Notes app draws, a done item struck through in grey. */
+.ds-mac-checklist {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.ds-mac-checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ds-mac-checklist .box {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+}
+.ds-mac-checklist .done .box {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ds-mac-checklist .box svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ds-mac-checklist .done > span:last-child {
+  color: var(--ink-secondary);
+  text-decoration: line-through;
+}
+/* The format bar: the toolbar's text tools, grouped, in the title bar or a popover. */
+.ds-mac-format {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.ds-mac-format .ds-mac-tool {
+  min-width: 28px;
+  padding: 0 6px;
+  font-size: var(--text-mac-body);
+}
+.ds-mac-format .sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--space-1);
+  background: var(--line);
+}
+/* A folder picker: a popup whose menu is open, the folders with their icons, the current ticked. */
+.ds-mac-menu {
+  width: 220px;
+  box-sizing: border-box;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+.ds-mac-menu .tick {
+  width: 12px;
+  flex: none;
+  text-align: center;
+}
+.ds-mac-menu .ds-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+.ds-mac-menu .ds-mac-menu-row.on .ds-icon {
+  color: inherit;
+}

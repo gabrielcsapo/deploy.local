@@ -1585,6 +1585,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'type_off_scale', problem: false, means: "a font size not on its platform's type scale" },
   { code: 'page_break_inside', problem: false, means: 'doc: a printed page ends on a heading' },
   {
+    code: 'last_page_short',
+    problem: false,
+    means: 'doc: the last printed page holds a few lines and the rest is blank',
+  },
+  {
     code: 'logo_small_unreadable',
     problem: false,
     means: 'logo: contrast under 3:1, or strokes and gaps under 1.5 px, at 16 px',

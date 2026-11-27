@@ -661,6 +661,70 @@ export function pageBreakNotesFromPages(input: {
   ];
 }
 
+/**
+ * How far down its text area a printed sheet is inked, 0 to 1: the last row with ink between the
+ * top and bottom margins (where the running head and foot are printed), over the text area's
+ * height. Null when the sheet cannot be read or the margins leave no text area.
+ */
+export function sheetFill(
+  sheet: Buffer,
+  margin: { top: number; bottom: number },
+  pageHeight: number,
+): number | null {
+  let picture: ReturnType<typeof decodePng>;
+  try {
+    picture = decodePng(sheet);
+  } catch {
+    return null;
+  }
+  const { width, height, rgba } = picture;
+  const scale = height / Math.max(1, pageHeight);
+  const top = Math.round(margin.top * scale);
+  const bottom = height - Math.round(margin.bottom * scale);
+  if (bottom - top < 10) return null;
+  const edge = 3;
+  let last = -1;
+  for (let y = top; y < bottom; y++)
+    for (let x = edge; x < width - edge; x++) {
+      const i = (y * width + x) * 4;
+      if (Math.min(rgba[i], rgba[i + 1], rgba[i + 2]) < 235) {
+        last = y;
+        break;
+      }
+    }
+  return last < 0 ? 0 : (last - top + 1) / (bottom - top);
+}
+
+/**
+ * A document whose last printed sheet holds a few lines and the rest blank: a note. Printed or
+ * read as a PDF, a page of three lines looks like something fell off; a little tightening above
+ * usually brings it back.
+ */
+export function shortLastPageNote(input: {
+  file: string;
+  title: string;
+  pages: Buffer[];
+  margin: { top: number; bottom: number } | null | undefined;
+  pageHeight: number;
+  /** Below this share of the text area, the last page is short. */
+  under?: number;
+}): Finding | null {
+  if (input.pages.length < 2 || !input.margin) return null;
+  const fill = sheetFill(input.pages[input.pages.length - 1], input.margin, input.pageHeight);
+  const under = input.under ?? 0.15;
+  if (fill === null || fill <= 0 || fill >= under) return null;
+  const page = input.pages.length;
+  return {
+    code: 'last_page_short',
+    file: input.file,
+    board: input.title,
+    label: `${input.title} prints a last page that is nearly empty`,
+    detail: `page ${page} of ${page} is used for ${Math.max(1, Math.round(fill * 100))}% of its text area`,
+    short: 'nearly empty last page',
+    fix: 'tighten the pages before it (a shorter passage, a smaller figure, a table kept on one page) so the text ends on a fuller page, or cut what spills over',
+  };
+}
+
 /** The height a document board says, in its head or canvas.json, when it is not the height drawn. */
 export function measuredHeightProblem(input: {
   file: string;

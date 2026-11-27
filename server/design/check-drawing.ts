@@ -606,6 +606,8 @@ export function pairPage(input: {
   /** A logo's mark drawn from the mark itself (Before and After). */
   beforeMarks?: LogoMarks | null;
   afterMarks?: LogoMarks | null;
+  /** Captions in place of Before and After: a print proof's Front and Back. */
+  labels?: { before: string; after: string };
 }) {
   const { before, after, width, scheme, layout } = input;
   const questions = input.questions?.length
@@ -625,9 +627,9 @@ export function pairPage(input: {
   return (
     `<style>body{margin:0;display:flex;gap:16px;padding:16px;align-items:flex-start;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${Math.max(240, width - 24)}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}.pages{display:grid;gap:16px}.sheet-page{position:relative;background:#fff;border:1px solid #888;box-sizing:content-box;overflow:hidden}.pg span{display:block;margin-top:4px;opacity:.6}.legend{margin:8px 0 0;width:auto;opacity:.7}.sheet{display:flex;flex-direction:column;gap:20px;padding:12px}.sheet .row{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}.chip{display:inline-block;padding:12px;border:1px solid #8886}.paper{border:1px solid #888;background:#fff}.sheet figure{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.sheet figcaption{margin:0;opacity:.6}</style>` +
     (before
-      ? `<figure><figcaption>${caption('Before · main')}</figcaption>${image(before, 'pgA')}</figure>`
+      ? `<figure><figcaption>${caption(input.labels?.before ?? 'Before · main')}</figcaption>${image(before, 'pgA')}</figure>`
       : '') +
-    `<figure><figcaption>${caption(before ? 'After · this branch' : 'New board')}</figcaption>${image(after, 'pgB')}${questions}</figure>`
+    `<figure><figcaption>${caption(input.labels?.after ?? (before ? 'After · this branch' : 'New board'))}</figcaption>${image(after, 'pgB')}${questions}</figure>`
   );
 }
 

@@ -84,6 +84,7 @@ import {
   logoSmallNote,
   markLegibility,
   pageBreakNotesFromPages,
+  shortLastPageNote,
   type LogoGround,
   type LogoMarks,
   type StrandedHeading,
@@ -382,6 +383,8 @@ export type CheckDrawing = {
     /** The mark drawn from the mark itself, when it could be. */
     beforeMarks?: LogoMarks | null;
     afterMarks?: LogoMarks | null;
+    /** Captions in place of Before and After: a print proof's Front and Back. */
+    labels?: { before: string; after: string };
   }): Promise<Buffer>;
 };
 
@@ -1095,6 +1098,11 @@ export async function checkDesign(
   // Platforms whose bottom edge is no phone screen: a document scrolls, a card and a mark have no
   // bars to hide text under.
   const noBottomFrame = new Set(['doc', 'print', 'logo']);
+  // Each print face as drawn on this branch in light, for the front and back proof.
+  const printFaces = new Map<
+    string,
+    { png: Buffer; width: number; height: number; layout: DrawStep['layout'] }
+  >();
   const drawBoard = async (file: string) => {
     const placed = canvas?.boards?.[file];
     const text = await after(file);
@@ -1208,6 +1216,21 @@ export async function checkDesign(
             grounds: afterShot.grounds ?? [],
           });
         if (inspect && afterShot.inspected && step.mode === 'pages') {
+          // A last sheet of a few lines, from the sheets as printed.
+          if (
+            scheme === stepSchemes[0] &&
+            step.layout?.kind === 'pages' &&
+            afterShot.pages?.length
+          ) {
+            const short = shortLastPageNote({
+              file,
+              title,
+              pages: afterShot.pages,
+              margin: step.layout.margin,
+              pageHeight: step.layout.pageHeight,
+            });
+            if (short) found.notes.push(short);
+          }
           // Printed pages: where the sheets break, nothing else read twice.
           if (scheme === stepSchemes[0] && step.layout?.kind === 'pages' && afterShot.pages?.length)
             // The sheets as the browser printed them: where they really end.
@@ -1363,6 +1386,13 @@ export async function checkDesign(
           ...(mainHas && beforeShot?.marks ? { beforeMarks: beforeShot.marks } : {}),
         });
         shots.push({ name: `${name}-${step.key}-${scheme}.png`, png: png.toString('base64') });
+        if (platform === 'print' && scheme === 'light' && !printFaces.has(file))
+          printFaces.set(file, {
+            png: afterShot.png,
+            width: step.shown,
+            height,
+            layout: step.layout,
+          });
       }
     }
     if (platform === 'logo' && logoPictures.length) {
@@ -1450,6 +1480,38 @@ export async function checkDesign(
     drawn.push(file);
     pictures.push(...results[at]!);
   });
+  // A print piece with a front and a back gets a proof: both faces side by side, as the printer
+  // will see them, after the back's own pictures. Faces of different sizes are not one piece.
+  for (const [file, front] of printFaces) {
+    const stem = /^(.*)Front\.html$/.exec(file)?.[1];
+    const back = stem !== undefined ? printFaces.get(`${stem}Back.html`) : undefined;
+    if (stem === undefined || !back) continue;
+    const trim = (layout: DrawStep['layout']) =>
+      layout?.kind === 'print' ? `${layout.trim.w}x${layout.trim.h}` : null;
+    if (trim(front.layout) !== trim(back.layout) || front.width !== back.width) continue;
+    try {
+      const png = await drawing.pair({
+        before: front.png,
+        after: back.png,
+        width: front.width,
+        height: front.height,
+        scheme: 'light',
+        ...(front.layout ? { layout: front.layout } : {}),
+        labels: { before: 'Front', after: 'Back' },
+      });
+      // After whichever face's own pictures come last.
+      const faces = [`${stem}Front-`, `${stem}Back-`];
+      let at = pictures.length;
+      for (let i = pictures.length - 1; i >= 0; i--)
+        if (faces.some((face) => pictures[i].name.startsWith(face))) {
+          at = i + 1;
+          break;
+        }
+      pictures.splice(at, 0, { name: `${stem}-proof-light.png`, png: png.toString('base64') });
+    } catch {
+      // A proof that cannot be drawn leaves the faces' own pictures.
+    }
+  }
   for (const board of boardRows) {
     problems.push(
       ...overflowProblems(

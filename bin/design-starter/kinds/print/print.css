@@ -187,7 +187,8 @@ body {
   text-align: center;
 }
 
-/* ---------- Front and back, side by side on one sheet board ---------- */
+/* ---------- Front and back on one sheet board: the check draws this proof itself from
+   <Piece>Front and <Piece>Back; the class stays for projects that drew one by hand ---------- */
 .ds-print-pair {
   display: flex;
   align-items: flex-start;

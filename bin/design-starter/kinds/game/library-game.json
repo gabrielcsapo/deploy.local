@@ -131,6 +131,30 @@
         }
       ],
       "html": "<div class=\"ds-game-progress\"><div class=\"track\"><i style=\"--v: 0\"></i></div><span class=\"ds-game-label\">{{caption}}</span></div>"
+    },
+    {
+      "id": "game-hud-slot",
+      "name": "HUD with an empty right",
+      "group": "Game layout",
+      "platform": "game",
+      "description": "For a game with no lives or timer: pause at the left, the level in the middle, an empty .slot at the right so the middle stays centred.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Middle",
+          "default": "Room 14: the flooded cellar"
+        }
+      ],
+      "html": "<div class=\"ds-game-hud\"><button type=\"button\" class=\"ds-game-btn small\" aria-label=\"Pause\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6v12M15 6v12\"/></svg></button><span class=\"grow\">{{label}}</span><span class=\"slot\" aria-hidden=\"true\"></span></div>"
+    },
+    {
+      "id": "game-puzzle-stage",
+      "name": "Puzzle stage at night",
+      "group": "Game layout",
+      "platform": "game",
+      "description": "A light puzzle on a stage that is dark in both schemes (.night with data-theme=\"dark\"): the grid, a wall, mirrors the player turns (.fixed for one that does not), the emitter, the beam's path and a lit target.",
+      "props": [],
+      "html": "<div class=\"ds-game-stage night\" data-theme=\"dark\"><svg viewBox=\"0 0 358 480\" width=\"100%\" height=\"100%\" role=\"img\" aria-label=\"Puzzle board\"><rect class=\"cell\" x=\"19\" y=\"16\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"83\" y=\"16\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"147\" y=\"16\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"211\" y=\"16\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"275\" y=\"16\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"19\" y=\"80\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"83\" y=\"80\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"147\" y=\"80\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"211\" y=\"80\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"275\" y=\"80\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"19\" y=\"144\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"83\" y=\"144\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"147\" y=\"144\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"211\" y=\"144\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"275\" y=\"144\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"19\" y=\"208\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"83\" y=\"208\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"147\" y=\"208\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"211\" y=\"208\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"275\" y=\"208\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"19\" y=\"272\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"83\" y=\"272\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"147\" y=\"272\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"211\" y=\"272\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"275\" y=\"272\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"19\" y=\"336\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"83\" y=\"336\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"147\" y=\"336\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"211\" y=\"336\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"275\" y=\"336\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"19\" y=\"400\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"83\" y=\"400\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"147\" y=\"400\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"211\" y=\"400\" width=\"64\" height=\"64\"/><rect class=\"cell\" x=\"275\" y=\"400\" width=\"64\" height=\"64\"/><rect class=\"wall\" x=\"147\" y=\"208\" width=\"64\" height=\"64\"/><polyline class=\"beam\" points=\"51,112 243,112 243,368 307,368\"/><rect class=\"emitter\" x=\"35\" y=\"100\" width=\"24\" height=\"24\" rx=\"6\"/><line class=\"mirror\" x1=\"225\" y1=\"94\" x2=\"261\" y2=\"130\"/><line class=\"mirror\" x1=\"225\" y1=\"350\" x2=\"261\" y2=\"386\"/><line class=\"mirror\" x1=\"65\" y1=\"322\" x2=\"101\" y2=\"286\"/><line class=\"mirror fixed\" x1=\"161\" y1=\"450\" x2=\"197\" y2=\"414\"/><circle class=\"target lit\" cx=\"307\" cy=\"368\" r=\"14\"/></svg></div>"
     }
   ]
 }

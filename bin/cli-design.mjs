@@ -271,10 +271,17 @@ export function initDesign(top, name, starter, kind = 'app') {
   writeFileSync(join(design, 'boards', '.gitkeep'), '');
   written.push('design/boards/');
   mkdirSync(join(design, 'ds', name), { recursive: true });
-  // The starter's examples link ../ds/__DS__/…: this project's folder.
+  // The starter's examples link ../ds/__DS__/…: this project's folder. __NAME__ is where the
+  // kit would otherwise say "Product name": the project's own, as a title would write it.
+  const shown = displayName(name).replace(/[&<>"\\]/g, (c) => `&#${c.charCodeAt(0)};`);
   const fill = (path, bytes) =>
     /\.(html|css|md|json)$/.test(path)
-      ? Buffer.from(Buffer.from(bytes).toString('utf8').replaceAll('__DS__', name))
+      ? Buffer.from(
+          Buffer.from(bytes)
+            .toString('utf8')
+            .replaceAll('__DS__', name)
+            .replaceAll('__NAME__', shown),
+        )
       : bytes;
   const entries = Object.entries(starter)
     .filter(([path]) => !path.split('/').includes('..'))
@@ -826,7 +833,7 @@ export async function runDesign(sub, args, options, deps) {
       const pairs = join(top, 'output', 'design', 'pairs');
       mkdirSync(pairs, { recursive: true });
       for (const picture of result.pictures ?? [])
-        if (/^[A-Za-z0-9_-]+-\d+-(light|dark)\.png$/.test(picture.name)) {
+        if (/^[A-Za-z0-9_-]+-(?:\d+|proof)-(light|dark)\.png$/.test(picture.name)) {
           writeFileSync(join(pairs, picture.name), Buffer.from(picture.png, 'base64'));
           pairFiles.push(`output/design/pairs/${picture.name}`);
         }
