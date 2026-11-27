@@ -214,7 +214,7 @@
           "default": "__NAME__"
         }
       ],
-      "html": "<div class=\"ds-mac-menubar\"><span class=\"app-name\">App</span><span class=\"grow\"></span><span class=\"extra on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 7v5l3 2\"/></svg></span></div><div class=\"ds-mac-popover\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">Open window<span class=\"value\">Cmd O</span></div><hr class=\"ds-mac-rule\" /><div class=\"ds-mac-menu-row\">Quit<span class=\"value\">Cmd Q</span></div></div>"
+      "html": "<div class=\"ds-mac-menubar\"><span class=\"app-name\">Finder</span><span class=\"grow\"></span><span class=\"extra on\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 7v5l3 2\"/></svg></span></div><div class=\"ds-mac-popover\"><div class=\"ds-mac-popover-head\"><span class=\"name\">{{name}}</span></div><div class=\"ds-mac-menu-row on\">Open window<span class=\"value\">Cmd O</span></div><hr class=\"ds-mac-rule\" /><div class=\"ds-mac-menu-row\">Quit<span class=\"value\">Cmd Q</span></div></div>"
     },
     {
       "id": "mac-sheet",

@@ -1791,6 +1791,21 @@ test('an instance asks about its inner layers on its root; sync keeps the questi
   assert.deepEqual(found.problems, []);
 });
 
+test('a sample value is quoted in whole words, with an ellipsis where the text goes on', () => {
+  const [note] = questionFindings({
+    file: 'A.html',
+    title: 'A',
+    before: null,
+    after: board(
+      '',
+      '<p data-layer="meet" data-question="When is it held?">The meeting is held on the first Tuesday of the month, at 7:00 in the laundry room, with tea for everyone who comes along</p>',
+    ),
+  }).notes;
+  assert.equal(note.code, 'question_sample_value');
+  assert.match(note.label, /"…(?:\S+ )*\S*Tuesday[^"]*…"$/);
+  assert.doesNotMatch(note.label, /"…?[a-z]{1,2} /, 'no word cut in half at the start');
+});
+
 test('a sample value is noted only when it is of the kind the question asks for', () => {
   const flagged = (question: string, text: string) =>
     questionFindings({
@@ -2278,6 +2293,8 @@ test('text inside the safe margin of a printed piece is a problem; a bleeding pi
       texts: [
         text('inside', { left: 40, top: 40, width: 100, height: 14 }),
         text('too-close', { left: 14, top: 100, width: 100, height: 14 }),
+        // Flush with the safe line (3 + 4 mm = 26.5 px): its font's height stands 1 px above it.
+        text('flush', { left: 40, top: 25, width: 100, height: 18, size: 14.67 }),
       ],
       figures: [
         { layer: 'wash', left: 0, top: 0, width: 150, height: 100 },

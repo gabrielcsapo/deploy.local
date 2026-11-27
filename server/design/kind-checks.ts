@@ -355,11 +355,14 @@ export function safeAreaProblems(input: {
   const inset = (geometry.bleed + geometry.safe) * CSS_PX_PER_MM;
   const bleed = geometry.bleed * CSS_PX_PER_MM;
   const slack = 0.75;
-  const outside = (box: { left: number; top: number; width: number; height: number }) =>
+  // A line of text is measured by its font's whole height, which stands a little above and below
+  // its line: text set flush with the safe line reaches over it by about a tenth of its size, with
+  // no ink there. That much more is allowed above and below a text, so flush text is not a problem.
+  const outside = (box: { left: number; top: number; width: number; height: number }, over = 0) =>
     box.left < inset - slack ||
-    box.top < inset - slack ||
+    box.top < inset - slack - over ||
     box.left + box.width > geometry.width - inset + slack ||
-    box.top + box.height > geometry.height - inset + slack;
+    box.top + box.height > geometry.height - inset + slack + over;
   const reachesBleed = (box: { left: number; top: number; width: number; height: number }) =>
     box.left < bleed - slack ||
     box.top < bleed - slack ||
@@ -367,7 +370,7 @@ export function safeAreaProblems(input: {
     box.top + box.height > geometry.height - bleed + slack;
   const found: { layer: string | null; what: string }[] = [];
   for (const text of inspection.texts)
-    if (outside(text)) found.push({ layer: text.layer, what: `"${text.text}"` });
+    if (outside(text, text.size * 0.12)) found.push({ layer: text.layer, what: `"${text.text}"` });
   for (const figure of inspection.figures ?? []) {
     if (figure.width * figure.height > geometry.width * geometry.height * 0.5) continue;
     if (reachesBleed(figure)) continue;

@@ -171,6 +171,9 @@ body {
   border-top: 0.25pt solid var(--line-strong);
   margin: 0;
 }
+.ds-print-address .ds-print-rule {
+  margin: 2mm 0;
+}
 
 /* ---------- Stamp box: keep clear, never print in it ---------- */
 .ds-print-stamp {

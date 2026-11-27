@@ -241,7 +241,7 @@ export const INIT_README = (name, kind = 'app') => {
     .replace('platform (web or phone)', `platform (${kind}: see \`deploy design guide\`)`)
     .replace(
       '3. Draw `design/boards/<Board>.html`',
-      `3. Start from the board \`init\` placed in \`design/boards/\`: it is named for the project and marked "startingBoard" in \`canvas.json\`. Replace its words with this project's own and rename it with \`git mv\` if you like (update its key in \`canvas.json\` and drop "startingBoard"); never leave it as it came. Its siblings are in \`ds/${name}/examples/\`. Draw other boards as \`design/boards/<Board>.html\``,
+      `3. Start from the board \`init\` placed in \`design/boards/\`: its title is the project's name and it is marked "startingBoard" in \`canvas.json\`. Replace its words with this project's own; never leave it as it came. To rename it, move the file (plain \`mv\`: nothing under \`design/\` is committed yet) and change its key in \`canvas.json\`'s "boards" and "order"; \`check --fix\` drops "startingBoard" once the board is your own. Its siblings are in \`ds/${name}/examples/\`, with links written for \`design/boards/\`: copy one there to start a board from it, never open it in place. Draw other boards as \`design/boards/<Board>.html\`, and list each in "order" where it goes`,
     );
 };
 

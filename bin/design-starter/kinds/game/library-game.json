@@ -128,9 +128,14 @@
           "id": "caption",
           "label": "Caption",
           "default": "Levels done of all levels"
+        },
+        {
+          "id": "value",
+          "label": "Progress, 0 to 100",
+          "default": "40"
         }
       ],
-      "html": "<div class=\"ds-game-progress\"><div class=\"track\"><i style=\"--v: 0\"></i></div><span class=\"ds-game-label\">{{caption}}</span></div>"
+      "html": "<div class=\"ds-game-progress\"><div class=\"track\"><i style=\"--v: {{value}}\"></i></div><span class=\"ds-game-label\">{{caption}}</span></div>"
     },
     {
       "id": "game-hud-slot",

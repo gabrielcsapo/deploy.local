@@ -165,6 +165,10 @@ body {
   font-size: 56px;
   line-height: 64px;
 }
+/* The mark alone on a tile: the size it has in a lockup, not the artboard's. */
+.ds-logo-tile > .ds-logo-mark {
+  --size-logo-mark: 112px;
+}
 .ds-logo-tile .ds-logo-lockup .ds-logo-mark {
   --size-logo-mark: 72px;
   color: inherit;

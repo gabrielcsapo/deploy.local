@@ -117,9 +117,14 @@
           "id": "deck",
           "label": "Deck name",
           "default": "__NAME__"
+        },
+        {
+          "id": "n",
+          "label": "Slide number",
+          "default": "1"
         }
       ],
-      "html": "<section class=\"ds-slide picture\"><div class=\"ds-slide-text\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><p class=\"ds-slide-lede\">{{lede}}</p></div><div class=\"ds-slide-picture\"></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span></div></section>"
+      "html": "<section class=\"ds-slide picture\"><div class=\"ds-slide-text\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><p class=\"ds-slide-lede\">{{lede}}</p></div><div class=\"ds-slide-picture\"></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span><span class=\"ds-slide-foot-num\" data-layer=\"slide-number\" data-slide-number>{{n}}</span></div></section>"
     },
     {
       "id": "slide-two",

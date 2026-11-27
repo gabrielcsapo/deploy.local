@@ -72,7 +72,7 @@
       "platform": "print",
       "description": "The recipient on rules, for a postcard back; keep the lower 15 mm free for the post.",
       "props": [],
-      "html": "<address class=\"ds-print-address\"><span class=\"line\">Tom and Ana Lindqvist</span><hr class=\"ds-print-rule\" style=\"margin: 2mm 0\" /><span class=\"line\">Södra Vägen 12</span><hr class=\"ds-print-rule\" style=\"margin: 2mm 0\" /><span class=\"line\">412 54 Göteborg</span></address>"
+      "html": "<address class=\"ds-print-address\"><span class=\"line\">Tom and Ana Lindqvist</span><hr class=\"ds-print-rule\" /><span class=\"line\">Södra Vägen 12</span><hr class=\"ds-print-rule\" /><span class=\"line\">412 54 Göteborg</span></address>"
     },
     {
       "id": "print-stamp",

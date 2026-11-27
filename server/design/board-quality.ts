@@ -767,7 +767,16 @@ export function questionFindings(input: {
     if (fact) {
       // Words around the fact, so the agent sees what it said.
       const { at } = fact;
-      const words = entry.text.slice(Math.max(0, at - 20), at + 30).trim();
+      // Cut at whole words, with an ellipsis where the layer's text goes on.
+      let from = Math.max(0, at - 20);
+      let to = Math.min(entry.text.length, at + fact.value.length + 30);
+      if (from > 0) from = entry.text.indexOf(' ', from) + 1 || at;
+      if (from > at) from = at;
+      if (to < entry.text.length) {
+        const space = entry.text.lastIndexOf(' ', to);
+        to = space > at + fact.value.length ? space : at + fact.value.length;
+      }
+      const words = `${from > 0 ? '…' : ''}${entry.text.slice(from, to).trim()}${to < entry.text.length ? '…' : ''}`;
       // A plausible sample on the layer that asks for it is the intended case: drawn at real
       // density, and flagged by its own question. It stays a note so the owner sees the value.
       if (!old.has(`${entry.layer} ${entry.question}`))

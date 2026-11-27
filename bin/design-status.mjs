@@ -690,7 +690,7 @@ export function guideLines({ top, designSystem, all = false }) {
       "  (--text-game-*), never the phone's; every other platform is held to its own kit's scale too.",
     );
   lines.push(
-    '  Style lives in the design system, not the board: no style="…" with a colour, size, space or font, and no <style> block for html, body or a design-system class (inline_style).',
+    '  Style lives in the design system, not the board: no style="…" with a colour, size, space or font, and no <style> block for html, body or a design-system class (inline_style). A kit’s own custom property in style, like a bar’s --v or a print face’s --print-w, is how the kit is driven, and is fine.',
     "  Put it in the kind's css (design/ds/<system>/<kind>.css) as a class. Anything that must scroll sideways says so (overflow-x: auto or data-scroll-x); the rest ends inside its edge (cut_off_side).",
   );
   lines.push(

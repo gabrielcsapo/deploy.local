@@ -3,7 +3,7 @@
   "components": [
     {
       "id": "logo-mark",
-      "name": "Placeholder mark",
+      "name": "Mark",
       "group": "Logo",
       "platform": "logo",
       "description": "A mark on a 64 grid holding two cuts: .full (detail down to one unit, 48 px and up) and .small (nothing under two units, for 16, 24 and 32 px; .s16 .s24 .s32 or .small-cut pick it). Replace the shapes, keep the classes (.a main colour, .b accent). Variants: \" mono\", \" reversed\".",
