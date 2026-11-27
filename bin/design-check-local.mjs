@@ -194,6 +194,7 @@ export async function openLocalDrawing({
       fullPage,
       printed,
       logo,
+      art,
     }) {
       const html = read(commit, `boards/${file}`);
       if (!html) return null;
@@ -207,6 +208,7 @@ export async function openLocalDrawing({
           fullPage,
           printed,
           logo,
+          art,
         });
       } finally {
         await tab.close();

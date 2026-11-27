@@ -840,3 +840,99 @@ test('a logo mark is drawn from the mark itself at true size, and its thin or cr
     await browser.close();
   }
 });
+
+test("the art kit's sprites are read and drawn at play size on each ground, and pass; broken art fails each check", async (t) => {
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  const { designStarterFiles } = await import('./design-local-assets.mjs');
+  const { artGridProblems, artPaletteProblems, artReadNote, artSilhouetteNote } =
+    await import('../server/design/art-checks.ts');
+  const { pngSize } = await import('../server/design/kind-checks.ts');
+  const files = designStarterFiles();
+  const text = (path) => Buffer.from(files[path]).toString('utf8');
+  // The kit's board with its stylesheets inlined, as the check's page has them.
+  const page = (html) =>
+    html.replace(
+      /<link rel="stylesheet" href="\.\.\/ds\/__DS__\/([a-z]+\.css)" \/>/g,
+      (_, name) =>
+        `<style>${text(name === 'art.css' ? 'kinds/art/art.css' : name === 'components.css' ? 'kinds/_shared/components.css' : name)}</style>`,
+    );
+  const shoot = async (html) => {
+    const tab = await browser.newTab({ width: 1280, height: 960, scheme: 'light' });
+    try {
+      return (await shootBoard(tab, page(html), { scheme: 'light', measure: false, art: true }))
+        .art;
+    } finally {
+      await tab.close();
+    }
+  };
+  const findings = (art) =>
+    [
+      ...artGridProblems({ file: 'A.html', title: 'A', art }),
+      ...artPaletteProblems({ file: 'A.html', title: 'A', art }),
+      artReadNote({ file: 'A.html', title: 'A', art }),
+      artSilhouetteNote({ file: 'A.html', title: 'A', art }),
+    ].filter(Boolean);
+  try {
+    const sprites = text('kinds/art/examples/ArtSprites.html');
+    const art = await shoot(sprites);
+    assert.equal(art.tile, 16);
+    assert.equal(art.play, 48);
+    assert.ok(art.palette.length >= 14, `${art.palette.length} palette colours`);
+    assert.deepEqual(
+      art.grounds.map((ground) => ground.label),
+      ['Day', 'Dusk', 'Night'],
+    );
+    assert.deepEqual(
+      art.sprites.map((sprite) => [sprite.name, sprite.set]),
+      [
+        ['hero-idle', 'hero'],
+        ['hero-step', 'hero'],
+        ['slime-idle', 'slime'],
+        ['slime-squash', 'slime'],
+        ['coin', 'coin'],
+      ],
+    );
+    for (const sprite of art.sprites) {
+      assert.equal(sprite.renders.length, 3, sprite.name);
+      for (const render of sprite.renders)
+        assert.deepEqual(pngSize(render.png), { width: 48, height: 48 }, sprite.name);
+      assert.ok(sprite.svg.startsWith('<svg') && !/class=/.test(sprite.svg), sprite.name);
+    }
+    assert.deepEqual(findings(art), []);
+    const tiles = await shoot(text('kinds/art/examples/ArtTiles.html'));
+    assert.deepEqual(
+      tiles.sprites.map((sprite) => [sprite.name, sprite.tile]),
+      [
+        ['grass', true],
+        ['wall', true],
+        ['water', true],
+      ],
+    );
+    assert.deepEqual(findings(tiles), []);
+    // The hero redrawn in ink and shade as another set, a circle, a colour of its own, a play size that blurs.
+    const hero = /<section class="art-set" data-layer="hero">[\s\S]*?<\/section>/.exec(sprites)[0];
+    const shadow = hero
+      .replace('data-layer="hero"', 'data-layer="shadow"')
+      .replaceAll('hero-', 'shadow-')
+      .replaceAll('c-white', 'c-shade')
+      .replaceAll('c-blue', 'c-ink');
+    const odd =
+      '<section class="art-set" data-layer="odd"><div class="art-frames"><svg class="art-sprite" viewBox="0 0 16 16" width="128" height="128" data-layer="odd"><circle class="c-red" cx="8" cy="8" r="5"/><rect x="2" y="2" width="3" height="3" fill="#ff00ff"/></svg></div></section>';
+    const broken = await shoot(
+      sprites.replace('play=48', 'play=40').replace(hero, `${hero}${shadow}${odd}`),
+    );
+    assert.deepEqual(
+      findings(broken).map((finding) => finding.code),
+      ['art_off_grid', 'art_off_palette', 'art_unreadable_at_play', 'art_same_silhouette'],
+    );
+    const [grid, palette, read, alike] = findings(broken);
+    assert.match(grid.detail, /play=40/);
+    assert.match(grid.detail, /odd has a circle/);
+    assert.match(palette.detail, /#ff00ff in odd/);
+    assert.match(read.detail, /shadow-idle on Night/);
+    assert.match(alike.detail, /hero-idle and shadow-idle/);
+  } finally {
+    await browser.close();
+  }
+});

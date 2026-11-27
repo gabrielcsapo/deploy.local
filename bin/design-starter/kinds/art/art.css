@@ -1,0 +1,243 @@
+/* Art kind: a game's sprites and tiles, drawn as pixel art on a sheet. Load tokens.css and
+   components.css first. Every sprite is an inline SVG on a whole-pixel grid (viewBox in art
+   pixels, one unit a pixel) whose shapes take their colour from the palette classes below, so a
+   sprite never carries a literal colour. The sheet around the art is plain UI: neutral, from tokens. */
+
+/* A board carries no <style>: the page's margin and ground are set here. */
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+/* ---------- The palette: every colour the art may use ----------
+   Change these values to the game's own; add or remove a colour here, never on a board. The check
+   reads every --pal-* and --stage-* below and flags a sprite colour that is not one of them. */
+:root {
+  --pal-ink: #1d1b26;
+  --pal-shade: #4a4658;
+  --pal-mid: #8a8698;
+  --pal-light: #d4d0dc;
+  --pal-white: #f7f5ee;
+  --pal-red: #c8423b;
+  --pal-orange: #e08a3c;
+  --pal-yellow: #f2c94c;
+  --pal-brown: #6e4a33;
+  --pal-dirt: #a87650;
+  --pal-green: #4f9a4a;
+  --pal-leaf: #9acd5f;
+  --pal-blue: #3a6fc4;
+  --pal-sky: #8ec5e8;
+  /* The grounds the art is played on: the game's backgrounds, flat. */
+  --stage-day: #cfe7f2;
+  --stage-dusk: #77748f;
+  --stage-night: #1f2340;
+  /* How much bigger than its pixels the sheet shows a sprite. */
+  --art-zoom: 8;
+}
+
+/* One class per palette colour: on an SVG shape it fills, on a swatch or ground it paints. */
+.c-ink {
+  fill: var(--pal-ink);
+  background-color: var(--pal-ink);
+}
+.c-shade {
+  fill: var(--pal-shade);
+  background-color: var(--pal-shade);
+}
+.c-mid {
+  fill: var(--pal-mid);
+  background-color: var(--pal-mid);
+}
+.c-light {
+  fill: var(--pal-light);
+  background-color: var(--pal-light);
+}
+.c-white {
+  fill: var(--pal-white);
+  background-color: var(--pal-white);
+}
+.c-red {
+  fill: var(--pal-red);
+  background-color: var(--pal-red);
+}
+.c-orange {
+  fill: var(--pal-orange);
+  background-color: var(--pal-orange);
+}
+.c-yellow {
+  fill: var(--pal-yellow);
+  background-color: var(--pal-yellow);
+}
+.c-brown {
+  fill: var(--pal-brown);
+  background-color: var(--pal-brown);
+}
+.c-dirt {
+  fill: var(--pal-dirt);
+  background-color: var(--pal-dirt);
+}
+.c-green {
+  fill: var(--pal-green);
+  background-color: var(--pal-green);
+}
+.c-leaf {
+  fill: var(--pal-leaf);
+  background-color: var(--pal-leaf);
+}
+.c-blue {
+  fill: var(--pal-blue);
+  background-color: var(--pal-blue);
+}
+.c-sky {
+  fill: var(--pal-sky);
+  background-color: var(--pal-sky);
+}
+.g-day {
+  background-color: var(--stage-day);
+}
+.g-dusk {
+  background-color: var(--stage-dusk);
+}
+.g-night {
+  background-color: var(--stage-night);
+}
+
+/* ---------- The sheet ---------- */
+.art-sheet {
+  box-sizing: border-box;
+  width: 1280px;
+  min-height: 960px;
+  padding: var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  -webkit-font-smoothing: antialiased;
+}
+.art-head h1 {
+  margin: 0;
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  font-weight: var(--weight-semibold);
+}
+.art-head p {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-secondary);
+}
+.art-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+.art-label {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-secondary);
+}
+
+/* The palette strip: one swatch per colour, its name under it. */
+.art-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.art-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 56px;
+  margin: 0;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--ink-secondary);
+}
+.art-swatch i {
+  display: block;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* The grounds: the stage colours the check draws every sprite on, at play size. Each is a wide
+   swatch (.art-swatch.wide) whose block is the .art-ground, its name under it. */
+.art-grounds {
+  display: flex;
+  gap: var(--space-3);
+}
+.art-swatch.wide {
+  width: 96px;
+}
+
+/* A set: one thing in the game (a character, an item, an enemy) and its frames. */
+.art-sets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8) var(--space-12);
+}
+.art-set {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.art-set h2 {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  font-weight: var(--weight-semibold);
+}
+.art-set p {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.art-frames {
+  display: flex;
+  gap: var(--space-4);
+}
+
+/* A cell: one sprite at the sheet's zoom on a checkerboard (its transparent pixels show), its
+   name under it. The SVG's width and height are its viewBox times --art-zoom: 16 px art is 128. */
+.art-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+.art-cell figcaption {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--ink-secondary);
+}
+.art-sprite,
+.art-repeat {
+  display: block;
+  flex: none;
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
+  background-color: var(--pal-white);
+  background-image:
+    linear-gradient(45deg, var(--pal-light) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--pal-light) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--pal-light) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--pal-light) 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  box-shadow: 0 0 0 1px var(--line);
+}
+/* A tile fills its cell, so it needs no checkerboard; a repeat shows it 3 by 3, for its seams. */
+.art-sprite.tile,
+.art-repeat {
+  background: none;
+}

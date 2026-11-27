@@ -3375,6 +3375,7 @@ export function checkDrawing(repo: string): CheckDrawing {
       media,
       fullPage,
       logo,
+      art,
     }) => {
       const html = await readFile(repo, commit, `${designFolder()}/boards/${file}`);
       if (!html) return null;
@@ -3400,6 +3401,7 @@ export function checkDrawing(repo: string): CheckDrawing {
             inspect,
             fullPage,
             logo,
+            art,
           });
         } finally {
           await context.close();

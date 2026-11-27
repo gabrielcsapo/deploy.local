@@ -44,7 +44,7 @@ export const DESIGN_HELP = `deploy design — change what people see, on the sam
 Usage  deploy design <command> [flags]
 
   init [<name>] [--kind k] Start design/ here, with a starter design system
-                           (kinds: app, doc, slides, print, mac, game, logo)
+                           (kinds: app, doc, slides, print, mac, game, logo, art)
   export [<Board>…]        One PDF of the boards, in canvas order, at their own sizes
   guide                    How to work on this project's design
   status [<Board>…]        Where to start a board: its source, siblings, questions
@@ -413,6 +413,7 @@ const startingBoards = {
   mac: 'MacMain',
   game: 'GameTitle',
   logo: 'LogoMark',
+  art: 'ArtSprites',
 };
 
 /** What each kind's starting board is called after the project: "<Name> title slide". */
@@ -423,6 +424,7 @@ const startingLabels = {
   mac: 'main window',
   game: 'title screen',
   logo: 'mark',
+  art: 'sprite sheet',
 };
 
 /** "garden-club" as a person would write it on a title: "Garden club". */
@@ -1439,6 +1441,7 @@ export async function runDesign(sub, args, options, deps) {
         );
       let merged;
       const marks = [];
+      const sprites = [];
       try {
         const pdfs = [];
         for (const file of files) {
@@ -1464,6 +1467,24 @@ export async function runDesign(sub, args, options, deps) {
             if (drawn?.marks?.svg)
               marks.push({ board: file.replace(/\.html$/, ''), svg: drawn.marks.svg });
           }
+          if (board.platform === 'art') {
+            // Each sprite as SVG at one unit a pixel, so it leaves as art a game can load.
+            const drawn = await opened.drawing.shoot({
+              commit: WORKTREE,
+              file,
+              width: paper.width,
+              height: paper.height,
+              scheme: 'light',
+              measure: false,
+              art: true,
+            });
+            for (const sprite of drawn?.art?.sprites ?? [])
+              sprites.push({
+                board: file.replace(/\.html$/, ''),
+                name: sprite.name,
+                svg: sprite.svg,
+              });
+          }
         }
         merged = mergePdfs(pdfs);
       } finally {
@@ -1484,6 +1505,24 @@ export async function runDesign(sub, args, options, deps) {
         markFiles.push(`output/design/${markFile}`);
         step('✓', 'Wrote', `output/design/${markFile}`);
       }
+      const spriteFiles = [];
+      const spriteNames = new Set();
+      for (const sprite of sprites) {
+        const slug = designSlug(sprite.name) || 'sprite';
+        let spriteFile = `art/${sprite.board}/${slug}.svg`;
+        for (let n = 2; spriteNames.has(spriteFile); n++)
+          spriteFile = `art/${sprite.board}/${slug}-${n}.svg`;
+        spriteNames.add(spriteFile);
+        mkdirSync(join(top, 'output', 'design', 'art', sprite.board), { recursive: true });
+        writeFileSync(join(top, 'output', 'design', spriteFile), `${sprite.svg}\n`);
+        spriteFiles.push(`output/design/${spriteFile}`);
+      }
+      if (spriteFiles.length)
+        step(
+          '✓',
+          'Wrote',
+          `output/design/art/ · ${plural(spriteFiles.length, 'sprite')} as SVG, one unit a pixel`,
+        );
       out();
       step('✓', 'Wrote', `output/design/export/${name}.pdf · ${plural(merged.pages, 'page')}`);
       return {
@@ -1495,6 +1534,7 @@ export async function runDesign(sub, args, options, deps) {
           boards: files,
           pages: merged.pages,
           ...(markFiles.length ? { marks: markFiles } : {}),
+          ...(spriteFiles.length ? { sprites: spriteFiles } : {}),
         },
       };
     }

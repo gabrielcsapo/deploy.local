@@ -2216,6 +2216,7 @@ async function kindCheck(options: {
       layout?: unknown;
       afterPages?: Buffer[];
       afterMarks?: unknown;
+      afterArt?: unknown;
     }[] = [];
     const drawer: CheckDrawing = {
       shoot: async (input) => {
@@ -2243,8 +2244,8 @@ async function kindCheck(options: {
           ...options.extra?.({ scheme: input.scheme, media: input.media }),
         };
       },
-      pair: async ({ before, width, scheme, layout, afterPages, afterMarks }) => {
-        pairs.push({ width, scheme, before, layout, afterPages, afterMarks });
+      pair: async ({ before, width, scheme, layout, afterPages, afterMarks, afterArt }) => {
+        pairs.push({ width, scheme, before, layout, afterPages, afterMarks, afterArt });
         return Buffer.from('pair');
       },
     };
@@ -2605,6 +2606,57 @@ test('a logo part past its artboard or cut by its tile is a problem', async () =
   });
   assert.equal(
     inside.result.problems.some((entry) => entry.code === 'logo_cut_off'),
+    false,
+  );
+});
+
+test('a sprite sheet is drawn once in light with its sprites at play size, and its grid and palette are problems', async () => {
+  const sprite = {
+    name: 'hero-idle',
+    set: 'hero',
+    tile: false,
+    width: 16,
+    height: 16,
+    drawn: { width: 128, height: 128 },
+    colours: ['rgb(29, 27, 38)', 'rgb(255, 0, 255)'],
+    offGrid: ['a circle'],
+    translucent: false,
+    svg: '<svg></svg>',
+    renders: [],
+  };
+  const art = {
+    tile: 16,
+    play: 48,
+    palette: [{ name: 'pal-ink', colour: 'rgb(29, 27, 38)' }],
+    grounds: [{ label: 'Day', colour: 'rgb(207, 231, 242)' }],
+    sprites: [sprite],
+  };
+  const { result, shots, pairs } = await kindCheck({
+    head: 'platform=art,width=1280,height=960,tile=16,play=48',
+    extra: () => ({ art }),
+  });
+  assert.deepEqual([shots[0].width, shots[0].height], [1280, 960]);
+  assert.deepEqual([...new Set(shots.map((shot) => shot.scheme))], ['light']);
+  assert.deepEqual(pairs[0].layout, { kind: 'art', tile: 16, play: 48 });
+  assert.equal(pairs[0].afterArt, art);
+  const grid = result.problems.find((entry) => entry.code === 'art_off_grid');
+  assert.match(grid?.detail ?? '', /hero-idle has a circle/);
+  const palette = result.problems.find((entry) => entry.code === 'art_off_palette');
+  assert.match(palette?.detail ?? '', /#ff00ff in hero-idle/);
+  assert.equal(
+    result.notes.some((entry) =>
+      ['second_primary', 'row_height_differs'].includes(entry.code ?? ''),
+    ),
+    false,
+  );
+  const clean = await kindCheck({
+    head: 'platform=art,width=1280,height=960,tile=16,play=48',
+    extra: () => ({
+      art: { ...art, sprites: [{ ...sprite, colours: ['rgb(29, 27, 38)'], offGrid: [] }] },
+    }),
+  });
+  assert.equal(
+    clean.result.problems.some((entry) => entry.code?.startsWith('art_')),
     false,
   );
 });

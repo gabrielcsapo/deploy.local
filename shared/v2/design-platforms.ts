@@ -86,6 +86,13 @@ const table = new Map<string, PlatformInfo>([
     fixedFrame: true,
   }),
   info('logo', { appChecks: false, typed: false, fixedFrame: true }),
+  info('art', {
+    schemes: ['light'],
+    supports: ['light'],
+    appChecks: false,
+    typed: false,
+    fixedFrame: true,
+  }),
 ]);
 
 /** What the check knows about a platform; one the check has not heard of is drawn like the web. */
@@ -116,6 +123,16 @@ export function parseMm(value: string | null | undefined): number | null {
 export function parseSizeMm(value: string | null | undefined): { w: number; h: number } | null {
   const match = /^\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:mm)?\s*$/i.exec(value ?? '');
   return match ? { w: Number(match[1]), h: Number(match[2]) } : null;
+}
+
+/**
+ * A sprite sheet's grid: the tile its art is drawn on, in art pixels (tile=16), and how many CSS
+ * px a tile is drawn at in play (play=48); 16 and three times the tile when it says nothing.
+ */
+export function artGeometry(meta: Pick<BoardMeta, 'other'>) {
+  const tile = Math.max(1, Math.round(Number(meta.other?.tile) || 16));
+  const play = Number(meta.other?.play) > 0 ? Number(meta.other.play) : tile * 3;
+  return { tile, play, zoom: play / tile };
 }
 
 /** The page size a document board says (a4 unless it says letter). */
@@ -161,7 +178,9 @@ export type PairLayout =
       safe: number;
     }
   /** A mark at the sizes it is used at. */
-  | { kind: 'sheet'; sizes: number[] };
+  | { kind: 'sheet'; sizes: number[] }
+  /** A sprite sheet, then each sprite at play size on each ground it is played on. */
+  | { kind: 'art'; tile: number; play: number };
 
 /** One drawing of a board: a size, and what is measured and pictured there. */
 export type DrawStep = {
@@ -215,6 +234,8 @@ export function boardFrame(
       return { width: width ?? 390, height: height ?? (width && width > 500 ? 600 : 844) };
     case 'logo':
       return { width: width ?? 1024, height: height ?? 1024 };
+    case 'art':
+      return { width: width ?? 1280, height: height ?? 960 };
     case 'doc':
       // The canvas shows a document at its first reading width, as tall as it reads.
       return { width: 700, height: fromPlace.height || meta.height || null };
@@ -259,6 +280,16 @@ export function drawSteps(platform: string, meta: BoardMeta, placed: PlacedSize 
           layout: { kind: 'sheet', sizes: logoSizes },
         }),
       ];
+    case 'art': {
+      const { tile, play } = artGeometry(meta);
+      return [
+        screen(frame.width, frame.height, {
+          measure: true,
+          inspect: true,
+          layout: { kind: 'art', tile, play },
+        }),
+      ];
+    }
     case 'print': {
       const geometry = printGeometry(meta);
       const scale = PRINT_PX_PER_MM / CSS_PX_PER_MM;
@@ -318,6 +349,10 @@ export function drawnAt(platform: string, meta: BoardMeta, placed: PlacedSize = 
     }
     case 'logo':
       return `${frame.width}×${frame.height}, then the mark at ${logoSizes.join(', ')} px`;
+    case 'art': {
+      const { tile, play } = artGeometry(meta);
+      return `${frame.width}×${frame.height}, then each sprite at play size (a ${tile} px tile at ${play} px) on each ground`;
+    }
     case 'mac':
     case 'slide':
     case 'game':
@@ -339,6 +374,7 @@ export const designKinds: Record<string, { platforms: string[]; schemes: Scheme[
   mac: { platforms: ['mac'], schemes: ['light', 'dark'] },
   game: { platforms: ['game'], schemes: ['light', 'dark'] },
   logo: { platforms: ['logo'], schemes: ['light', 'dark'] },
+  art: { platforms: ['art'], schemes: ['light'] },
 };
 
 /** The platform a new board of a project's kind is, when its name says no other. */

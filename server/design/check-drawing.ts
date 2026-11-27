@@ -17,6 +17,7 @@ import {
   type LogoGround,
   type StrandedHeading,
 } from './kind-checks.ts';
+import type { ArtSheet, ArtSprite } from './art-checks.ts';
 
 /** A browser tab, as either driver gives it. */
 export type DrawingTab = {
@@ -312,6 +313,213 @@ export function readGrounds(doc: Document = document): LogoGround[] {
   return found;
 }
 
+/**
+ * Runs in the page: a sprite sheet's grid (tile= and play= in its head), its palette (every
+ * --pal-* and --stage-* the stylesheets declare on :root, resolved), the grounds it is played on
+ * (.art-ground) and each sprite (svg.art-sprite): its size, what it is painted with, what is off
+ * the pixel grid, and the sprite alone as a self-contained SVG at one CSS px a pixel.
+ */
+export function readSprites(doc: Document = document) {
+  const view = doc.defaultView!;
+  const content = doc.querySelector('meta[name="design-board"]')?.getAttribute('content') ?? '';
+  const said = (key: string) =>
+    Number(new RegExp(`(?:^|[,;])\\s*${key}=([0-9.]+)`).exec(content)?.[1]) || 0;
+  const tile = Math.max(1, Math.round(said('tile') || 16));
+  const play = said('play') || tile * 3;
+  const probe = doc.createElement('i');
+  doc.body.append(probe);
+  const resolve = (value: string) => {
+    probe.style.color = '';
+    probe.style.color = value;
+    return view.getComputedStyle(probe).color;
+  };
+  const names = new Set<string>();
+  const visit = (rules: CSSRuleList) => {
+    for (const rule of rules) {
+      const style = (rule as CSSStyleRule).style;
+      if (style && /(^|,)\s*:root\s*($|,)/.test((rule as CSSStyleRule).selectorText ?? ''))
+        for (let at = 0; at < style.length; at++)
+          if (/^--(pal|stage)-/.test(style[at])) names.add(style[at]);
+      if ((rule as CSSGroupingRule).cssRules) visit((rule as CSSGroupingRule).cssRules);
+    }
+  };
+  for (const sheet of doc.styleSheets) {
+    try {
+      visit(sheet.cssRules);
+    } catch {
+      // A sheet the page may not read says nothing.
+    }
+  }
+  const root = view.getComputedStyle(doc.documentElement);
+  const palette = [...names].map((name) => ({
+    name: name.slice(2),
+    colour: resolve(root.getPropertyValue(name).trim()),
+  }));
+  probe.remove();
+  const painted = (value: string) =>
+    Boolean(value) &&
+    value !== 'none' &&
+    value !== 'transparent' &&
+    !value.startsWith('url') &&
+    !/rgba\(.*,\s*0\)$/.test(value);
+  const grounds = [...doc.querySelectorAll('.art-ground')]
+    .map((element) => ({
+      label:
+        element.textContent?.trim() ||
+        element.closest('figure')?.querySelector('figcaption')?.textContent?.trim() ||
+        element.getAttribute('data-layer') ||
+        element.className.toString(),
+      colour: view.getComputedStyle(element).backgroundColor,
+    }))
+    .filter((ground) => painted(ground.colour));
+  if (!grounds.length) {
+    let colour = view.getComputedStyle(doc.body).backgroundColor;
+    if (!painted(colour)) colour = 'rgb(255, 255, 255)';
+    grounds.push({ label: 'the page', colour });
+  }
+  const whole = (value: string | null) =>
+    value === null || value === '' || Math.abs(Number(value) - Math.round(Number(value))) < 0.001;
+  const sprites = [...doc.querySelectorAll('svg.art-sprite')].slice(0, 32).map((svg, index) => {
+    const box = (svg.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number);
+    const width = box[2] || 0;
+    const height = box[3] || 0;
+    const rect = svg.getBoundingClientRect();
+    const set = svg.closest('.art-set');
+    const colours = new Set<string>();
+    const offGrid = new Set<string>();
+    let translucent = false;
+    for (const shape of svg.querySelectorAll(
+      'path, rect, circle, ellipse, polygon, polyline, line',
+    )) {
+      const computed = view.getComputedStyle(shape);
+      if (computed.display === 'none' || computed.visibility === 'hidden') continue;
+      if (painted(computed.fill)) colours.add(computed.fill);
+      if (painted(computed.stroke)) {
+        colours.add(computed.stroke);
+        offGrid.add('a stroke');
+      }
+      if (Number(computed.opacity) < 1 || Number(computed.fillOpacity) < 1) translucent = true;
+      const tag = shape.tagName.toLowerCase();
+      if (tag === 'circle' || tag === 'ellipse') offGrid.add(`a ${tag}`);
+      else if (tag === 'rect') {
+        if (!['x', 'y', 'width', 'height'].every((name) => whole(shape.getAttribute(name))))
+          offGrid.add('a rect at a fraction of a pixel');
+        if (shape.getAttribute('rx') || shape.getAttribute('ry')) offGrid.add('a rounded rect');
+      } else if (tag === 'path') {
+        const d = shape.getAttribute('d') ?? '';
+        if (/[CcSsQqTtAa]/.test(d)) offGrid.add('a curve');
+        else if (/\d\.\d*[1-9]/.test(d)) offGrid.add('a path at a fraction of a pixel');
+      } else if (tag === 'polygon' || tag === 'polyline') {
+        if (/\d\.\d*[1-9]/.test(shape.getAttribute('points') ?? ''))
+          offGrid.add(`a ${tag} at a fraction of a pixel`);
+      }
+    }
+    for (const moved of svg.querySelectorAll('[transform]'))
+      if (
+        !/^\s*translate\(\s*-?\d+(?:[\s,]+-?\d+)?\s*\)\s*$/.test(
+          moved.getAttribute('transform') ?? '',
+        )
+      )
+        offGrid.add('a transform that is not whole pixels');
+    // The sprite alone: colours resolved, classes and styles dropped, one CSS px a pixel.
+    const clone = svg.cloneNode(true) as SVGElement;
+    const from = [svg, ...svg.querySelectorAll('*')];
+    const to = [clone, ...clone.querySelectorAll('*')];
+    to.forEach((node, at) => {
+      const computed = view.getComputedStyle(from[at]);
+      for (const name of [...node.getAttributeNames()])
+        if (['class', 'style', 'role', 'aria-label'].includes(name) || name.startsWith('data-'))
+          node.removeAttribute(name);
+      if (at === 0) return;
+      if (computed.display === 'none') {
+        node.setAttribute('data-hidden', '');
+        return;
+      }
+      if (node.tagName.toLowerCase() === 'g' || node.tagName.toLowerCase() === 'use') return;
+      node.setAttribute('fill', computed.fill);
+      if (painted(computed.stroke)) {
+        node.setAttribute('stroke', computed.stroke);
+        node.setAttribute('stroke-width', computed.strokeWidth);
+      }
+      if (computed.opacity !== '1') node.setAttribute('opacity', computed.opacity);
+    });
+    for (const node of [...clone.querySelectorAll('[data-hidden]')]) node.remove();
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('width', String(width || 16));
+    clone.setAttribute('height', String(height || 16));
+    clone.setAttribute('shape-rendering', 'crispEdges');
+    return {
+      name:
+        svg.getAttribute('data-layer') || svg.getAttribute('aria-label') || `sprite ${index + 1}`,
+      set:
+        set?.getAttribute('data-layer') || set?.querySelector('h2, h3')?.textContent?.trim() || '',
+      tile: svg.classList.contains('tile'),
+      width,
+      height,
+      drawn: { width: rect.width, height: rect.height },
+      colours: [...colours],
+      offGrid: [...offGrid],
+      translucent,
+      svg: clone.outerHTML,
+    };
+  });
+  return { tile, play, palette, grounds, sprites };
+}
+
+/** Runs in the page: only one sprite, at a size, on a ground, its pixels kept square. */
+export function showSprite(
+  svg: string,
+  width: number,
+  height: number,
+  ground: string,
+  doc: Document = document,
+) {
+  doc.body.innerHTML = '';
+  doc.body.setAttribute('style', 'margin:0;background:' + ground);
+  doc.documentElement.setAttribute('style', 'background:' + ground);
+  const box = doc.createElement('div');
+  box.setAttribute(
+    'style',
+    `position:fixed;left:0;top:0;width:${width}px;height:${height}px;overflow:hidden;background:${ground}`,
+  );
+  box.innerHTML = svg;
+  const sprite = box.firstElementChild as SVGElement;
+  sprite.setAttribute('width', String(width));
+  sprite.setAttribute('height', String(height));
+  sprite.setAttribute('style', 'display:block;image-rendering:pixelated');
+  doc.body.append(box);
+}
+
+/**
+ * A sprite sheet's sprites, each drawn alone at play size (the tile at play= px) on each ground it
+ * is played on, at 1:1. Null when the board has no sprites.
+ */
+export async function drawSprites(tab: DrawingTab): Promise<ArtSheet | null> {
+  const read = await tab.evaluate<Omit<ArtSheet, 'sprites'> & { sprites: ArtSprite[] }>(
+    run(readSprites),
+  );
+  if (!read?.sprites?.length) return read ? { ...read, sprites: [] } : null;
+  const zoom = read.play / read.tile;
+  const sprites: ArtSheet['sprites'] = [];
+  for (const [index, sprite] of read.sprites.entries()) {
+    const renders: ArtSheet['sprites'][number]['renders'] = [];
+    const width = Math.max(1, Math.round((sprite.width || read.tile) * zoom));
+    const height = Math.max(1, Math.round((sprite.height || read.tile) * zoom));
+    // Past 24 sprites or 4 grounds the sheet is a library: the first ones say enough.
+    if (index < 24)
+      for (const ground of read.grounds.slice(0, 4)) {
+        await tab.evaluate(run(showSprite, sprite.svg, width, height, ground.colour));
+        renders.push({
+          ground: ground.label,
+          colour: ground.colour,
+          png: await tab.screenshot({ clip: { x: 0, y: 0, width, height } }),
+        });
+      }
+    sprites.push({ ...sprite, renders });
+  }
+  return { ...read, sprites };
+}
+
 /** Runs in the page: only the mark, at a size, in a box, on a ground; nothing else. */
 export function showMark(
   svg: string,
@@ -354,6 +562,8 @@ export type BoardShot = {
   marks?: LogoMarks | null;
   /** The labelled grounds of a logo board, to compare between schemes. */
   grounds?: LogoGround[];
+  /** A sprite sheet's palette, grounds and sprites, each drawn at play size, when asked for. */
+  art?: ArtSheet | null;
 };
 
 /**
@@ -373,6 +583,7 @@ export async function shootBoard(
     fullPage?: boolean;
     printed?: { paperWidth: number; paperHeight: number };
     logo?: boolean;
+    art?: boolean;
   },
 ): Promise<BoardShot> {
   await tab.setContent(page);
@@ -390,6 +601,8 @@ export async function shootBoard(
     shot.grounds = await tab.evaluate<LogoGround[]>(run(readGrounds));
     shot.marks = await drawMarks(tab);
   }
+  // Last: drawing each sprite alone replaces the page.
+  if (options.art) shot.art = await drawSprites(tab);
   if (options.printed && tab.printedPages) {
     // After the picture and the measuring: printing changes the page, so it comes last.
     // The numbered badges are for the screen picture; paper has none.
@@ -548,6 +761,47 @@ const markImage = (png: Buffer, size: number, shown = size) =>
  * reviewer can see what survives, the app icon rounded on light and on dark, and the favicon
  * sizes. Without it (a mark that is no SVG), the whole picture shrunk to each size.
  */
+/**
+ * A sprite sheet as drawn, then every sprite at play size, 1:1, on each ground it is played on
+ * (one row a ground), and the tiles at play size: what a player sees, not the sheet's zoom.
+ */
+function artFigure(
+  png: Buffer,
+  layout: Extract<PairLayout, { kind: 'art' }>,
+  art?: ArtSheet | null,
+) {
+  const board = `<div class="row" data-row="board"><img src="${dataUri(png)}" style="width:720px;height:auto"></div>`;
+  if (!art?.sprites.length) return `<div class="sheet">${board}</div>`;
+  const pixels = (entry: Buffer) => {
+    const { width, height } = pngSize(entry);
+    return `<img src="${dataUri(entry)}" width="${width}" height="${height}" style="border:0;image-rendering:pixelated">`;
+  };
+  const characters = art.sprites.filter((sprite) => !sprite.tile && sprite.renders.length);
+  const tiles = art.sprites.filter((sprite) => sprite.tile && sprite.renders.length);
+  const rows = art.grounds.slice(0, 4).map((ground, at) => {
+    const cells = characters
+      .map((sprite) => {
+        const render = sprite.renders[at];
+        return render
+          ? `<figure><div class="chip" style="background:${render.colour}">${pixels(render.png)}</div><figcaption>${escapeHtml(sprite.name)}</figcaption></figure>`
+          : '';
+      })
+      .join('');
+    return cells
+      ? `<div class="row" data-row="ground"><p class="legend" style="width:120px">On ${escapeHtml(ground.label)}, at play size</p>${cells}</div>`
+      : '';
+  });
+  const tileRow = tiles.length
+    ? `<div class="row" data-row="tiles"><p class="legend" style="width:120px">Tiles at play size</p>${tiles
+        .map(
+          (sprite) =>
+            `<figure>${pixels(sprite.renders[0].png)}<figcaption>${escapeHtml(sprite.name)}</figcaption></figure>`,
+        )
+        .join('')}</div>`
+    : '';
+  return `<div class="sheet">${board}<p class="legend">${layout.tile} px tile at ${layout.play} px in play</p>${rows.join('')}${tileRow}</div>`;
+}
+
 function sheetFigure(
   png: Buffer,
   layout: Extract<PairLayout, { kind: 'sheet' }>,
@@ -606,6 +860,9 @@ export function pairPage(input: {
   /** A logo's mark drawn from the mark itself (Before and After). */
   beforeMarks?: LogoMarks | null;
   afterMarks?: LogoMarks | null;
+  /** A sprite sheet's sprites at play size (Before and After). */
+  beforeArt?: ArtSheet | null;
+  afterArt?: ArtSheet | null;
   /** Captions in place of Before and After: a print proof's Front and Back. */
   labels?: { before: string; after: string };
 }) {
@@ -622,7 +879,9 @@ export function pairPage(input: {
         ? printFigure(png, layout)
         : layout?.kind === 'sheet'
           ? sheetFigure(png, layout, id === 'pgA' ? input.beforeMarks : input.afterMarks)
-          : `<img src="${dataUri(png)}">`;
+          : layout?.kind === 'art'
+            ? artFigure(png, layout, id === 'pgA' ? input.beforeArt : input.afterArt)
+            : `<img src="${dataUri(png)}">`;
   const caption = (label: string) => `${label} · ${width} · ${scheme}`;
   return (
     `<style>body{margin:0;display:flex;gap:16px;padding:16px;align-items:flex-start;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}ol.q{margin:12px 0 0;padding:0 0 0 24px;width:${Math.max(240, width - 24)}px;line-height:20px}ol.q li::marker{color:#2f5bb7;font-weight:600}ol.q span{opacity:.6}.pages{display:grid;gap:16px}.sheet-page{position:relative;background:#fff;border:1px solid #888;box-sizing:content-box;overflow:hidden}.pg span{display:block;margin-top:4px;opacity:.6}.legend{margin:8px 0 0;width:auto;opacity:.7}.sheet{display:flex;flex-direction:column;gap:20px;padding:12px}.sheet .row{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}.chip{display:inline-block;padding:12px;border:1px solid #8886}.paper{border:1px solid #888;background:#fff}.sheet figure{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.sheet figcaption{margin:0;opacity:.6}</style>` +

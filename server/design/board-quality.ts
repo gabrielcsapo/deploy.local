@@ -1764,6 +1764,28 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: 'logo: a tile labelled light, dark, reversed or brand changes ground between schemes',
   },
   {
+    code: 'art_off_grid',
+    problem: true,
+    means:
+      'art: a sprite not a whole number of tiles, a curve, stroke or fraction of a pixel, or drawn at a zoom that is not whole',
+  },
+  {
+    code: 'art_off_palette',
+    problem: true,
+    means: 'art: a sprite painted with a colour that is not a --pal-* or --stage-*, or see-through',
+  },
+  {
+    code: 'art_unreadable_at_play',
+    problem: false,
+    means:
+      'art: at play size on a ground, under half a sprite and under 70% of its outline stand apart from it (1.5:1), or it is under 12 px across',
+  },
+  {
+    code: 'art_same_silhouette',
+    problem: false,
+    means: 'art: sprites of different sets that are 90% the same shape at play size',
+  },
+  {
     code: 'spacing_off_scale',
     problem: false,
     means:

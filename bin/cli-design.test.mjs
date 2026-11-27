@@ -2163,6 +2163,7 @@ test('init --kind with the real starter: only the kind, a starting board with tr
     mac: [1280, 800],
     game: [390, 844],
     logo: [1024, 1024],
+    art: [1280, 960],
   };
   for (const [kind, [w, h]] of Object.entries(sizes)) {
     const root = realpathSync(mkdtempSync(join(tmpdir(), `cli-design-real-${kind}-`)));
@@ -2298,7 +2299,18 @@ test('the kind kits carry what the round-3 review asked for', async () => {
   assert.match(text('kinds/logo/logo.css'), /\.s16 \.full/);
   assert.match(text('kinds/logo/examples/LogoLockups.html'), /data-theme="dark"/);
   // Every kind tells sample content from product facts, with a worked example, and says boards carry no style.
-  for (const kind of ['doc', 'slides', 'print', 'mac', 'game', 'logo']) {
+  // Art: pixel art on a whole-pixel grid, painted from the palette, tiles shown repeated.
+  const art = text('kinds/art/art.css');
+  assert.match(art, /--pal-ink:/);
+  assert.match(art, /--stage-night:/);
+  assert.match(art, /shape-rendering: crispEdges/);
+  for (const name of ['ArtSprites', 'ArtTiles']) {
+    const html = text(`kinds/art/examples/${name}.html`);
+    assert.match(html, /platform=art,width=1280,height=960,tile=16,play=48/, name);
+    assert.doesNotMatch(html, /<circle|stroke=|fill="#|style="/, name);
+  }
+  assert.match(text('kinds/art/examples/ArtTiles.html'), /<use href="#tile-grass"/);
+  for (const kind of ['doc', 'slides', 'print', 'mac', 'game', 'logo', 'art']) {
     assert.match(text(`kinds/${kind}/${kind}.md`), /Sample content and product facts/, kind);
     assert.match(text(`kinds/${kind}/${kind}.md`), /Worked example/, kind);
     assert.match(text(`kinds/${kind}/${kind}.md`), /carries no `<style>`/, kind);

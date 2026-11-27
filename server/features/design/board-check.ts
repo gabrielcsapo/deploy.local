@@ -36,6 +36,13 @@ import {
 import { boardOrder, placeBoard } from '../../design/board-placement.ts';
 import type { BoardQuestion } from '../../design/check-drawing.ts';
 import {
+  artGridProblems,
+  artPaletteProblems,
+  artReadNote,
+  artSilhouetteNote,
+  type ArtSheet,
+} from '../../design/art-checks.ts';
+import {
   contrastProblems,
   cutOffBottomProblems,
   cutOffSideProblems,
@@ -344,6 +351,8 @@ export type CheckShot = {
   marks?: LogoMarks | null;
   /** A logo board's grounds labelled for one fixed ground, with the colour drawn. */
   grounds?: LogoGround[];
+  /** A sprite sheet's palette, grounds and sprites at play size. */
+  art?: ArtSheet | null;
 };
 export type CheckDrawing = {
   /**
@@ -368,6 +377,8 @@ export type CheckDrawing = {
     printed?: { paperWidth: number; paperHeight: number };
     /** Also draw the mark itself at true size, and read the grounds labelled for one colour. */
     logo?: boolean;
+    /** Also read a sprite sheet and draw each sprite at play size on each ground. */
+    art?: boolean;
   }): Promise<CheckShot | null>;
   /** Before and after side by side, captioned, as one PNG. */
   pair(input: {
@@ -386,6 +397,9 @@ export type CheckDrawing = {
     /** The mark drawn from the mark itself, when it could be. */
     beforeMarks?: LogoMarks | null;
     afterMarks?: LogoMarks | null;
+    /** A sprite sheet's sprites at play size, when they could be drawn. */
+    beforeArt?: ArtSheet | null;
+    afterArt?: ArtSheet | null;
     /** Captions in place of Before and After: a print proof's Front and Back. */
     labels?: { before: string; after: string };
   }): Promise<Buffer>;
@@ -1120,7 +1134,7 @@ export async function checkDesign(
   const drawnWidths = new Map<string, number[]>();
   // Platforms whose bottom edge is no phone screen: a document scrolls, a card and a mark have no
   // bars to hide text under.
-  const noBottomFrame = new Set(['doc', 'print', 'logo']);
+  const noBottomFrame = new Set(['doc', 'print', 'logo', 'art']);
   // Each print face as drawn on this branch in light, for the front and back proof.
   const printFaces = new Map<
     string,
@@ -1211,6 +1225,7 @@ export async function checkDesign(
               }
             : {}),
           ...(platform === 'logo' ? { logo: true } : {}),
+          ...(platform === 'art' ? { art: true } : {}),
         };
         const shot = (at: string) => drawing.shoot({ commit: at, file, ...draw });
         // A new board's taste is judged against the board it came from, drawn from main.
@@ -1357,6 +1372,18 @@ export async function checkDesign(
                   height: height ?? width,
                 }),
               );
+            if (platform === 'art' && afterShot.art) {
+              const art = afterShot.art;
+              found.problems.push(
+                ...artGridProblems({ file, title, art }),
+                ...artPaletteProblems({ file, title, art }),
+              );
+              for (const note of [
+                artReadNote({ file, title, art }),
+                artSilhouetteNote({ file, title, art }),
+              ])
+                if (note) found.notes.push(note);
+            }
             if (platform === 'print') {
               const geometry = printGeometry(meta);
               found.problems.push(
@@ -1417,6 +1444,8 @@ export async function checkDesign(
           ...(mainHas && beforeShot?.pages?.length ? { beforePages: beforeShot.pages } : {}),
           ...(afterShot.marks ? { afterMarks: afterShot.marks } : {}),
           ...(mainHas && beforeShot?.marks ? { beforeMarks: beforeShot.marks } : {}),
+          ...(afterShot.art ? { afterArt: afterShot.art } : {}),
+          ...(mainHas && beforeShot?.art ? { beforeArt: beforeShot.art } : {}),
         });
         shots.push({ name: `${name}-${step.key}-${scheme}.png`, png: png.toString('base64') });
         if (platform === 'print' && scheme === 'light' && !printFaces.has(file))

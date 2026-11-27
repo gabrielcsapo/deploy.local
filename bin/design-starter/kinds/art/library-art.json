@@ -1,0 +1,68 @@
+{
+  "name": "Art kind",
+  "components": [
+    {
+      "id": "art-sheet",
+      "name": "Sheet",
+      "group": "Art",
+      "platform": "art",
+      "description": "The board: a 1280 wide sheet with its heading and one line on the grid and the play size. Everything else goes inside it.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "__NAME__ sprites"
+        }
+      ],
+      "html": "<main class=\"art-sheet\"><header class=\"art-head\"><h1>__NAME__ sprites</h1><p>16 px art on a 16 px tile, drawn at 48 px in play.</p></header></main>"
+    },
+    {
+      "id": "art-palette",
+      "name": "Palette",
+      "group": "Art",
+      "platform": "art",
+      "description": "One .art-swatch per palette colour (a c-* class), named. Every colour the art uses is here; add one to art.css first.",
+      "props": [],
+      "html": "<div class=\"art-palette\"><figure class=\"art-swatch\"><i class=\"c-ink\"></i><figcaption>Ink</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-shade\"></i><figcaption>Shade</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-mid\"></i><figcaption>Mid</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-light\"></i><figcaption>Light</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-white\"></i><figcaption>White</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-red\"></i><figcaption>Red</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-orange\"></i><figcaption>Orange</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-yellow\"></i><figcaption>Yellow</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-brown\"></i><figcaption>Brown</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-dirt\"></i><figcaption>Dirt</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-green\"></i><figcaption>Green</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-leaf\"></i><figcaption>Leaf</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-blue\"></i><figcaption>Blue</figcaption></figure><figure class=\"art-swatch\"><i class=\"c-sky\"></i><figcaption>Sky</figcaption></figure></div>"
+    },
+    {
+      "id": "art-grounds",
+      "name": "Grounds",
+      "group": "Art",
+      "platform": "art",
+      "description": "The backgrounds sprites are played on, labelled; the check draws every sprite on each at play size. Show the dark ones too.",
+      "props": [],
+      "html": "<div class=\"art-grounds\"><figure class=\"art-swatch wide\"><i class=\"art-ground g-day\"></i><figcaption>Day</figcaption></figure><figure class=\"art-swatch wide\"><i class=\"art-ground g-dusk\"></i><figcaption>Dusk</figcaption></figure><figure class=\"art-swatch wide\"><i class=\"art-ground g-night\"></i><figcaption>Night</figcaption></figure></div>"
+    },
+    {
+      "id": "art-set",
+      "name": "Set with frames",
+      "group": "Art",
+      "platform": "art",
+      "description": "One thing in the game, named, with one line on what it does, and its frames in order. Each frame is an svg.art-sprite: viewBox in art pixels, width and height the viewBox times 8, shapes of whole pixels painted with c-* classes.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Name",
+          "default": "Hero"
+        }
+      ],
+      "html": "<section class=\"art-set\"><h2>Hero</h2><p>Walks in two frames.</p><div class=\"art-frames\"><figure class=\"art-cell\"><svg class=\"art-sprite\" viewBox=\"0 0 16 16\" width=\"128\" height=\"128\" role=\"img\" aria-label=\"Idle\"><path class=\"c-ink\" d=\"M5 1h6v1h-6zM4 2h1v1h-1zM11 2h1v1h-1zM3 3h1v1h-1zM12 3h1v1h-1zM3 4h1v1h-1zM6 4h1v1h-1zM9 4h1v1h-1zM12 4h1v1h-1zM3 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1zM12 5h1v1h-1zM3 6h1v1h-1zM12 6h1v1h-1zM4 7h1v1h-1zM11 7h1v1h-1zM5 8h6v1h-6zM4 9h1v1h-1zM11 9h1v1h-1zM3 10h1v1h-1zM12 10h1v1h-1zM3 11h1v1h-1zM5 11h1v1h-1zM10 11h1v1h-1zM12 11h1v1h-1zM4 12h1v1h-1zM11 12h1v1h-1zM4 13h1v1h-1zM7 13h2v1h-2zM11 13h1v1h-1zM4 14h3v1h-3zM9 14h3v1h-3z\" /><path class=\"c-white\" d=\"M5 2h6v1h-6zM4 3h8v1h-8zM4 4h2v1h-2zM7 4h2v1h-2zM10 4h2v1h-2zM4 5h2v1h-2zM7 5h2v1h-2zM10 5h2v1h-2zM4 6h8v1h-8zM5 7h6v1h-6z\" /><path class=\"c-blue\" d=\"M5 9h6v1h-6zM4 10h8v1h-8zM4 11h1v1h-1zM6 11h4v1h-4zM11 11h1v1h-1zM5 12h6v1h-6zM5 13h2v1h-2zM9 13h2v1h-2z\" /></svg><figcaption>Idle</figcaption></figure><figure class=\"art-cell\"><svg class=\"art-sprite\" viewBox=\"0 0 16 16\" width=\"128\" height=\"128\" role=\"img\" aria-label=\"Step\"><path class=\"c-ink\" d=\"M5 1h6v1h-6zM4 2h1v1h-1zM11 2h1v1h-1zM3 3h1v1h-1zM12 3h1v1h-1zM3 4h1v1h-1zM6 4h1v1h-1zM9 4h1v1h-1zM12 4h1v1h-1zM3 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1zM12 5h1v1h-1zM3 6h1v1h-1zM12 6h1v1h-1zM4 7h1v1h-1zM11 7h1v1h-1zM5 8h6v1h-6zM4 9h1v1h-1zM11 9h1v1h-1zM3 10h1v1h-1zM12 10h1v1h-1zM3 11h1v1h-1zM5 11h1v1h-1zM10 11h1v1h-1zM12 11h1v1h-1zM4 12h1v1h-1zM11 12h1v1h-1zM3 13h1v1h-1zM6 13h1v1h-1zM9 13h1v1h-1zM12 13h1v1h-1zM3 14h3v1h-3zM10 14h3v1h-3z\" /><path class=\"c-white\" d=\"M5 2h6v1h-6zM4 3h8v1h-8zM4 4h2v1h-2zM7 4h2v1h-2zM10 4h2v1h-2zM4 5h2v1h-2zM7 5h2v1h-2zM10 5h2v1h-2zM4 6h8v1h-8zM5 7h6v1h-6z\" /><path class=\"c-blue\" d=\"M5 9h6v1h-6zM4 10h8v1h-8zM4 11h1v1h-1zM6 11h4v1h-4zM11 11h1v1h-1zM5 12h6v1h-6zM4 13h2v1h-2zM10 13h2v1h-2z\" /></svg><figcaption>Step</figcaption></figure></div></section>"
+    },
+    {
+      "id": "art-tile",
+      "name": "Tile with its repeat",
+      "group": "Art",
+      "platform": "art",
+      "description": "A tile (svg.art-sprite.tile, its pixels in a g with an id) and beside it .art-repeat showing it 3 by 3 with use, to see its seams.",
+      "props": [
+        {
+          "id": "name",
+          "label": "Name",
+          "default": "Grass"
+        }
+      ],
+      "html": "<section class=\"art-set\"><h2>Grass</h2><p>The ground the hero walks on.</p><div class=\"art-frames\"><figure class=\"art-cell\"><svg class=\"art-sprite tile\" viewBox=\"0 0 16 16\" width=\"128\" height=\"128\" role=\"img\" aria-label=\"Grass\"><g id=\"tile-grass\"><path class=\"c-green\" d=\"M0 0h16v1h-16zM0 1h1v1h-1zM2 1h5v1h-5zM8 1h5v1h-5zM14 1h2v1h-2zM0 2h16v1h-16zM1 3h1v1h-1zM3 3h2v1h-2zM6 3h2v1h-2zM9 3h3v1h-3zM13 3h2v1h-2z\" /><path class=\"c-leaf\" d=\"M1 1h1v1h-1zM7 1h1v1h-1zM13 1h1v1h-1z\" /><path class=\"c-dirt\" d=\"M0 3h1v1h-1zM2 3h1v1h-1zM5 3h1v1h-1zM8 3h1v1h-1zM12 3h1v1h-1zM15 3h1v1h-1zM0 4h16v1h-16zM0 5h2v1h-2zM3 5h8v1h-8zM12 5h2v1h-2zM15 5h1v1h-1zM0 6h16v1h-16zM0 7h6v1h-6zM7 7h9v1h-9zM0 8h16v1h-16zM0 9h1v1h-1zM2 9h7v1h-7zM10 9h4v1h-4zM15 9h1v1h-1zM0 10h16v1h-16zM0 11h5v1h-5zM6 11h10v1h-10zM0 12h16v1h-16zM0 13h10v1h-10zM11 13h3v1h-3zM15 13h1v1h-1zM0 14h1v1h-1zM2 14h14v1h-14zM0 15h16v1h-16z\" /><path class=\"c-brown\" d=\"M2 5h1v1h-1zM11 5h1v1h-1zM14 5h1v1h-1zM6 7h1v1h-1zM1 9h1v1h-1zM9 9h1v1h-1zM14 9h1v1h-1zM5 11h1v1h-1zM10 13h1v1h-1zM14 13h1v1h-1zM1 14h1v1h-1z\" /></g></svg><figcaption>Grass</figcaption></figure><figure class=\"art-cell\"><svg class=\"art-repeat\" viewBox=\"0 0 48 48\" width=\"192\" height=\"192\" role=\"img\" aria-label=\"Grass repeated\"><use href=\"#tile-grass\" x=\"0\" y=\"0\" /><use href=\"#tile-grass\" x=\"16\" y=\"0\" /><use href=\"#tile-grass\" x=\"32\" y=\"0\" /><use href=\"#tile-grass\" x=\"0\" y=\"16\" /><use href=\"#tile-grass\" x=\"16\" y=\"16\" /><use href=\"#tile-grass\" x=\"32\" y=\"16\" /><use href=\"#tile-grass\" x=\"0\" y=\"32\" /><use href=\"#tile-grass\" x=\"16\" y=\"32\" /><use href=\"#tile-grass\" x=\"32\" y=\"32\" /></svg><figcaption>3 by 3, for seams</figcaption></figure></div></section>"
+    }
+  ]
+}

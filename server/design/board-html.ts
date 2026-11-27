@@ -101,7 +101,7 @@ function textSlug(text: string) {
 }
 
 /** A design system's or a kind kit's class prefix, which says nothing about what a layer is. */
-const kitPrefix = /^(?:(?:ds|dl)-)?(?:mac|game|slides?|doc|print|logo|card)-|^(?:ds|dl)-/;
+const kitPrefix = /^(?:(?:ds|dl)-)?(?:mac|game|slides?|doc|print|logo|art|card)-|^(?:ds|dl)-/;
 const classRole = (tag: string) =>
   slug(((attribute(tag, 'class') ?? '').split(/\s+/).find(Boolean) ?? '').replace(kitPrefix, ''));
 

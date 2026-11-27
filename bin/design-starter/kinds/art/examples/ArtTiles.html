@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=art,width=1280,height=960,tile=16,play=48" />
+    <title>Example tiles</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/art.css" />
+  </head>
+  <body>
+    <main class="art-sheet">
+      <header class="art-head">
+        <h1>__NAME__ tiles</h1>
+        <p>
+          Each tile is 16 px and repeats without a seam: grass side to side, wall and water on every
+          side.
+        </p>
+      </header>
+      <div class="art-sets">
+        <section class="art-set" data-layer="grass">
+          <h2>Grass</h2>
+          <p>The ground the hero walks on.</p>
+          <div class="art-frames">
+            <figure class="art-cell">
+              <svg
+                class="art-sprite tile"
+                viewBox="0 0 16 16"
+                width="128"
+                height="128"
+                role="img"
+                aria-label="Grass"
+                data-layer="grass"
+              >
+                <g id="tile-grass">
+                  <path
+                    class="c-green"
+                    d="M0 0h16v1h-16zM0 1h1v1h-1zM2 1h5v1h-5zM8 1h5v1h-5zM14 1h2v1h-2zM0 2h16v1h-16zM1 3h1v1h-1zM3 3h2v1h-2zM6 3h2v1h-2zM9 3h3v1h-3zM13 3h2v1h-2z"
+                  />
+                  <path class="c-leaf" d="M1 1h1v1h-1zM7 1h1v1h-1zM13 1h1v1h-1z" />
+                  <path
+                    class="c-dirt"
+                    d="M0 3h1v1h-1zM2 3h1v1h-1zM5 3h1v1h-1zM8 3h1v1h-1zM12 3h1v1h-1zM15 3h1v1h-1zM0 4h16v1h-16zM0 5h2v1h-2zM3 5h8v1h-8zM12 5h2v1h-2zM15 5h1v1h-1zM0 6h16v1h-16zM0 7h6v1h-6zM7 7h9v1h-9zM0 8h16v1h-16zM0 9h1v1h-1zM2 9h7v1h-7zM10 9h4v1h-4zM15 9h1v1h-1zM0 10h16v1h-16zM0 11h5v1h-5zM6 11h10v1h-10zM0 12h16v1h-16zM0 13h10v1h-10zM11 13h3v1h-3zM15 13h1v1h-1zM0 14h1v1h-1zM2 14h14v1h-14zM0 15h16v1h-16z"
+                  />
+                  <path
+                    class="c-brown"
+                    d="M2 5h1v1h-1zM11 5h1v1h-1zM14 5h1v1h-1zM6 7h1v1h-1zM1 9h1v1h-1zM9 9h1v1h-1zM14 9h1v1h-1zM5 11h1v1h-1zM10 13h1v1h-1zM14 13h1v1h-1zM1 14h1v1h-1z"
+                  />
+                </g>
+              </svg>
+              <figcaption>Grass</figcaption>
+            </figure>
+            <figure class="art-cell">
+              <svg
+                class="art-repeat"
+                viewBox="0 0 48 16"
+                width="384"
+                height="128"
+                role="img"
+                aria-label="Grass repeated"
+                data-layer="grass-repeat"
+              >
+                <use href="#tile-grass" x="0" y="0" />
+                <use href="#tile-grass" x="16" y="0" />
+                <use href="#tile-grass" x="32" y="0" />
+              </svg>
+              <figcaption>3 across, for seams</figcaption>
+            </figure>
+          </div>
+        </section>
+        <section class="art-set" data-layer="wall">
+          <h2>Wall</h2>
+          <p>Blocks the way; bricks offset by half.</p>
+          <div class="art-frames">
+            <figure class="art-cell">
+              <svg
+                class="art-sprite tile"
+                viewBox="0 0 16 16"
+                width="128"
+                height="128"
+                role="img"
+                aria-label="Wall"
+                data-layer="wall"
+              >
+                <g id="tile-wall">
+                  <path
+                    class="c-shade"
+                    d="M0 0h16v1h-16zM7 1h1v1h-1zM15 1h1v1h-1zM7 2h1v1h-1zM15 2h1v1h-1zM7 3h1v1h-1zM15 3h1v1h-1zM0 4h16v1h-16zM3 5h1v1h-1zM11 5h1v1h-1zM3 6h1v1h-1zM11 6h1v1h-1zM3 7h1v1h-1zM11 7h1v1h-1zM0 8h16v1h-16zM7 9h1v1h-1zM15 9h1v1h-1zM7 10h1v1h-1zM15 10h1v1h-1zM7 11h1v1h-1zM15 11h1v1h-1zM0 12h16v1h-16zM3 13h1v1h-1zM11 13h1v1h-1zM3 14h1v1h-1zM11 14h1v1h-1zM3 15h1v1h-1zM11 15h1v1h-1z"
+                  />
+                  <path
+                    class="c-light"
+                    d="M0 1h7v1h-7zM8 1h7v1h-7zM0 5h3v1h-3zM4 5h7v1h-7zM12 5h4v1h-4zM0 9h7v1h-7zM8 9h7v1h-7zM0 13h3v1h-3zM4 13h7v1h-7zM12 13h4v1h-4z"
+                  />
+                  <path
+                    class="c-mid"
+                    d="M0 2h7v1h-7zM8 2h7v1h-7zM0 3h7v1h-7zM8 3h7v1h-7zM0 6h3v1h-3zM4 6h7v1h-7zM12 6h4v1h-4zM0 7h3v1h-3zM4 7h7v1h-7zM12 7h4v1h-4zM0 10h7v1h-7zM8 10h7v1h-7zM0 11h7v1h-7zM8 11h7v1h-7zM0 14h3v1h-3zM4 14h7v1h-7zM12 14h4v1h-4zM0 15h3v1h-3zM4 15h7v1h-7zM12 15h4v1h-4z"
+                  />
+                </g>
+              </svg>
+              <figcaption>Wall</figcaption>
+            </figure>
+            <figure class="art-cell">
+              <svg
+                class="art-repeat"
+                viewBox="0 0 48 48"
+                width="192"
+                height="192"
+                role="img"
+                aria-label="Wall repeated"
+                data-layer="wall-repeat"
+              >
+                <use href="#tile-wall" x="0" y="0" />
+                <use href="#tile-wall" x="16" y="0" />
+                <use href="#tile-wall" x="32" y="0" />
+                <use href="#tile-wall" x="0" y="16" />
+                <use href="#tile-wall" x="16" y="16" />
+                <use href="#tile-wall" x="32" y="16" />
+                <use href="#tile-wall" x="0" y="32" />
+                <use href="#tile-wall" x="16" y="32" />
+                <use href="#tile-wall" x="32" y="32" />
+              </svg>
+              <figcaption>3 by 3, for seams</figcaption>
+            </figure>
+          </div>
+        </section>
+        <section class="art-set" data-layer="water">
+          <h2>Water</h2>
+          <p>Slows the hero down.</p>
+          <div class="art-frames">
+            <figure class="art-cell">
+              <svg
+                class="art-sprite tile"
+                viewBox="0 0 16 16"
+                width="128"
+                height="128"
+                role="img"
+                aria-label="Water"
+                data-layer="water"
+              >
+                <g id="tile-water">
+                  <path
+                    class="c-blue"
+                    d="M0 0h16v1h-16zM0 1h2v1h-2zM4 1h6v1h-6zM12 1h4v1h-4zM0 2h1v1h-1zM2 2h2v1h-2zM5 2h4v1h-4zM10 2h2v1h-2zM13 2h3v1h-3zM0 3h16v1h-16zM0 4h16v1h-16zM0 5h6v1h-6zM8 5h6v1h-6zM2 6h3v1h-3zM6 6h2v1h-2zM9 6h4v1h-4zM14 6h2v1h-2zM0 7h16v1h-16zM0 8h16v1h-16zM0 9h2v1h-2zM4 9h6v1h-6zM12 9h4v1h-4zM0 10h1v1h-1zM2 10h2v1h-2zM5 10h4v1h-4zM10 10h2v1h-2zM13 10h3v1h-3zM0 11h16v1h-16zM0 12h16v1h-16zM0 13h6v1h-6zM8 13h6v1h-6zM2 14h3v1h-3zM6 14h2v1h-2zM9 14h4v1h-4zM14 14h2v1h-2zM0 15h16v1h-16z"
+                  />
+                  <path
+                    class="c-sky"
+                    d="M2 1h2v1h-2zM10 1h2v1h-2zM1 2h1v1h-1zM4 2h1v1h-1zM9 2h1v1h-1zM12 2h1v1h-1zM6 5h2v1h-2zM14 5h2v1h-2zM0 6h2v1h-2zM5 6h1v1h-1zM8 6h1v1h-1zM13 6h1v1h-1zM2 9h2v1h-2zM10 9h2v1h-2zM1 10h1v1h-1zM4 10h1v1h-1zM9 10h1v1h-1zM12 10h1v1h-1zM6 13h2v1h-2zM14 13h2v1h-2zM0 14h2v1h-2zM5 14h1v1h-1zM8 14h1v1h-1zM13 14h1v1h-1z"
+                  />
+                </g>
+              </svg>
+              <figcaption>Water</figcaption>
+            </figure>
+            <figure class="art-cell">
+              <svg
+                class="art-repeat"
+                viewBox="0 0 48 48"
+                width="192"
+                height="192"
+                role="img"
+                aria-label="Water repeated"
+                data-layer="water-repeat"
+              >
+                <use href="#tile-water" x="0" y="0" />
+                <use href="#tile-water" x="16" y="0" />
+                <use href="#tile-water" x="32" y="0" />
+                <use href="#tile-water" x="0" y="16" />
+                <use href="#tile-water" x="16" y="16" />
+                <use href="#tile-water" x="32" y="16" />
+                <use href="#tile-water" x="0" y="32" />
+                <use href="#tile-water" x="16" y="32" />
+                <use href="#tile-water" x="32" y="32" />
+              </svg>
+              <figcaption>3 by 3, for seams</figcaption>
+            </figure>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

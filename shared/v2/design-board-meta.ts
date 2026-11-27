@@ -14,6 +14,7 @@ export type BoardPlatform =
   | 'print'
   | 'game'
   | 'logo'
+  | 'art'
   | string;
 
 export type BoardMeta = {
@@ -132,6 +133,7 @@ export const platformWidths: Record<string, number> = {
   print: 344,
   game: 390,
   logo: 1024,
+  art: 1280,
 };
 
 /** The platform a board is drawn for: what it says, else what its width suggests. */
