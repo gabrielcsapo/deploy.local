@@ -524,7 +524,7 @@ test('the pair picture lays out pages, a print piece with marks outside it, a sh
       scheme: 'light',
       layout: { kind: 'print', pxPerMm: 8, trim: { w: 85, h: 55 }, bleed: 3, safe: 4 },
     });
-    assert.match(print.html, /New board · 728 · light/);
+    assert.match(print.html, /This branch · not on main yet · 728 · light/);
     assert.doesNotMatch(print.html, /Before/);
     assert.doesNotMatch(print.html, /no Before/);
     // The guides sit in a margin around the picture: it grows by the margin on every side.

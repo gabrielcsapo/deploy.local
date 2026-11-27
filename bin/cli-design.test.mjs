@@ -1547,6 +1547,40 @@ test('status resolves a screen named in words to its board by section', async ()
   }
 });
 
+test('check --fix places a new document at the height it measured, not the default', async () => {
+  const repo = repository();
+  try {
+    writeFileSync(
+      join(repo.clone, 'design/boards/Guide.html'),
+      '<meta name="design-board" content="platform=doc,schemes=light">\n<main><p data-layer="name">Name</p></main>\n',
+    );
+    const openLocalDrawing = async () => ({
+      drawing: {
+        shoot: async ({ inspect }) => ({
+          png: Buffer.from('png'),
+          measured: 1234,
+          inspected: inspect
+            ? { height: 1234, texts: [], aligned: [], rows: {}, boxes: [], primaries: [] }
+            : null,
+        }),
+        pair: async () => Buffer.from('pair'),
+      },
+      close: async () => {},
+    });
+    await runDesign(
+      'check',
+      [],
+      { json: true, fix: true },
+      terminal(repo.clone, coordinator().api, { openLocalDrawing }).deps,
+    );
+    const canvas = JSON.parse(readFileSync(join(repo.clone, 'design/canvas.json'), 'utf8'));
+    assert.equal(canvas.boards['Guide.html'].h, 1234);
+    assert.match(readFileSync(join(repo.clone, 'design/boards/Guide.html'), 'utf8'), /height=1234/);
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test('check --fix places a new board beside the one it came from', async () => {
   const repo = repository();
   try {
@@ -2166,7 +2200,10 @@ test('init --kind with the real starter: only the kind, a starting board with tr
       assert.doesNotMatch(html, /__DS__/);
       // No kit file is left with filler or a name to fill in: the project's name is in its place.
       const filler =
-        /__NAME__|Product name|Person Name|Role or title|\+00 000|Recipient name|Street and number|Postcode and town|Item one|Item two|Secondary line|Placeholder (?:name|text)|A few lines of message|Front line/;
+        /__NAME__|Product name|Person Name|Role or title|\+00 000|Recipient name|Street and number|Postcode and town|Item one|Item two|Secondary line|Placeholder (?:name|text)|A few lines of message|Front line|Document (?:title|name)|Section heading|Second item|Third item|Callout title|What the (?:table|figure) shows|Updated 1 January|>Detail<|One sentence\.|Game name|World name|Levels done of all levels/;
+      // Nor anyone else's business: the samples are neutral, or the project's own.
+      const themed =
+        /\b(?:garden|harvest|tomato(?:es)?|lake|bakery|almond|sourdough|soup|recipes|Lindqvist|Ines|Moreau|Kitchen)\b/i;
       // A deck's kit is drawn from one real deck too: no stand-in names, groups, rows or numbers.
       const slideFiller =
         /Deck name<|Group one|Row one|Event or (?:date|occasion)|"default": "(?:First item|Notes|Heading|00)"|Where the deck lives|>00</;
@@ -2176,6 +2213,13 @@ test('init --kind with the real starter: only the kind, a starting board with tr
             readFileSync(join(ds, entry), 'utf8'),
             kind === 'slides' ? new RegExp(`${filler.source}|${slideFiller.source}`) : filler,
             `${kind}: ${entry}`,
+          );
+      for (const entry of readdirSync(ds, { recursive: true }).map(String))
+        if (/\.(html|json|md)$/.test(entry))
+          assert.doesNotMatch(
+            readFileSync(join(ds, entry), 'utf8').replace(/data-layer="[^"]*"/g, ''),
+            themed,
+            `${kind}: ${entry} is someone else's business`,
           );
       assert.match(html, new RegExp(`platform=${kind === 'slides' ? 'slide' : kind}`));
       if (kind === 'game') assert.match(html, /width=390,height=844/);

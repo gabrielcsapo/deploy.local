@@ -296,7 +296,7 @@ body {
   font-weight: var(--weight-medium, 500);
   color: var(--ink);
 }
-/* An optional line of context under the label: "up from 31 last spring". */
+/* An optional line of context under the label: "from start to now". */
 .ds-slide-figure .context {
   font-size: var(--text-slide-body);
   line-height: var(--leading-slide-body);

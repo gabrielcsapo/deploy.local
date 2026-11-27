@@ -337,6 +337,61 @@ export function logoGroundNote(input: {
   };
 }
 
+/**
+ * A logo board's parts that its artboard or a tile hides: a mark or a word past the board's edge,
+ * or a mark bigger than the tile it sits on. The artboard hides what overflows it, so nothing else
+ * would show this; the picture just ends.
+ */
+export function logoCutProblems(input: {
+  file: string;
+  title: string;
+  inspection: Inspection | null;
+  width: number;
+  height: number;
+}): Finding[] {
+  const { inspection, width, height } = input;
+  if (!inspection) return [];
+  const slack = 2;
+  const past = (box: Box) =>
+    Math.max(-box.left, -box.top, box.left + box.width - width, box.top + box.height - height);
+  const found: { layer: string | null; what: string; by: number }[] = [];
+  for (const text of inspection.texts) {
+    const by = past(text);
+    if (by > slack) found.push({ layer: text.layer, what: `"${text.text}"`, by });
+  }
+  for (const figure of inspection.figures ?? []) {
+    const by = Math.max(past(figure), figure.cut ?? 0);
+    if (by > slack) found.push({ layer: figure.layer, what: figure.layer ?? 'a mark', by });
+  }
+  if (!found.length) return [];
+  const seen = new Set<string>();
+  const named = found.filter((entry) => {
+    const key = entry.layer ?? entry.what;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [
+    {
+      code: 'logo_cut_off',
+      file: input.file,
+      board: input.title,
+      ...(named[0].layer ? { layer: named[0].layer } : {}),
+      label: `${input.title} has ${named.length === 1 ? (named[0].layer ?? named[0].what) : `${named.length} layers`} cut off by the artboard or a tile`,
+      detail: `${
+        named.length === 1
+          ? ''
+          : `${named
+              .slice(0, 4)
+              .map((entry) => entry.layer ?? entry.what)
+              .join(', ')}${named.length > 4 ? ` and ${named.length - 4} more` : ''}: `
+      }up to ${Math.round(Math.max(...named.map((entry) => entry.by)))} px past the edge that hides it`,
+      short: 'cut off',
+      fix: 'fewer tiles or a smaller mark, so everything ends inside the 1024 px artboard and each mark inside its tile; a mark alone on a tile is sized by .ds-logo-tile > .ds-logo-mark',
+    },
+  ];
+}
+
 // ── A printed piece ─────────────────────────────────────────────────────────────────────────────
 
 /**

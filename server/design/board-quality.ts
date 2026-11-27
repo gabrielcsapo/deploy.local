@@ -746,6 +746,82 @@ export const statedFact = (text: string) =>
   statedValue(text, ['duration', 'date', 'count', 'amount'])?.value ?? null;
 
 /**
+ * Values shaped like a product's claims rather than a person's own content: prices, percentages,
+ * head-counts ("2,000 families"), policy durations ("within 30 days", "every 2 weeks") and opening
+ * hours. A session length or a file's date is sample content and needs no question; these do.
+ */
+const claimPatterns = [
+  /[$€£¥]\s?\d[\d,.]*(?:\s?(?:k|m|bn)\b)?|\b\d[\d,.]*\s?(?:usd|eur|gbp|dollars|euros|pounds)\b/gi,
+  /\b\d+(?:[.,]\d+)?\s?%/g,
+  /\b\d[\d,.]*\+?\s+(?:people|users|customers|families|members|clients|subscribers|downloads|teams|companies|businesses|students|patients|reviews|countries|cities|stores|locations)\b/gi,
+  /\b(?:within|after|up to|every|kept for|in under|trial of|free for|lasts?)\s+(?:\d+|a|an|one|two|three|seven|ten|fourteen|thirty|sixty|ninety)\s*(?:minutes?|mins?|hours?|hrs?|days?|weeks?|months?|years?)\b/gi,
+  /\b(?:open|opens|closes|closed)\b[^.]{0,24}?\d{1,2}(?::\d{2})?\s?(?:am|pm)?/gi,
+];
+
+/** Every claim-shaped value a text states, each once. */
+export function statedClaims(text: string) {
+  const found = new Set<string>();
+  for (const pattern of claimPatterns)
+    for (const match of text.matchAll(pattern)) found.add(match[0].trim());
+  return [...found];
+}
+
+/** A board's words outside any layer a data-question flags (and outside hidden layers). */
+function unflaggedWords(html: string | null | undefined) {
+  if (!html) return [] as string[];
+  let body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
+  for (const element of boardElements(body)) {
+    const tag = /^<[^>]*>/.exec(element.outer)?.[0] ?? '';
+    if (attribute(tag, 'data-question')?.trim() || /\saria-hidden="true"/.test(tag))
+      body = body.replace(element.outer, ' ');
+    for (const layer of Object.keys(instanceQuestions(tag))) {
+      const inner = boardElements(element.outer).find((entry) => entry.layer === layer);
+      if (inner) body = body.replace(inner.outer, ' ');
+    }
+  }
+  return body
+    .replace(/<(svg|style|script|title)\b[\s\S]*?<\/\1>/gi, '<x>')
+    .split(/<[^>]+>/)
+    .map((chunk) => decode(chunk).replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+/**
+ * Product claims a changed board states that nothing flags: a price, a percentage, a head-count, a
+ * policy duration or opening hours new on this board, with no data-question on its layer, and not
+ * one of the design system's own samples (its examples and library). A made-up claim reads as fact
+ * once a board is approved, so each should come from the product or carry a question.
+ */
+export function unflaggedClaimsNote(input: {
+  file: string;
+  title: string;
+  before: string | null;
+  after: string | null;
+  /** Values the design system's examples and library already show. */
+  samples?: Set<string>;
+}): Finding | null {
+  const old = new Set(unflaggedWords(input.before).flatMap(statedClaims));
+  const seen = new Set<string>();
+  const found: string[] = [];
+  for (const words of unflaggedWords(input.after))
+    for (const value of statedClaims(words)) {
+      if (old.has(value) || input.samples?.has(value) || seen.has(value)) continue;
+      seen.add(value);
+      found.push(words.length > 32 ? value : words);
+    }
+  if (!found.length) return null;
+  return {
+    code: 'unflagged_claims',
+    file: input.file,
+    board: input.title,
+    label: `${input.title} states ${found.length === 1 ? 'a claim' : `${found.length} claims`} no question flags`,
+    detail: quoteList(found, 4),
+    short: 'claims not flagged',
+    fix: "use what the brief or the product's code says; a price, figure or policy you made up gets data-question on its layer",
+  };
+}
+
+/**
  * Open questions the branch added, as notes, and a problem for each layer that asks a question
  * and answers it at once with a date, number or duration.
  */
@@ -1195,6 +1271,57 @@ export function readableToken(
   return candidates[0] ?? null;
 }
 
+/** Stacks of same-kind tables, one under another, whose columns start in different places. */
+function raggedTables(inspection: Inspection | null) {
+  const stacks = new Map<string, NonNullable<Inspection['tables']>>();
+  for (const table of inspection?.tables ?? []) {
+    if (table.columns.length < 2) continue;
+    const key = `${table.kind} ${table.columns.length}`;
+    stacks.set(key, [...(stacks.get(key) ?? []), table]);
+  }
+  const ragged: { layer: string | null; named: string[]; count: number; spread: number }[] = [];
+  // A run of tables one under another, with no more than a heading between them: a gap of 120 px
+  // or less. Two tables in different sections of a page are separate things.
+  const runs: NonNullable<Inspection['tables']>[] = [];
+  for (const group of stacks.values()) {
+    let run: NonNullable<Inspection['tables']> = [];
+    for (const table of [...group].sort((a, b) => a.top - b.top)) {
+      const last = run.at(-1);
+      if (
+        last &&
+        Math.abs(table.left - last.left) <= 4 &&
+        table.top - (last.bottom ?? last.top) <= 120
+      )
+        run.push(table);
+      else {
+        if (run.length > 1) runs.push(run);
+        run = [table];
+      }
+    }
+    if (run.length > 1) runs.push(run);
+  }
+  for (const stacked of runs) {
+    const first = stacked[0];
+    const off = stacked.filter((table) =>
+      table.columns.some((left, index) => index > 0 && Math.abs(left - first.columns[index]) > 4),
+    );
+    if (!off.length) continue;
+    const spread = Math.max(
+      ...first.columns.map((_, index) => {
+        const lefts = stacked.map((table) => table.columns[index]);
+        return Math.max(...lefts) - Math.min(...lefts);
+      }),
+    );
+    ragged.push({
+      layer: first.layer,
+      named: [first, ...off].map((table) => table.layer ?? 'a table'),
+      count: stacked.length,
+      spread,
+    });
+  }
+  return ragged;
+}
+
 const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
@@ -1328,6 +1455,22 @@ export function drawnNotes(input: {
         fix: `use a size on the ${typeScaleName(platform)}type scale: ${typeScaleWords(input.tokens, platform, typeScale)}`,
       });
   }
+  // Tables of one kind stacked one under another whose columns start in different places: each
+  // sizes its columns to its own words, so the stack reads as ragged. Main's board is the baseline.
+  const wasRagged = new Set(raggedTables(before).map((stack) => stack.named.join(' ')));
+  for (const stack of raggedTables(after)) {
+    if (wasRagged.has(stack.named.join(' '))) continue;
+    notes.push({
+      code: 'tables_misaligned',
+      ...at,
+      ...(stack.layer ? { layer: stack.layer } : {}),
+      label: `${title} stacks ${stack.count} tables whose columns don't line up`,
+      detail: `${stack.named.slice(0, 4).join(', ')}${stack.named.length > 4 ? ` and ${stack.named.length - 4} more` : ''}: columns start up to ${stack.spread} px apart`,
+      short: 'tables misaligned',
+      fix: 'give stacked tables the same column widths (a <colgroup> with widths, and table-layout: fixed), or make them one table with a heading row per group',
+    });
+  }
+
   // The rest of the notes are about app screens: lists, cards, aligned chrome, one primary action.
   if (!platformInfo(platform).appChecks) return notes;
 
@@ -1610,6 +1753,12 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: 'logo: contrast under 3:1, or strokes and gaps under 1.5 px, at 16 px',
   },
   {
+    code: 'logo_cut_off',
+    problem: true,
+    means:
+      'logo: a mark or word past the 1024 px artboard, or a mark bigger than its tile, hidden by them',
+  },
+  {
     code: 'logo_ground_follows_scheme',
     problem: false,
     means: 'logo: a tile labelled light, dark, reversed or brand changes ground between schemes',
@@ -1631,6 +1780,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     problem: false,
     means: 'game: an iPhone screen with no status bar drawn (immersive=true in the head opts out)',
   },
+  {
+    code: 'tables_misaligned',
+    problem: false,
+    means: 'tables of one kind stacked one under another whose columns start in different places',
+  },
   { code: 'nearly_aligned', problem: false, means: 'left edges 1 to 4 px apart' },
   {
     code: 'row_height_differs',
@@ -1647,6 +1801,12 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   },
   { code: 'layer_removed', problem: false, means: 'layer IDs whose elements the branch removed' },
   { code: 'specimen_text', problem: false, means: 'sample words from a DesignSystem board' },
+  {
+    code: 'unflagged_claims',
+    problem: false,
+    means:
+      'a changed board states prices, percentages, head-counts, policy durations or hours that no data-question flags',
+  },
   { code: 'open_question', problem: false, means: 'a data-question the owner has not answered' },
   {
     code: 'differs_from_source',

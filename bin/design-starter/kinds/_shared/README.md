@@ -16,7 +16,7 @@ Change the system here, on a branch, like any design. A board that needs somethi
 
 A layout looks emptier without specifics, so agents fill it with filler or with made-up facts. Both are wrong, in opposite ways.
 
-- **Filler is a wireframe.** "Item one", "Note title one", "Lorem", "00", "To be confirmed" in every cell. Judges score a board of filler as a sketch. Sample user content (what someone using the product would type or make) is drawn real: a title like "Soup for the week", a folder like "Tax 2025", a contact like "Marta Lindqvist", a level like "Room 14: the flooded cellar".
+- **Filler is a wireframe.** "Item one", "Note title one", "Lorem", "00", "To be confirmed" in every cell. Judges score a board of filler as a sketch. Sample user content (what someone using the product would type or make) is drawn real: a title like "Plan for the first version", a folder like "Meetings", a contact like "Sam Rivera", a level like "Room 14: the flooded cellar".
 - **Made-up facts are claims.** A product fact (a feature, a default, a price, opening hours, a date, a statistic, "free delivery") that the brief doesn't give is either left out with the layout working without it, or drawn as finished-looking copy with `data-question` on its layer, so the owner sees it is an open question.
 - **Report, slide and handbook figures are facts too**, but a layout is judged at its real density: write a plausibly shaped value ("1,240 kg", "Mon 4:00–4:45 pm") with `data-question="Are these the real totals?"` rather than "00", and keep the sample figures consistent: the lines add up to the total, and a figure repeated on another board or page is the same number.
 

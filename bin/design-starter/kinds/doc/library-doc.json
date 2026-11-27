@@ -11,20 +11,20 @@
         {
           "id": "name",
           "label": "Document",
-          "default": "Document name"
+          "default": "Team handbook"
         },
         {
           "id": "section",
           "label": "Section",
-          "default": "Section"
+          "default": "Working together"
         },
         {
           "id": "date",
           "label": "Date",
-          "default": "Updated 1 January"
+          "default": "Updated 14 March"
         }
       ],
-      "html": "<div class=\"ds-doc\"><header class=\"ds-doc-head\"><span>{{name}}</span><span>{{section}}</span></header><main class=\"ds-doc-page\"></main><footer class=\"ds-doc-foot\"><span>{{date}}</span><span>{{name}}</span></footer></div>"
+      "html": "<div class=\"ds-doc\"><header class=\"ds-doc-head\"><span>{{name}}</span><span>{{section}}</span></header><main class=\"ds-doc-page\"></main><footer class=\"ds-doc-foot\"><span data-question=\"Is this the real date of the last update?\">{{date}}</span><span>{{name}}</span></footer></div>"
     },
     {
       "id": "doc-title",
@@ -36,17 +36,17 @@
         {
           "id": "kicker",
           "label": "Kicker",
-          "default": "Version 1.0"
+          "default": "Handbook"
         },
         {
           "id": "title",
           "label": "Title",
-          "default": "Document title"
+          "default": "Working together"
         },
         {
           "id": "lede",
           "label": "Lede",
-          "default": "One or two sentences that say what this is for."
+          "default": "How the team plans, decides and hands work over. Read it once, then come back to the part you need."
         }
       ],
       "html": "<div class=\"ds-doc-kicker\">{{kicker}}</div><h1>{{title}}</h1><p class=\"ds-doc-lede\">{{lede}}</p>"
@@ -61,12 +61,12 @@
         {
           "id": "heading",
           "label": "Heading",
-          "default": "Section heading"
+          "default": "Planning"
         },
         {
           "id": "text",
           "label": "Text",
-          "default": "A paragraph of body text."
+          "default": "Work is planned in cycles. Before a cycle starts, each person writes down what they expect to finish and what could get in the way."
         }
       ],
       "html": "<h2>{{heading}}</h2><p>{{text}}</p>"
@@ -81,10 +81,10 @@
         {
           "id": "one",
           "label": "First item",
-          "default": "First item"
+          "default": "Pick only the few things each person can finish."
         }
       ],
-      "html": "<ul><li>{{one}}</li><li>Second item</li><li>Third item</li></ul>"
+      "html": "<ul><li>{{one}}</li><li>Name the person who decides if the scope has to change.</li><li>Leave one afternoon free for what nobody planned.</li></ul>"
     },
     {
       "id": "doc-table",
@@ -96,10 +96,10 @@
         {
           "id": "caption",
           "label": "Caption",
-          "default": "What the table shows"
+          "default": "Who to ask, and when"
         }
       ],
-      "html": "<table class=\"ds-doc-table\"><caption>{{caption}}</caption><thead><tr><th>Name</th><th>Detail</th><th class=\"num\">Number</th></tr></thead><tbody><tr><td>Row one</td><td data-label=\"Detail\">Detail</td><td data-label=\"Number\" class=\"num\">00</td></tr><tr><td>Row two</td><td data-label=\"Detail\">Detail</td><td data-label=\"Number\" class=\"num\">00</td></tr></tbody></table>"
+      "html": "<table class=\"ds-doc-table\" data-question=\"Are these the real roles and shares?\"><caption>{{caption}}</caption><thead><tr><th>Role</th><th>Reviews</th><th class=\"num\">Cycle share</th></tr></thead><tbody><tr><td>Lead</td><td data-label=\"Reviews\">Plans and scope</td><td data-label=\"Cycle share\" class=\"num\">30%</td></tr><tr><td>Maker</td><td data-label=\"Reviews\">Own work, then a peer</td><td data-label=\"Cycle share\" class=\"num\">60%</td></tr><tr><td>Support</td><td data-label=\"Reviews\">Answers and handovers</td><td data-label=\"Cycle share\" class=\"num\">10%</td></tr></tbody></table>"
     },
     {
       "id": "doc-callout",
@@ -111,12 +111,12 @@
         {
           "id": "title",
           "label": "Title",
-          "default": "Callout title"
+          "default": "A plan can change"
         },
         {
           "id": "text",
           "label": "Text",
-          "default": "One sentence."
+          "default": "Changing the plan is fine. Changing it without telling the others is not."
         }
       ],
       "html": "<div class=\"ds-doc-callout\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5M12 8h.01\"/></svg><div><p class=\"ds-doc-callout-title\">{{title}}</p><p>{{text}}</p></div></div>"
@@ -131,7 +131,7 @@
         {
           "id": "caption",
           "label": "Caption",
-          "default": "What the figure shows"
+          "default": "The note goes from the person who finishes to the person who continues."
         }
       ],
       "html": "<figure class=\"ds-doc-figure\"><div class=\"ds-doc-figure-art\"></div><figcaption>{{caption}}</figcaption></figure>"

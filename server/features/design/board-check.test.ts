@@ -54,6 +54,7 @@ import {
   overlapProblems,
   questionFindings,
   readTokens,
+  unflaggedClaimsNote,
   tokensFromCss,
   typeScaleFor,
   schemeDroppedProblem,
@@ -603,7 +604,8 @@ test('components no screen shows yet are one line, not a "0 screens" row each', 
     repo.run(['commit', '-qm', 'Main']);
     const main = repo.run(['rev-parse', 'HEAD']);
     repo.run(['checkout', '-qb', 'design/kit']);
-    // A new project's kit: a library of parts, and one board using none of them.
+    // A new project's kit: a library of parts, and one board using none of them. All of it is
+    // new, so the check says nothing about the parts.
     repo.write('design/ds/deploy-local/components/library.json', JSON.stringify(library('Kit')));
     repo.write('design/boards/Title.html', '<main><h1>Lantern Rooms</h1></main>');
     repo.write(
@@ -612,11 +614,28 @@ test('components no screen shows yet are one line, not a "0 screens" row each', 
     );
     repo.run(['add', '.']);
     repo.run(['commit', '-qm', 'Kit']);
-    const commit = repo.run(['rev-parse', 'HEAD']);
-    const result = await checkDesign({ commit, base: main }, git(repo.root), drawing().drawer);
+    const kit = await checkDesign(
+      { commit: repo.run(['rev-parse', 'HEAD']), base: main },
+      git(repo.root),
+      drawing().drawer,
+    );
+    assert.ok(!kit.boards.some((board) => board.status === 'part'), JSON.stringify(kit.boards));
+    // A part changed in a library main already has: a line, not a "0 screens" row.
+    repo.run(['checkout', '-q', 'main']);
+    repo.run(['merge', '-q', '--ff-only', 'design/kit']);
+    const merged = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'design/more']);
+    repo.write('design/ds/deploy-local/components/library.json', JSON.stringify(library('More')));
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'More']);
+    const result = await checkDesign(
+      { commit: repo.run(['rev-parse', 'HEAD']), base: merged },
+      git(repo.root),
+      drawing().drawer,
+    );
     const words = result.boards.map((board) => [board.title, board.words]);
     assert.ok(!words.some(([, said]) => /^0 screens$/.test(said)), JSON.stringify(words));
-    assert.deepEqual(words[0], ['Components', '2 new or changed, on no screen yet']);
+    assert.deepEqual(words[0], ['Sidebar', 'on no screen yet']);
   } finally {
     repo.cleanup();
   }
@@ -949,6 +968,82 @@ test('white text on white in dark is low contrast; what main already had is not 
       tokens,
     }),
     [],
+  );
+});
+
+test('a changed board stating prices, figures or policies with no question is a note', () => {
+  const page = (body: string) => `<html><body>${body}</body></html>`;
+  const after = page(
+    '<p data-layer="price">Croissant $4.50</p>' +
+      '<p data-layer="claim">Loved by 2,000 families</p>' +
+      '<p data-layer="returns">Free returns within 30 days</p>' +
+      '<p data-layer="asked" data-question="What does delivery cost?">Delivery $6</p>' +
+      '<p data-layer="session">Focus 25 min · Today, Friday 27 November · 184 KB</p>' +
+      '<p data-layer="kit">Saved 12%</p>',
+  );
+  const note = unflaggedClaimsNote({
+    file: 'Shop.html',
+    title: 'Shop',
+    before: page('<p data-layer="price">Croissant $4.50</p>'),
+    after,
+    samples: new Set(['12%']),
+  });
+  assert.ok(note);
+  assert.equal(note.code, 'unflagged_claims');
+  assert.equal(note.label, 'Shop states 2 claims no question flags');
+  assert.equal(note.detail, '"Loved by 2,000 families", "Free returns within 30 days"');
+  assert.equal(
+    unflaggedClaimsNote({ file: 'Shop.html', title: 'Shop', before: after, after }),
+    null,
+  );
+});
+
+test('tables of one kind stacked with columns in different places are a note', () => {
+  const table = (layer: string, top: number, columns: number[]) => ({
+    layer,
+    kind: 'ds-mac-table',
+    left: 240,
+    top,
+    columns,
+  });
+  const after = inspection({
+    tables: [
+      table('day-today', 100, [240, 356, 700]),
+      table('day-yesterday', 220, [240, 348, 700]),
+      table('day-wednesday', 340, [240, 333, 700]),
+      table('totals', 460, [240, 500]),
+      // Far down the page, in another section: not part of the stack.
+      table('appendix', 2000, [240, 300, 700]),
+    ],
+  });
+  const notes = drawnNotes({
+    file: 'Main.html',
+    title: 'Main',
+    width: 1440,
+    after,
+    before: null,
+    tokens,
+  });
+  const ragged = notes.filter((note) => note.code === 'tables_misaligned');
+  assert.equal(ragged.length, 1);
+  assert.equal(ragged[0].label, "Main stacks 3 tables whose columns don't line up");
+  assert.match(
+    ragged[0].detail,
+    /day-today, day-yesterday, day-wednesday: columns start up to 23 px apart/,
+  );
+  // Main already drew them this way: not news.
+  assert.equal(
+    drawnNotes({ file: 'Main.html', title: 'Main', width: 1440, after, before: after, tokens })
+      .length,
+    0,
+  );
+  const even = inspection({
+    tables: [table('a', 100, [240, 356, 700]), table('b', 220, [240, 357, 700])],
+  });
+  assert.equal(
+    drawnNotes({ file: 'Main.html', title: 'Main', width: 1440, after: even, before: null, tokens })
+      .length,
+    0,
   );
 });
 
@@ -2469,6 +2564,47 @@ test('a tile labelled for one ground that changes with the scheme is a note', as
   });
   assert.equal(
     fixed.result.notes.some((entry) => entry.code === 'logo_ground_follows_scheme'),
+    false,
+  );
+});
+
+test('a logo part past its artboard or cut by its tile is a problem', async () => {
+  const cut = await kindCheck({
+    head: 'platform=logo',
+    inspect: () => ({
+      texts: [
+        { layer: 'word', text: 'Harbor', left: 900, top: 400, width: 200, height: 40, size: 40 },
+      ] as Inspection['texts'],
+      figures: [
+        {
+          layer: 'tile-mark',
+          left: 100,
+          top: 100,
+          width: 300,
+          height: 300,
+          cut: 40,
+          frame: 'tile',
+        },
+      ] as Inspection['figures'],
+    }),
+  });
+  const problem = cut.result.problems.find((entry) => entry.code === 'logo_cut_off');
+  assert.ok(problem);
+  assert.match(problem.detail, /word, tile-mark/);
+  assert.match(problem.detail, /76 px/);
+  const inside = await kindCheck({
+    head: 'platform=logo',
+    inspect: () => ({
+      texts: [
+        { layer: 'word', text: 'Harbor', left: 100, top: 400, width: 200, height: 40, size: 40 },
+      ] as Inspection['texts'],
+      figures: [
+        { layer: 'tile-mark', left: 100, top: 100, width: 200, height: 200 },
+      ] as Inspection['figures'],
+    }),
+  });
+  assert.equal(
+    inside.result.problems.some((entry) => entry.code === 'logo_cut_off'),
     false,
   );
 });

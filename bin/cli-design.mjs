@@ -10,6 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import * as contracts from './cli-contracts.mjs';
@@ -682,6 +683,7 @@ export async function runDesign(sub, args, options, deps) {
     const { result, sent, cleanup } = run;
     const fixed = [];
     const pairFiles = [];
+    let questionsSeen = false;
     try {
       // New elements' layer IDs go into the boards here, unless a board changed since it was read.
       for (const [file, html] of Object.entries(result.layers ?? {})) {
@@ -760,6 +762,8 @@ export async function runDesign(sub, args, options, deps) {
             /<title>([^<]*)<\/title>/.exec(html)?.[1] ??
             screenName(file);
           const { near, side, why, ...rect } = place;
+          // A height measured in this same run wins over the place's default height.
+          if (result.heights?.[file]) rect.h = result.heights[file];
           canvas.boards[file] = {
             ...canvas.boards[file],
             ...rect,
@@ -880,6 +884,14 @@ export async function runDesign(sub, args, options, deps) {
           writeFileSync(join(pairs, picture.name), Buffer.from(picture.png, 'base64'));
           pairFiles.push(`output/design/pairs/${picture.name}`);
         }
+      // The questions before finishing are asked once for a set of pictures: a clean run over
+      // the same pictures again says so in a line, not the whole list again.
+      const digest = createHash('sha256');
+      for (const picture of result.pictures ?? []) digest.update(picture.name).update(picture.png);
+      const asked = join(pairs, '.questions-asked');
+      const seen = digest.digest('hex');
+      questionsSeen = existsSync(asked) && readFileSync(asked, 'utf8').trim() === seen;
+      if (!result.problems.length && pairFiles.length) writeFileSync(asked, `${seen}\n`);
     } finally {
       cleanup?.();
     }
@@ -901,6 +913,7 @@ export async function runDesign(sub, args, options, deps) {
       fixed,
       where: run.where,
       pairFiles,
+      ...(questionsSeen ? { questionsSeen } : {}),
       ...(run.sandboxed ? { sandboxed: true } : {}),
       ...(run.reason ? { fellBackBecause: run.reason } : {}),
       legacy: /^(design|artifact)\//.test(branch),
@@ -1145,7 +1158,12 @@ export async function runDesign(sub, args, options, deps) {
         out('  git commit -am "…"');
       }
       // The check cannot judge everything a reviewer will: the agent looks, and answers.
-      if (result.pairFiles.length) {
+      if (result.pairFiles.length && result.questionsSeen) {
+        out();
+        out(
+          `Before you finish: the same pictures as the last clean check, so the same ${reviewQuestions.length} questions.`,
+        );
+      } else if (result.pairFiles.length) {
         out();
         out(paint.bold('Before you finish'));
         out('Answer each, in your own words, looking at the pairs above:');

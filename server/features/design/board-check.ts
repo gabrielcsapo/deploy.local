@@ -47,6 +47,8 @@ import {
   notATokenProblems,
   overlapProblems,
   questionFindings,
+  statedClaims,
+  unflaggedClaimsNote,
   readTokens,
   boardSchemes,
   schemeDroppedProblem,
@@ -92,6 +94,7 @@ import {
   pageBreakNotes,
   phoneScreen,
   safeAreaProblems,
+  logoCutProblems,
   screenSafeAreaProblems,
   smallContrast,
   statusBarNote,
@@ -568,6 +571,22 @@ export async function checkDesign(
       .filter((name) => !/^\d/.test(name)),
   );
   const branchLibrary = parseLibrary(await systemFile(dsPaths?.library));
+  // The values the design system's own samples show (its examples and library): a board copied
+  // from them is the kit's sample, not a figure the agent made up.
+  const examplesFolder = dsPaths ? `${folder}/${dsPaths.examples}` : null;
+  const exampleTexts = examplesFolder
+    ? await Promise.all(
+        ((await git.read(['ls-tree', '--name-only', `${commit}:${examplesFolder}`])) ?? '')
+          .split('\n')
+          .filter((name) => name.endsWith('.html'))
+          .map((name) => show(commit, `${examplesFolder}/${name}`)),
+      )
+    : [];
+  const sampleValues = new Set(
+    [...exampleTexts, await systemFile(dsPaths?.library)].flatMap((text) =>
+      text ? statedClaims(text.replace(/<[^>]+>/g, ' ')) : [],
+    ),
+  );
   // Where the library is, for a change to a component.
   let ownLibrary = '';
   for (const path of dsPaths?.library ?? [])
@@ -760,7 +779,9 @@ export async function checkDesign(
       return row;
     });
   const unshown = parts.filter((entry) => !entry.shown && !entry.carried);
-  if (unshown.length)
+  // A library new on this branch (a new project's kit) is all "new": saying so is noise.
+  const libraryIsNew = Boolean(ownLibrary) && (await show(forkedAt, ownLibrary)) === null;
+  if (unshown.length && !libraryIsNew)
     partRows.push({
       file: 'part:unshown',
       title: unshown.length === 1 ? unshown[0].part.name : 'Components',
@@ -895,6 +916,8 @@ export async function checkDesign(
       const asked = questionFindings(board);
       problems.push(...asked.problems);
       notes.push(...asked.notes);
+      const unflagged = unflaggedClaimsNote({ ...board, samples: sampleValues });
+      if (unflagged) notes.push(unflagged);
       // Only names the board was written with: the check's own names are its job, not the agent's.
       const nameProblem = layerNameNote({ ...baseline, after: written.get(file) ?? text });
       // --fix never replaces an ID the author wrote; it only names elements that have none.
@@ -1324,6 +1347,16 @@ export async function checkDesign(
               });
               if (bar) found.notes.push(bar);
             }
+            if (platform === 'logo')
+              found.problems.push(
+                ...logoCutProblems({
+                  file,
+                  title,
+                  inspection: afterShot.inspected,
+                  width,
+                  height: height ?? width,
+                }),
+              );
             if (platform === 'print') {
               const geometry = printGeometry(meta);
               found.problems.push(

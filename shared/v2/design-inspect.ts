@@ -30,6 +30,18 @@ export type Inspection = {
   aligned: { a: string; b: string; dx: number }[];
   /** List rows by kind (their design-system class): the heights of each one drawn. */
   rows: Record<string, number[]>;
+  /**
+   * Each table drawn: its kind (its classes), its left and top, and where each column of its first
+   * row starts, so tables stacked one under another can be held to the same columns.
+   */
+  tables?: {
+    layer: string | null;
+    kind: string;
+    left: number;
+    top: number;
+    bottom?: number;
+    columns: number[];
+  }[];
   /** A bordered or shadowed box drawn inside another. */
   boxes: { layer: string; inside: string }[];
   /** Primary buttons that show. */
@@ -77,6 +89,9 @@ export type Box = {
   top: number;
   width: number;
   height: number;
+  /** For a picture: how far it runs past the first ancestor that hides overflow, and which. */
+  cut?: number;
+  frame?: string | null;
 };
 
 /** Runs in the page: what the check measures there. */
@@ -152,8 +167,14 @@ export function inspectBoard(doc: Document = document): Inspection {
 
   const texts: InspectedText[] = [];
   const placed: { element: Element; rect: DOMRect; layer: string | null; text: string }[] = [];
-  const blocks: { layer: string; left: number; top: number; bottom: number; element: Element }[] =
-    [];
+  const blocks: {
+    layer: string;
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+    element: Element;
+  }[] = [];
   for (const element of doc.body.querySelectorAll('*')) {
     if (['SCRIPT', 'STYLE', 'TITLE', 'NOSCRIPT'].includes(element.tagName)) continue;
     if (element.closest('svg')) continue;
@@ -192,9 +213,21 @@ export function inspectBoard(doc: Document = document): Inspection {
       height: Math.round(rect.height),
       ...(inactive(element) ? { inactive: true } : {}),
     });
-    // Blocks of text, for edges that nearly line up: text that starts its own line.
-    if (layer && !['inline', 'contents'].includes(style.display))
-      blocks.push({ layer, left: rect.left, top: rect.top, bottom: rect.bottom, element });
+    // Blocks of text, for edges that nearly line up: text that starts its own line. Text set
+    // right or centred starts wherever its words end it, so its left edge says nothing.
+    if (
+      layer &&
+      !['inline', 'contents'].includes(style.display) &&
+      !/^(right|end|center)$/.test(style.textAlign)
+    )
+      blocks.push({
+        layer,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        element,
+      });
   }
   const aligned: Inspection['aligned'] = [];
   const seen = new Set<string>();
@@ -205,6 +238,8 @@ export function inspectBoard(doc: Document = document): Inspection {
       if (b.top - a.bottom > 40) break;
       if (b.top < a.bottom - 2 || a.layer === b.layer) continue;
       if (a.element.contains(b.element) || b.element.contains(a.element)) continue;
+      // Right edges that line up: the pair is set flush right (a count, a size), not left.
+      if (Math.abs(a.right - b.right) < 1) continue;
       const dx = Math.round(Math.abs(a.left - b.left) * 10) / 10;
       const key = `${a.layer} ${b.layer}`;
       if (dx >= 1 && dx <= 4 && !seen.has(key)) {
@@ -220,6 +255,26 @@ export function inspectBoard(doc: Document = document): Inspection {
       if (!shown(element)) continue;
       (rows[kind] ??= []).push(Math.round(element.getBoundingClientRect().height));
     }
+
+  const tables = [...doc.body.querySelectorAll('table')]
+    .filter((table) => shown(table) && table.rows.length > 0)
+    .map((table) => {
+      const rect = table.getBoundingClientRect();
+      return {
+        layer: layerOf(table),
+        kind:
+          [...table.classList]
+            .filter((name) => /^(ds|dl)-/.test(name))
+            .sort()
+            .join(' ') || 'table',
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        bottom: Math.round(rect.bottom),
+        columns: [...table.rows[0].cells].map((cell) =>
+          Math.round(cell.getBoundingClientRect().left),
+        ),
+      };
+    });
 
   const pageWidth = doc.documentElement.clientWidth;
   // Form controls are boxes by nature: a field, a select, a segmented control inside a card or a
@@ -533,9 +588,26 @@ export function inspectBoard(doc: Document = document): Inspection {
   ]
     .filter(shown)
     .map(boxOf);
+  // How far a picture runs past the first ancestor that hides what overflows it, on any side.
+  const cutBy = (element: Element) => {
+    const rect = element.getBoundingClientRect();
+    for (let at = element.parentElement; at && at !== doc.body; at = at.parentElement) {
+      const clip = view.getComputedStyle(at);
+      if (!/(hidden|clip)/.test(`${clip.overflowX} ${clip.overflowY}`)) continue;
+      const box = at.getBoundingClientRect();
+      const past = Math.max(
+        box.left - rect.left,
+        rect.right - box.right,
+        box.top - rect.top,
+        rect.bottom - box.bottom,
+      );
+      return past > 1 ? { cut: Math.round(past), frame: layerOf(at) } : null;
+    }
+    return null;
+  };
   const figures = [...doc.body.querySelectorAll('img, svg, canvas, video')]
     .filter((element) => shown(element) && !element.parentElement?.closest('svg'))
-    .map(boxOf);
+    .map((element) => ({ ...boxOf(element), ...cutBy(element) }));
   const headings = [...doc.body.querySelectorAll('h1, h2, h3, h4, h5, h6')]
     .filter(shown)
     .map((element) => ({
@@ -556,6 +628,7 @@ export function inspectBoard(doc: Document = document): Inspection {
     texts,
     aligned,
     rows,
+    tables,
     boxes,
     primaries,
   };

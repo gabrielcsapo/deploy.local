@@ -127,7 +127,7 @@
         {
           "id": "caption",
           "label": "Caption",
-          "default": "Levels done of all levels"
+          "default": "5 of 12 levels done"
         },
         {
           "id": "value",

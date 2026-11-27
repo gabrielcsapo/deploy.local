@@ -629,7 +629,7 @@ export function pairPage(input: {
     (before
       ? `<figure><figcaption>${caption(input.labels?.before ?? 'Before · main')}</figcaption>${image(before, 'pgA')}</figure>`
       : '') +
-    `<figure><figcaption>${caption(input.labels?.after ?? (before ? 'After · this branch' : 'New board'))}</figcaption>${image(after, 'pgB')}${questions}</figure>`
+    `<figure><figcaption>${caption(input.labels?.after ?? (before ? 'After · this branch' : 'This branch · not on main yet'))}</figcaption>${image(after, 'pgB')}${questions}</figure>`
   );
 }
 

@@ -340,8 +340,8 @@ body {
   size: A4;
   margin: 24mm 20mm 24mm;
   /* The running header and footer are printed in the page's margin, on every page. Their words
-     come from the board: a <style> with @page { @top-left { content: "Document name" }
-     @top-right { content: "Section" } @bottom-left { content: "Date" } }. The page number is
+     come from the board: a <style> with @page { @top-left { content: "Team handbook" }
+     @top-right { content: "Working together" } @bottom-left { content: "Updated 14 March" } }. The page number is
      here already. */
   @top-left {
     font: 8.5pt/12pt var(--font-sans);
