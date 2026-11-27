@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="design-board"
+      content="platform=model,width=1280,height=720,model=Tree,size=1.4x1.4x2.5,tris=300"
+    />
+    <title>Example tree</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/model.css" />
+  </head>
+  <body>
+    <main class="model-sheet">
+      <header class="model-head" data-layer="tree-head">
+        <h1>Tree</h1>
+        <p>
+          A pine for the forest edge: three tiers of needles on a short trunk, low enough in
+          triangles to plant hundreds.
+        </p>
+      </header>
+      <div class="model-views" data-layer="views">
+        <figure class="model-view">
+          <img data-model-view="front" alt="Tree from the front" width="272" height="272" />
+          <figcaption>Front</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img data-model-view="side" alt="Tree from the side" width="272" height="272" />
+          <figcaption>Side</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img
+            data-model-view="three-quarter"
+            alt="Tree from three-quarters"
+            width="272"
+            height="272"
+          />
+          <figcaption>Three-quarter</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img data-model-view="top" alt="Tree from the top" width="272" height="272" />
+          <figcaption>Top</figcaption>
+        </figure>
+      </div>
+      <div class="model-specs" data-layer="specs">
+        <section data-layer="limits">
+          <h2 class="model-label">Held to</h2>
+          <dl class="model-spec">
+            <dt>Box</dt>
+            <dd>1.4 × 1.4 × 2.5 m, standing on the ground</dd>
+            <dt>Size</dt>
+            <dd data-model-stat="size">Not drawn yet</dd>
+            <dt>Triangles</dt>
+            <dd><span data-model-stat="tris">Not counted yet</span> of 300</dd>
+          </dl>
+        </section>
+        <section data-layer="colours">
+          <h2 class="model-label">Painted</h2>
+          <div class="model-palette">
+            <figure class="model-swatch">
+              <i class="c-bark"></i>
+              <figcaption>Bark</figcaption>
+            </figure>
+            <figure class="model-swatch">
+              <i class="c-green"></i>
+              <figcaption>Green</figcaption>
+            </figure>
+            <figure class="model-swatch">
+              <i class="c-leaf"></i>
+              <figcaption>Leaf</figcaption>
+            </figure>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

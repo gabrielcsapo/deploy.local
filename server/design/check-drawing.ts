@@ -18,6 +18,14 @@ import {
   type StrandedHeading,
 } from './kind-checks.ts';
 import type { ArtSheet, ArtSprite } from './art-checks.ts';
+import {
+  paletteOfCss,
+  parseModelBox,
+  type ModelBuild,
+  type ModelStats,
+  type ModelUnbuilt,
+} from './model-build.ts';
+import { parseBoardMeta } from '../../shared/v2/design-board-meta.ts';
 
 /** A browser tab, as either driver gives it. */
 export type DrawingTab = {
@@ -48,6 +56,15 @@ export type BoardSources = {
   css(path: string): Promise<Buffer | null>;
   /** A picture in boards/captures, by its path under boards/. */
   capture(path: string): Promise<Buffer | null>;
+  /**
+   * A model board's model, built: null when design/models/ has no such model, `unbuilt` when
+   * nothing here can build one. Absent when the drawing cannot build models.
+   */
+  model?(input: {
+    name: string;
+    palette: Record<string, string>;
+    box: [number, number, number];
+  }): Promise<ModelBuild | ModelUnbuilt | null>;
 };
 
 const captureLink = /((?:src|srcset)=")(captures\/[A-Za-z0-9_.-]+\.png)(")/g;
@@ -88,7 +105,160 @@ export async function buildBoardPage(html: string, sources: BoardSources) {
     const css = await sources.css(match[1]);
     page = page.replace(match[0], () => `<style>${css?.toString() ?? ''}</style>`);
   }
+  if (/\sdata-model-(?:view|stat)="/.test(page)) page = await fillModel(page, sources.model);
   return inlineBoardCaptures(page, sources.capture);
+}
+
+/** What a model board's page carries for the check: the model, its box and budget, and its build. */
+export type ModelSheet = {
+  name: string | null;
+  /** The box it must fit, in metres (width, depth, height), as the board's size= says. */
+  box: [number, number, number] | null;
+  /** The triangles it may use, as the board's tris= says. */
+  budget: number | null;
+  palette: Record<string, string>;
+  /** Why it was not built: no model named, none in design/models/, or no Blender here. */
+  missing?: string;
+  unbuilt?: string;
+  stats?: ModelStats;
+};
+
+const modelLabels: Record<string, string> = {
+  front: 'the front',
+  side: 'the side',
+  'three-quarter': 'three-quarter view',
+  top: 'the top',
+};
+
+/** A plain picture in place of a view that could not be drawn, saying why. */
+const modelPlaceholder = (text: string) =>
+  `data:image/svg+xml;base64,${Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="#eeeef2"/><text x="200" y="200" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#55556a">${text.replace(/[<&>"]/g, '')}</text></svg>`,
+  ).toString('base64')}`;
+
+/**
+ * A model board with its model drawn in: each <img data-model-view="front|side|three-quarter|top">
+ * gets the picture from that side, each data-model-stat="tris|size" the number measured, and the
+ * page carries the build's stats for the check.
+ */
+async function fillModel(page: string, build: BoardSources['model']) {
+  const meta = parseBoardMeta(page);
+  const name = meta.other.model?.trim() || null;
+  const box = parseModelBox(meta.size);
+  const budget = Number(meta.other.tris) > 0 ? Math.round(Number(meta.other.tris)) : null;
+  const palette = paletteOfCss(page);
+  const sheet: ModelSheet = { name, box, budget, palette };
+  let built: ModelBuild | null = null;
+  if (!name) sheet.missing = 'The board names no model (model=<Name> in its design-board meta)';
+  else if (!build) sheet.unbuilt = 'This drawing cannot build models';
+  else {
+    const result = await build({ name, palette, box: box ?? [1, 1, 1] });
+    if (!result) sheet.missing = `design/models/ has no ${name}.py, .glb, .gltf or .blend`;
+    else if ('unbuilt' in result) sheet.unbuilt = result.unbuilt;
+    else {
+      built = result;
+      sheet.stats = result.stats;
+    }
+  }
+  const why = sheet.stats?.error
+    ? `${name} did not build`
+    : (sheet.missing ?? sheet.unbuilt)
+      ? `${name ?? 'The model'} is not drawn here`
+      : '';
+  let filled = page.replace(
+    /<img\b(?=[^>]*\sdata-model-view="([a-z-]+)")[^>]*>/g,
+    (tag: string, view: string) => {
+      const png = built?.views[view as keyof ModelBuild['views']];
+      const src = png
+        ? `data:image/png;base64,${png.toString('base64')}`
+        : modelPlaceholder(why || `No picture from ${modelLabels[view] ?? view}`);
+      const without = tag.replace(/\ssrc="[^"]*"/, '');
+      return without.replace(/^<img\b/, `<img src="${src}"`);
+    },
+  );
+  const stats = sheet.stats;
+  const size =
+    stats?.bounds &&
+    stats.bounds.max
+      .map((high, i) => (high - stats.bounds!.min[i]).toFixed(2))
+      .join(' × ')
+      .concat(' m');
+  const values: Record<string, string | undefined> = {
+    tris: stats?.tris?.toLocaleString('en-US'),
+    size,
+  };
+  filled = filled.replace(
+    /<([a-z][a-z0-9]*)\b([^>]*\sdata-model-stat="([a-z]+)"[^>]*)>[^<]*<\/\1>/g,
+    (whole: string, tag: string, attributes: string, stat: string) =>
+      values[stat] === undefined ? whole : `<${tag}${attributes}>${values[stat]}</${tag}>`,
+  );
+  const json = JSON.stringify(sheet).replace(/</g, '\\u003c');
+  const carried = `<script type="application/json" data-model-sheet>${json}</script>`;
+  return /<\/body>/i.test(filled)
+    ? filled.replace(/<\/body>/i, () => `${carried}</body>`)
+    : `${filled}${carried}`;
+}
+
+/**
+ * Runs in the page: reads the model sheet the page carries and draws the model's box over each
+ * picture of it, dashed, with a red edge where the model runs off the picture.
+ */
+export function frameModel(doc: Document = document): ModelSheet | null {
+  const carried = doc.querySelector('script[data-model-sheet]');
+  if (!carried) return null;
+  let sheet: ModelSheet;
+  try {
+    sheet = JSON.parse(carried.textContent ?? 'null');
+  } catch {
+    return null;
+  }
+  const views = sheet?.stats?.views ?? {};
+  const view = doc.defaultView!;
+  const svgNs = 'http://www.w3.org/2000/svg';
+  for (const img of doc.querySelectorAll<HTMLImageElement>('img[data-model-view]')) {
+    const picture = views[img.getAttribute('data-model-view') as keyof typeof views];
+    if (!picture) continue;
+    const rect = img.getBoundingClientRect();
+    if (!rect.width || !rect.height) continue;
+    // The picture is square and drawn whole in its box (object-fit contain, or its own size).
+    const side = Math.min(rect.width, rect.height);
+    const left = rect.left + view.scrollX + (rect.width - side) / 2;
+    const top = rect.top + view.scrollY + (rect.height - side) / 2;
+    const svg = doc.createElementNS(svgNs, 'svg');
+    svg.setAttribute('data-check-marks', '');
+    svg.setAttribute('viewBox', '0 0 1 1');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute(
+      'style',
+      `position:absolute;left:${left}px;top:${top}px;width:${side}px;height:${side}px;overflow:visible;pointer-events:none;z-index:2147483646`,
+    );
+    for (const [a, b] of picture.boxEdges) {
+      const line = doc.createElementNS(svgNs, 'line');
+      const [x1, y1] = picture.box[a];
+      const [x2, y2] = picture.box[b];
+      line.setAttribute('x1', String(x1));
+      line.setAttribute('y1', String(y1));
+      line.setAttribute('x2', String(x2));
+      line.setAttribute('y2', String(y2));
+      line.setAttribute(
+        'style',
+        'stroke:#2f6fde;stroke-width:1.25px;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;opacity:.85',
+      );
+      svg.append(line);
+    }
+    for (const edge of picture.edges) {
+      const bar = doc.createElementNS(svgNs, 'rect');
+      const across = edge === 'top' || edge === 'bottom';
+      bar.setAttribute('x', edge === 'right' ? '0.985' : '0');
+      bar.setAttribute('y', edge === 'bottom' ? '0.985' : '0');
+      bar.setAttribute('width', across ? '1' : '0.015');
+      bar.setAttribute('height', across ? '0.015' : '1');
+      bar.setAttribute('fill', '#d92d20');
+      svg.append(bar);
+    }
+    doc.body.append(svg);
+  }
+  return sheet;
 }
 
 export type BoardQuestion = { n: number; layer: string; question: string };
@@ -564,6 +734,8 @@ export type BoardShot = {
   grounds?: LogoGround[];
   /** A sprite sheet's palette, grounds and sprites, each drawn at play size, when asked for. */
   art?: ArtSheet | null;
+  /** A model board's model, its box and budget and what its build measured, when asked for. */
+  model?: ModelSheet | null;
 };
 
 /**
@@ -584,6 +756,7 @@ export async function shootBoard(
     printed?: { paperWidth: number; paperHeight: number };
     logo?: boolean;
     art?: boolean;
+    model?: boolean;
   },
 ): Promise<BoardShot> {
   await tab.setContent(page);
@@ -595,8 +768,11 @@ export async function shootBoard(
   const questions = /data-questions?=/.test(page)
     ? await tab.evaluate<BoardQuestion[]>(run(markQuestions))
     : [];
+  // A model's box over each of its pictures, so a review sees what it must fit.
+  const model = options.model ? await tab.evaluate<ModelSheet | null>(run(frameModel)) : undefined;
   const png = await tab.screenshot(options.fullPage ? { fullPage: true } : undefined);
   const shot: BoardShot = { png, measured, inspected, questions };
+  if (model !== undefined) shot.model = model;
   if (options.logo) {
     shot.grounds = await tab.evaluate<LogoGround[]>(run(readGrounds));
     shot.marks = await drawMarks(tab);

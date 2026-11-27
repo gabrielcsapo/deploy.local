@@ -93,6 +93,13 @@ const table = new Map<string, PlatformInfo>([
     typed: false,
     fixedFrame: true,
   }),
+  info('model', {
+    schemes: ['light'],
+    supports: ['light'],
+    appChecks: false,
+    typed: false,
+    fixedFrame: true,
+  }),
 ]);
 
 /** What the check knows about a platform; one the check has not heard of is drawn like the web. */
@@ -236,6 +243,8 @@ export function boardFrame(
       return { width: width ?? 1024, height: height ?? 1024 };
     case 'art':
       return { width: width ?? 1280, height: height ?? 960 };
+    case 'model':
+      return { width: width ?? 1280, height: height ?? 720 };
     case 'doc':
       // The canvas shows a document at its first reading width, as tall as it reads.
       return { width: 700, height: fromPlace.height || meta.height || null };
@@ -270,6 +279,7 @@ export function drawSteps(platform: string, meta: BoardMeta, placed: PlacedSize 
     case 'mac':
     case 'slide':
     case 'game':
+    case 'model':
       return [screen(frame.width, frame.height, { measure: true, inspect: true })];
     case 'logo':
       return [
@@ -353,6 +363,8 @@ export function drawnAt(platform: string, meta: BoardMeta, placed: PlacedSize = 
       const { tile, play } = artGeometry(meta);
       return `${frame.width}×${frame.height}, then each sprite at play size (a ${tile} px tile at ${play} px) on each ground`;
     }
+    case 'model':
+      return `${frame.width}×${frame.height}, the model drawn in Blender from the front, side, three-quarter and top, in its box`;
     case 'mac':
     case 'slide':
     case 'game':
@@ -375,6 +387,7 @@ export const designKinds: Record<string, { platforms: string[]; schemes: Scheme[
   game: { platforms: ['game'], schemes: ['light', 'dark'] },
   logo: { platforms: ['logo'], schemes: ['light', 'dark'] },
   art: { platforms: ['art'], schemes: ['light'] },
+  model: { platforms: ['model'], schemes: ['light'] },
 };
 
 /** The platform a new board of a project's kind is, when its name says no other. */

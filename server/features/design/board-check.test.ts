@@ -2172,6 +2172,10 @@ async function kindCheck(options: {
   png?: (scheme: string) => Buffer;
   /** More the drawing gives back for a shot (printed sheets, a logo's marks, its grounds). */
   extra?: (input: { scheme: string; media?: string }) => Partial<CheckShot>;
+  /** Files beside the design system on main (a model in design/models/). */
+  mainFiles?: Record<string, string>;
+  /** The board is on main already, and the branch changes only these files. */
+  branchOnly?: Record<string, string>;
 }) {
   const repo = repository();
   try {
@@ -2181,23 +2185,29 @@ async function kindCheck(options: {
       'design/ds/k/kind.css',
       ':root{--text-slide-body:32px;--text-slide-title:72px;--text-print-body:8pt;--text-print-name:11pt;--text-doc-body:17px}@media print{:root{--text-doc-body:11pt}}',
     );
+    const placedCanvas = JSON.stringify({
+      designSystem: 'ds/k',
+      ...options.canvas,
+      boards: { [file]: { x: 0, y: 0, w: 1440, h: 900, ...options.placed } },
+    });
     repo.write(
       'design/canvas.json',
-      JSON.stringify({ designSystem: 'ds/k', ...options.canvas, boards: {} }),
+      options.branchOnly
+        ? placedCanvas
+        : JSON.stringify({ designSystem: 'ds/k', ...options.canvas, boards: {} }),
     );
+    for (const [path, text] of Object.entries(options.mainFiles ?? {})) repo.write(path, text);
+    if (options.branchOnly) repo.write(`design/boards/${file}`, kindBoard(options.head));
     repo.run(['add', '.']);
     repo.run(['commit', '-qm', 'Main']);
     const main = repo.run(['rev-parse', 'HEAD']);
     repo.run(['checkout', '-qb', 'kind']);
-    repo.write(`design/boards/${file}`, kindBoard(options.head));
-    repo.write(
-      'design/canvas.json',
-      JSON.stringify({
-        designSystem: 'ds/k',
-        ...options.canvas,
-        boards: { [file]: { x: 0, y: 0, w: 1440, h: 900, ...options.placed } },
-      }),
-    );
+    if (options.branchOnly)
+      for (const [path, text] of Object.entries(options.branchOnly)) repo.write(path, text);
+    else {
+      repo.write(`design/boards/${file}`, kindBoard(options.head));
+      repo.write('design/canvas.json', placedCanvas);
+    }
     repo.run(['add', '.']);
     repo.run(['commit', '-qm', 'Board']);
     const commit = repo.run(['rev-parse', 'HEAD']);
@@ -2208,6 +2218,8 @@ async function kindCheck(options: {
       scale?: number;
       media?: string;
       fullPage?: boolean;
+      model?: boolean;
+      commit?: string;
     }[] = [];
     const pairs: {
       width: number;
@@ -2227,6 +2239,8 @@ async function kindCheck(options: {
           scale: input.scale,
           media: input.media,
           fullPage: input.fullPage,
+          model: input.model,
+          commit: input.commit,
         });
         return {
           png: options.png?.(input.scheme) ?? Buffer.from('png'),
@@ -2659,6 +2673,68 @@ test('a sprite sheet is drawn once in light with its sprites at play size, and i
     clean.result.problems.some((entry) => entry.code?.startsWith('art_')),
     false,
   );
+});
+
+test('a model board is drawn once in light with its model read; its box, budget and palette are problems', async () => {
+  const model = {
+    name: 'Crate',
+    box: [1, 1, 1] as [number, number, number],
+    budget: 100,
+    palette: { wood: '#a87650', bark: '#6e4a33' },
+    stats: {
+      model: 'Crate.py',
+      box: [1, 1, 1] as [number, number, number],
+      tris: 140,
+      objects: 3,
+      bounds: {
+        min: [-0.5, -0.5, 0] as [number, number, number],
+        max: [0.65, 0.5, 1.2] as [number, number, number],
+      },
+      colours: [
+        { colour: '#a87650', material: 'pal-wood', tris: 120 },
+        { colour: '#ff00ff', material: 'glow', tris: 20 },
+      ],
+      uncoloured: 0,
+      views: {},
+    },
+  };
+  const head = 'platform=model,width=1280,height=720,model=Crate,size=1x1x1,tris=100';
+  const { result, shots } = await kindCheck({ head, extra: () => ({ model }) });
+  assert.deepEqual([shots[0].width, shots[0].height], [1280, 720]);
+  assert.deepEqual([...new Set(shots.map((shot) => shot.scheme))], ['light']);
+  assert.equal(shots[0].model, true);
+  const codes = result.problems.map((entry) => entry.code);
+  assert.ok(codes.includes('model_out_of_bounds'), codes.join(', '));
+  assert.match(
+    result.problems.find((entry) => entry.code === 'model_out_of_bounds')?.detail ?? '',
+    /0\.15 m past the right; 0\.2 m past the top/,
+  );
+  assert.match(
+    result.problems.find((entry) => entry.code === 'model_over_budget')?.detail ?? '',
+    /140 triangles.*budget of 100/,
+  );
+  assert.match(
+    result.problems.find((entry) => entry.code === 'model_off_palette')?.detail ?? '',
+    /glow #ff00ff \(20 triangles\)/,
+  );
+  assert.equal(
+    result.notes.some((entry) =>
+      ['second_primary', 'spacing_off_scale'].includes(entry.code ?? ''),
+    ),
+    false,
+  );
+  // A change to the model alone checks the board that shows it, before and after.
+  const changed = await kindCheck({
+    head,
+    mainFiles: { 'design/models/Crate.py': "part('box', 'body', (1, 1, 1), at=(0, 0, 0.5))\n" },
+    branchOnly: {
+      'design/models/Crate.py': "part('box', 'body', (0.9, 0.9, 0.9), at=(0, 0, 0.45))\n",
+    },
+    extra: () => ({ model: { ...model, budget: null, stats: { ...model.stats, colours: [] } } }),
+  });
+  assert.equal(changed.result.boards.length, 1);
+  assert.equal(changed.result.boards[0].words, 'Model Crate changed');
+  assert.equal(new Set(changed.shots.map((shot) => shot.commit)).size, 2);
 });
 
 test('a document printed to real sheets: the pictures are the sheets and a stranded heading is a note', async () => {

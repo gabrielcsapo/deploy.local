@@ -34,7 +34,7 @@ import {
   firstFile,
 } from '../../../shared/v2/design-system-path.ts';
 import { boardOrder, placeBoard } from '../../design/board-placement.ts';
-import type { BoardQuestion } from '../../design/check-drawing.ts';
+import type { BoardQuestion, ModelSheet } from '../../design/check-drawing.ts';
 import {
   artGridProblems,
   artPaletteProblems,
@@ -42,6 +42,7 @@ import {
   artSilhouetteNote,
   type ArtSheet,
 } from '../../design/art-checks.ts';
+import { modelFindings } from '../../design/model-checks.ts';
 import {
   contrastProblems,
   cutOffBottomProblems,
@@ -190,6 +191,20 @@ const plainText = (html: string) =>
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
+
+/**
+ * A model board whose model changed: "Model Crate changed", ahead of what changed on the board
+ * itself, if anything. Null for any other board.
+ */
+export function modelWords(before: string | null, after: string | null, changed: Set<unknown>) {
+  if (!before || !after) return null;
+  const model = parseBoardMeta(after).other.model;
+  if (!model || !changed.has(model)) return null;
+  const words = boardWords(before, after);
+  return words === 'No visible change'
+    ? `Model ${model} changed`
+    : `Model ${model} changed · ${words}`;
+}
 
 /** What changed on a board, in the review's words for its layers: "New Show menu · Title". */
 export function boardWords(before: string | null, after: string | null, limit = 3) {
@@ -353,6 +368,8 @@ export type CheckShot = {
   grounds?: LogoGround[];
   /** A sprite sheet's palette, grounds and sprites at play size. */
   art?: ArtSheet | null;
+  /** A model board's model, its box and budget and what its build measured. */
+  model?: ModelSheet | null;
 };
 export type CheckDrawing = {
   /**
@@ -379,6 +396,8 @@ export type CheckDrawing = {
     logo?: boolean;
     /** Also read a sprite sheet and draw each sprite at play size on each ground. */
     art?: boolean;
+    /** Also read a model board's model and draw its box over each picture of it. */
+    model?: boolean;
   }): Promise<CheckShot | null>;
   /** Before and after side by side, captioned, as one PNG. */
   pair(input: {
@@ -522,6 +541,21 @@ export async function checkDesign(
     if (!texts.has(file)) texts.set(file, await show(commit, `${folder}/boards/${file}`));
     return texts.get(file) ?? null;
   };
+  // A model changed in design/models/ changes every board that shows it.
+  const changedModels = new Set(
+    paths
+      .map(
+        (path) =>
+          new RegExp(`^${folder}/models/([A-Za-z0-9_-]+)\\.(?:py|glb|gltf|blend)$`).exec(path)?.[1],
+      )
+      .filter(Boolean),
+  );
+  if (changedModels.size) {
+    for (const file of disk)
+      if (!files.includes(file) && changedModels.has(parseBoardMeta(await after(file)).other.model))
+        files.push(file);
+    files.sort();
+  }
   const mainTexts = new Map<string, Promise<string | null>>();
   const onMain = (file: string) => {
     if (!mainTexts.has(file)) mainTexts.set(file, show(base, `${folder}/boards/${file}`));
@@ -1009,7 +1043,7 @@ export async function checkDesign(
       status: !before ? 'new' : !text ? 'removed' : 'changed',
       words: comparedWith.has(file)
         ? `${boardWords(before, text)}, judged against ${screenName(comparedWith.get(file)!)}`
-        : boardWords(before, text),
+        : (modelWords(before, text, changedModels) ?? boardWords(before, text)),
       ...(comparedWith.has(file) ? { comparedWith: comparedWith.get(file) } : {}),
     });
   }
@@ -1134,7 +1168,7 @@ export async function checkDesign(
   const drawnWidths = new Map<string, number[]>();
   // Platforms whose bottom edge is no phone screen: a document scrolls, a card and a mark have no
   // bars to hide text under.
-  const noBottomFrame = new Set(['doc', 'print', 'logo', 'art']);
+  const noBottomFrame = new Set(['doc', 'print', 'logo', 'art', 'model']);
   // Each print face as drawn on this branch in light, for the front and back proof.
   const printFaces = new Map<
     string,
@@ -1226,6 +1260,7 @@ export async function checkDesign(
             : {}),
           ...(platform === 'logo' ? { logo: true } : {}),
           ...(platform === 'art' ? { art: true } : {}),
+          ...(platform === 'model' ? { model: true } : {}),
         };
         const shot = (at: string) => drawing.shoot({ commit: at, file, ...draw });
         // A new board's taste is judged against the board it came from, drawn from main.
@@ -1383,6 +1418,11 @@ export async function checkDesign(
                 artSilhouetteNote({ file, title, art }),
               ])
                 if (note) found.notes.push(note);
+            }
+            if (platform === 'model' && afterShot.model) {
+              const model = modelFindings({ file, title, model: afterShot.model });
+              found.problems.push(...model.problems);
+              found.notes.push(...model.notes);
             }
             if (platform === 'print') {
               const geometry = printGeometry(meta);

@@ -936,3 +936,112 @@ test("the art kit's sprites are read and drawn at play size on each ground, and 
     await browser.close();
   }
 });
+
+test("the model kit's crate builds in Blender, is drawn from four sides in its box and passes; a broken crate fails each check", async (t) => {
+  const { findBlender, buildModel, modelSource } = await import('../server/design/model-build.ts');
+  if (!findBlender()) return t.skip('no Blender here (install Blender or pip install bpy)');
+  const { browser, reason } = await openChromium();
+  if (!browser) return t.skip(`no browser here: ${reason}`);
+  const { designStarterFiles } = await import('./design-local-assets.mjs');
+  const { buildBoardPage } = await import('../server/design/check-drawing.ts');
+  const { modelFindings } = await import('../server/design/model-checks.ts');
+  const { pngSize } = await import('../server/design/kind-checks.ts');
+  const files = designStarterFiles();
+  const text = (path) => Buffer.from(files[path]).toString('utf8');
+  const cacheDir = mkdtempSync(join(tmpdir(), 'design-models-'));
+  const shoot = async (html, models) => {
+    const page = await buildBoardPage(html.replaceAll('__DS__', 'k'), {
+      library: async () => null,
+      css: async (path) =>
+        Buffer.from(
+          text(
+            path.endsWith('model.css')
+              ? 'kinds/model/model.css'
+              : path.endsWith('components.css')
+                ? 'kinds/_shared/components.css'
+                : 'tokens.css',
+          ),
+        ),
+      capture: async () => null,
+      model: async ({ name, palette, box }) => {
+        const found = await modelSource(name, (path) =>
+          models[path] ? Buffer.from(models[path]) : null,
+        );
+        return found ? buildModel({ name, ...found, palette, box, size: 192, cacheDir }) : null;
+      },
+    });
+    const tab = await browser.newTab({ width: 1280, height: 720, scheme: 'light' });
+    try {
+      return await shootBoard(tab, page, { scheme: 'light', measure: false, model: true });
+    } finally {
+      await tab.close();
+    }
+  };
+  const findings = (model) => {
+    const found = modelFindings({ file: 'ModelCrate.html', title: 'Crate', model });
+    return [...found.problems, ...found.notes];
+  };
+  const crate = text('kinds/model/models/Crate.py');
+  const board = text('kinds/model/examples/ModelCrate.html');
+  try {
+    const shot = await shoot(board, { 'models/Crate.py': crate });
+    const model = shot.model;
+    assert.equal(model.name, 'Crate');
+    assert.deepEqual(model.box, [1, 1, 1]);
+    assert.equal(model.budget, 500);
+    assert.ok(model.stats.tris > 100 && model.stats.tris <= 500, `${model.stats.tris} triangles`);
+    assert.deepEqual(Object.keys(model.stats.views).sort(), [
+      'front',
+      'side',
+      'three-quarter',
+      'top',
+    ]);
+    for (const picture of Object.values(model.stats.views)) {
+      assert.deepEqual(picture.edges, []);
+      assert.equal(picture.box.length, 8);
+      assert.ok(picture.drawn > 0.2, `${picture.drawn} of a picture drawn`);
+    }
+    assert.deepEqual(findings(model), []);
+    const { width, height } = pngSize(shot.png);
+    assert.deepEqual([width, height], [1280, 720]);
+    // The tree passes too.
+    const tree = await shoot(text('kinds/model/examples/ModelTree.html'), {
+      'models/Tree.py': text('kinds/model/models/Tree.py'),
+    });
+    assert.deepEqual(findings(tree.model), []);
+
+    const broken = `${crate}
+part('box', 'lid', (0.9, 0.9, 0.05), at=(0, 0, 1.2), colour='wood')
+glow = bpy.data.materials.new('glow')
+lamp = part('sphere', 'lamp', (0.2, 0.2, 0.2), at=(0, 0, 0.5), colour='wood')
+lamp.data.materials[0] = glow
+for i in range(6):
+    part('cylinder', f'peg {i}', (0.05, 0.05, 0.05), at=(0, 0, 0.5), colour='bark', sides=32)
+`;
+    const bad = (await shoot(board, { 'models/Crate.py': broken })).model;
+    const codes = findings(bad).map((entry) => entry.code);
+    assert.deepEqual(codes.sort(), [
+      'model_off_palette',
+      'model_out_of_bounds',
+      'model_over_budget',
+    ]);
+    // The lid past the box is still in every picture, above the box.
+    assert.ok(bad.stats.views.front.bounds[1] < bad.stats.views.front.box[1][1]);
+    const failed = (
+      await shoot(board, { 'models/Crate.py': "part('box', 'x', (1, 1, 1), colour='purple')\n" })
+    ).model;
+    assert.deepEqual(
+      findings(failed).map((entry) => entry.code),
+      ['model_build_failed'],
+    );
+    assert.match(findings(failed)[0].detail, /"purple" is not in the palette.*line 1/);
+    const missing = (await shoot(board, {})).model;
+    assert.deepEqual(
+      findings(missing).map((entry) => entry.code),
+      ['model_missing'],
+    );
+  } finally {
+    await browser.close();
+    rmSync(cacheDir, { recursive: true, force: true });
+  }
+});

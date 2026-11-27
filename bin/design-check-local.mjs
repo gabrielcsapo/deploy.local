@@ -14,6 +14,7 @@ import {
   pairPage,
   shootBoard,
 } from '../server/design/check-drawing.ts';
+import { buildModel, modelSource } from '../server/design/model-build.ts';
 import { openChromium } from './design-browser.mjs';
 import { designSystemFolder, designSystemPaths } from '../shared/v2/design-system-path.ts';
 
@@ -175,6 +176,18 @@ export async function openLocalDrawing({
       library: async () => libraryAt(at),
       css: async (path) => read(at, path) ?? designSystem(path),
       capture: async (path) => read(at, `boards/${path}`),
+      // A model board's model, built in Blender and kept in output/design/.models by what went in.
+      model: async ({ name, palette, box }) => {
+        const found = await modelSource(name, (path) => read(at, path));
+        if (!found) return null;
+        return buildModel({
+          name,
+          ...found,
+          palette,
+          box,
+          cacheDir: join(top, 'output', 'design', '.models'),
+        });
+      },
     });
     const inlined = await inlineWebFonts(built, { cache: fontCache, known: fonts });
     for (const href of inlined.missing) missingFonts.add(href);
@@ -195,6 +208,7 @@ export async function openLocalDrawing({
       printed,
       logo,
       art,
+      model,
     }) {
       const html = read(commit, `boards/${file}`);
       if (!html) return null;
@@ -209,6 +223,7 @@ export async function openLocalDrawing({
           printed,
           logo,
           art,
+          model,
         });
       } finally {
         await tab.close();

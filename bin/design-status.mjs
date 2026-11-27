@@ -35,6 +35,7 @@ const boardSizeKeys = {
   game: ',device=phone,width=390,height=844',
   logo: ',width=1024,height=1024',
   art: ',width=1280,height=960,tile=16,play=48',
+  model: ',width=1280,height=720,model=<Name>,size=1x1x1,tris=500',
 };
 
 /**
@@ -590,6 +591,7 @@ const kindWords = {
   game: 'game screens',
   logo: 'a logo (the mark from 512 down to 16 px)',
   art: 'game art: sprites and tiles on a pixel grid, read at play size',
+  model: 'game models: built in Blender, drawn from four sides in the box they must fit',
 };
 
 /** Check codes only an app's web and iPhone boards meet. */
@@ -668,6 +670,8 @@ export function guideLines({ top, designSystem, all = false }) {
     game: 'game (device=phone, width=390,height=844)',
     logo: 'logo',
     art: 'art (tile=16,play=48: the tile in art pixels, and the px it is drawn at in play)',
+    model:
+      'model (model=Crate,size=1x1x1,tris=500: design/models/Crate.py, the box it fits in metres, its triangle budget)',
   };
   const ownPlatforms = designKinds[design.kind].platforms;
   const headExample =
@@ -809,7 +813,7 @@ export function guideLines({ top, designSystem, all = false }) {
   const shownCodes = trimmed
     ? checkCodes.filter((entry) => {
         if (appOnlyCodes.has(entry.code)) return false;
-        const named = /^(print|doc|logo|game|art)\b/.exec(entry.means)?.[1];
+        const named = /^(print|doc|logo|game|art|model)\b/.exec(entry.means)?.[1];
         return !named || kindPlatforms.includes(named);
       })
     : checkCodes;

@@ -159,6 +159,10 @@ export async function bundleCli(buildInfo, output = CLI_DIR) {
       __WORKER_BUILD_COMMIT__: JSON.stringify(
         buildInfo.commit === 'unknown' ? '' : buildInfo.commit,
       ),
+      // deploy design check builds a model board's model in Blender with this script.
+      __DESIGN_BLENDER_RUNNER__: JSON.stringify(
+        readFileSync(resolve(ROOT, 'bin/design-blender.py'), 'utf8'),
+      ),
       __DEPLOY_LINUX_DESKTOP_HELPER__: JSON.stringify(
         readFileSync(resolve(ROOT, 'native/Linux/desktop-helper.py'), 'utf8'),
       ),

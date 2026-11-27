@@ -1786,6 +1786,48 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: 'art: sprites of different sets that are 90% the same shape at play size',
   },
   {
+    code: 'model_missing',
+    problem: true,
+    means:
+      'model: the board names no model (model=), gives no box (size=), or design/models/ has no such .py, .glb, .gltf or .blend',
+  },
+  {
+    code: 'model_build_failed',
+    problem: true,
+    means: "model: the model's script stopped with an error in Blender",
+  },
+  {
+    code: 'model_out_of_bounds',
+    problem: true,
+    means: 'model: a part past the box the board gives it (1% slack), or cut off at a picture edge',
+  },
+  {
+    code: 'model_over_budget',
+    problem: true,
+    means: "model: more triangles, after modifiers, than the board's tris=",
+  },
+  {
+    code: 'model_off_palette',
+    problem: true,
+    means: 'model: a part painted a colour that is not a --pal-*, or with no material',
+  },
+  {
+    code: 'model_framing',
+    problem: false,
+    means: 'model: under half its box in every direction, so it reads small in every picture',
+  },
+  {
+    code: 'model_off_ground',
+    problem: false,
+    means: 'model: its lowest point is not on the ground (z = 0): it floats or sinks',
+  },
+  {
+    code: 'model_not_drawn',
+    problem: false,
+    means:
+      'model: no Blender here to build it (install Blender or pip install bpy, or set DEPLOY_BLENDER)',
+  },
+  {
     code: 'spacing_off_scale',
     problem: false,
     means:

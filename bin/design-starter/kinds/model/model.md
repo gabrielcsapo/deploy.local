@@ -1,0 +1,21 @@
+## Model kind: 3D models that fit their box, drawn in Blender
+
+A model board shows one model of a game: `<meta name="design-board" content="platform=model,width=1280,height=720,model=Crate,size=1x1x1,tris=500">`. `model` names the model in `design/models/` (`Crate.py`, or `Crate.glb`, `.gltf`, `.blend`); `size` is the box it must fit, in metres, width by depth by height; `tris` is how many triangles it may use. Boards link `tokens.css`, `components.css` and `model.css`; the body starts with `.model-sheet`. A board carries no `<style>`. The check builds the model in Blender, draws it from the front, the side, three-quarters and the top into each `<img data-model-view="…">`, orthographic and framed on the box (and on any part past it, so nothing is hidden), with the box dashed over every picture, and fills each `data-model-stat` (`tris`, `size`) with what it measured. A change to the model alone checks every board that shows it, before and after. `deploy design export` writes the model as `.glb` and a page that turns it in three.js. App-only notes do not apply. This kind is the model, never the game: no rigs, animation, physics or level logic.
+
+- **A model is a script you can read.** `design/models/<Name>.py` builds it with bpy and two helpers: `part(kind, name, size, at, colour, rotate=(0, 0, 0), bevel=0, sides=12)` adds a box, cylinder, cone or sphere, `size` its box in metres (x wide, y deep, z tall) and `at` its centre; `pal('wood')` is the material for `--pal-wood`. Name every part for what it is (`post`, `brace`), and say in a comment what the model is and the size its board gives it. A model made elsewhere goes in as `.glb` or `.blend` and is held to the same box, budget and palette.
+- **It stands in its box.** Blender is z-up. The box stands on the ground at the origin: x and y centred, z from 0 up. The model's lowest point is on the ground (z = 0), where an engine stands it, and nothing leaves the box: a part past it is cut off in the pictures and collides where the game does not expect it. Make the box the size the thing is in the game (a door is 1 × 0.2 × 2.1), so the model fills it.
+- **One palette, from `model.css`.** Every part is painted `pal('<name>')`, a `--pal-*` on `:root`; never a literal colour or a material of its own. Need a colour? Add it to the palette first, and its `c-*` swatch, and say why on the board. List the colours a model uses in its `.model-palette`.
+- **Low poly on purpose.** Keep to `tris`: round parts take few sides (7 or 8 read as round at play size), no bevels or subdivision where the camera never looks, no faces nobody sees inside another part. Count after modifiers: the check does.
+- **Shape first.** Judge the three-quarter view at the size the game shows it, then the front and side: the model is one clear shape, light faces up and to the left, and every part says what it is. Two parts that meet flush flicker in every engine: let one sit a hair inside the other.
+- **The sheet says what it is.** `.model-head` names the model and says in one line what it is in the game; `.model-spec` gives its box and its triangles (filled by the check, never typed); `.model-palette` its colours.
+
+- **Sample content and product facts.** A model board's sample content is the model itself and its name (Crate, Tree): build it real and specific, never "Model 1". The game's facts (how heavy the crate is, how many hits it takes, how many trees a level holds) are product facts: the brief's, or left off, or flagged with `data-question` on their layer. Worked example: "A wooden crate the hero can push" describes the crate the brief asked for; "Weighs 40 kg" is a number nobody gave and carries the flag. A reviewer lists each unflagged fact as a `[fact]` finding.
+
+What agents get wrong for 3D models:
+
+- A model built at whatever size the primitives came in, so it floats, sinks or leaves its box.
+- A material picked by eye for one part, off the palette, so the game slowly gains a second palette.
+- Thirty-two-sided cylinders and bevels everywhere, ten times the budget for a prop seen at a distance.
+- Faces that meet flush, which flicker in every engine.
+- Judging the model from the front only, where its depth is hidden.
+- Writing the game: rigs, animation, physics, collision. This kind is the model; the engine plays it.

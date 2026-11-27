@@ -1,0 +1,41 @@
+{
+  "name": "Model kind",
+  "components": [
+    {
+      "id": "model-sheet",
+      "name": "Sheet",
+      "group": "Model",
+      "platform": "model",
+      "description": "The board: a 1280 wide sheet with the model's name and one line on what it is in the game. Everything else goes inside it.",
+      "props": [{ "id": "title", "label": "Title", "default": "Crate" }],
+      "html": "<main class=\"model-sheet\"><header class=\"model-head\"><h1>Crate</h1><p>A wooden crate the hero can push, one metre on a side.</p></header></main>"
+    },
+    {
+      "id": "model-views",
+      "name": "Four views",
+      "group": "Model",
+      "platform": "model",
+      "description": "The model from the front, side, three-quarters and top. Each img is filled by the check from design/models/, its box dashed over it; never give one a src.",
+      "props": [],
+      "html": "<div class=\"model-views\"><figure class=\"model-view\"><img data-model-view=\"front\" alt=\"The model from the front\" width=\"272\" height=\"272\" /><figcaption>Front</figcaption></figure><figure class=\"model-view\"><img data-model-view=\"side\" alt=\"The model from the side\" width=\"272\" height=\"272\" /><figcaption>Side</figcaption></figure><figure class=\"model-view\"><img data-model-view=\"three-quarter\" alt=\"The model from three-quarters\" width=\"272\" height=\"272\" /><figcaption>Three-quarter</figcaption></figure><figure class=\"model-view\"><img data-model-view=\"top\" alt=\"The model from the top\" width=\"272\" height=\"272\" /><figcaption>Top</figcaption></figure></div>"
+    },
+    {
+      "id": "model-spec",
+      "name": "Spec",
+      "group": "Model",
+      "platform": "model",
+      "description": "What the model is held to: its box as the meta gives it, and its size and triangles as the check measured them (data-model-stat), never typed.",
+      "props": [],
+      "html": "<section><h2 class=\"model-label\">Held to</h2><dl class=\"model-spec\"><dt>Box</dt><dd>1 × 1 × 1 m, standing on the ground</dd><dt>Size</dt><dd data-model-stat=\"size\">Not drawn yet</dd><dt>Triangles</dt><dd><span data-model-stat=\"tris\">Not counted yet</span> of 500</dd></dl></section>"
+    },
+    {
+      "id": "model-palette",
+      "name": "Colours used",
+      "group": "Model",
+      "platform": "model",
+      "description": "One .model-swatch per palette colour the model is painted with (a c-* class), named.",
+      "props": [],
+      "html": "<section><h2 class=\"model-label\">Painted</h2><div class=\"model-palette\"><figure class=\"model-swatch\"><i class=\"c-wood\"></i><figcaption>Wood</figcaption></figure><figure class=\"model-swatch\"><i class=\"c-bark\"></i><figcaption>Bark</figcaption></figure></div></section>"
+    }
+  ]
+}

@@ -2164,6 +2164,7 @@ test('init --kind with the real starter: only the kind, a starting board with tr
     game: [390, 844],
     logo: [1024, 1024],
     art: [1280, 960],
+    model: [1280, 720],
   };
   for (const [kind, [w, h]] of Object.entries(sizes)) {
     const root = realpathSync(mkdtempSync(join(tmpdir(), `cli-design-real-${kind}-`)));
@@ -2224,6 +2225,13 @@ test('init --kind with the real starter: only the kind, a starting board with tr
           );
       assert.match(html, new RegExp(`platform=${kind === 'slides' ? 'slide' : kind}`));
       if (kind === 'game') assert.match(html, /width=390,height=844/);
+      // A model kind's models go to design/models/, where its boards name them, not into ds/.
+      if (kind === 'model') {
+        assert.ok(existsSync(join(root, 'design/models/Crate.py')));
+        assert.ok(existsSync(join(root, 'design/models/Tree.py')));
+        assert.equal(existsSync(join(ds, 'models')), false);
+        assert.match(html, /model=Crate,size=1x1x1,tris=500/);
+      }
       // The starting board is the project's own, marked as the starting point, and carries no style.
       assert.match(html, /<title>Proj [a-z ]+<\/title>/, kind);
       assert.doesNotMatch(html, /Example/, kind);
@@ -2310,7 +2318,26 @@ test('the kind kits carry what the round-3 review asked for', async () => {
     assert.doesNotMatch(html, /<circle|stroke=|fill="#|style="/, name);
   }
   assert.match(text('kinds/art/examples/ArtTiles.html'), /<use href="#tile-grass"/);
-  for (const kind of ['doc', 'slides', 'print', 'mac', 'game', 'logo', 'art']) {
+  // Model: a model script per example board, painted from the palette, its pictures left to the check.
+  const model = text('kinds/model/model.css');
+  assert.match(model, /--pal-wood:/);
+  for (const [board, name] of [
+    ['ModelCrate', 'Crate'],
+    ['ModelTree', 'Tree'],
+  ]) {
+    const html = text(`kinds/model/examples/${board}.html`);
+    assert.match(
+      html,
+      new RegExp(`platform=model,width=1280,height=720,model=${name},size=`),
+      board,
+    );
+    assert.equal(html.match(/data-model-view="/g)?.length, 4, board);
+    assert.doesNotMatch(html, /<img\b[^>]*\ssrc=|style="/, board);
+    const script = text(`kinds/model/models/${name}.py`);
+    for (const colour of script.matchAll(/colour='([a-z]+)'/g))
+      assert.match(model, new RegExp(`--pal-${colour[1]}:`), `${name}: ${colour[1]}`);
+  }
+  for (const kind of ['doc', 'slides', 'print', 'mac', 'game', 'logo', 'art', 'model']) {
     assert.match(text(`kinds/${kind}/${kind}.md`), /Sample content and product facts/, kind);
     assert.match(text(`kinds/${kind}/${kind}.md`), /Worked example/, kind);
     assert.match(text(`kinds/${kind}/${kind}.md`), /carries no `<style>`/, kind);

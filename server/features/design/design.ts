@@ -25,6 +25,7 @@ import {
 } from './board-check.ts';
 import { applyCanvasEdit, blankBoard } from '../../design/canvas-edit.ts';
 import { reviewEvidence } from '../../design/review-evidence.ts';
+import { buildModel, modelSource } from '../../design/model-build.ts';
 import {
   groupReviewChanges,
   validReviewAnchor,
@@ -3344,6 +3345,13 @@ async function boardPage(repo: string, commit: string, html: string) {
     library: () => libraryAt(repo, commit),
     css: (path) => designSystemFile(repo, commit, path),
     capture: (path) => readFile(repo, commit, `${designFolder()}/boards/${path}`, captureLimit),
+    // A model board's model, built in Blender when this computer has one.
+    model: async ({ name, palette, box }) => {
+      const found = await modelSource(name, (path) =>
+        readFile(repo, commit, `${designFolder()}/${path}`, captureLimit),
+      );
+      return found ? buildModel({ name, ...found, palette, box }) : null;
+    },
   });
 }
 
@@ -3376,6 +3384,7 @@ export function checkDrawing(repo: string): CheckDrawing {
       fullPage,
       logo,
       art,
+      model,
     }) => {
       const html = await readFile(repo, commit, `${designFolder()}/boards/${file}`);
       if (!html) return null;
@@ -3402,6 +3411,7 @@ export function checkDrawing(repo: string): CheckDrawing {
             fullPage,
             logo,
             art,
+            model,
           });
         } finally {
           await context.close();

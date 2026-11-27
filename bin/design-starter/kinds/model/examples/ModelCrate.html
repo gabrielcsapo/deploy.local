@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="design-board"
+      content="platform=model,width=1280,height=720,model=Crate,size=1x1x1,tris=500"
+    />
+    <title>Example crate</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/model.css" />
+  </head>
+  <body>
+    <main class="model-sheet">
+      <header class="model-head" data-layer="crate-head">
+        <h1>Crate</h1>
+        <p>
+          A wooden crate the hero can push, one metre on a side: planks in a frame, with a brace
+          across the front.
+        </p>
+      </header>
+      <div class="model-views" data-layer="views">
+        <figure class="model-view">
+          <img data-model-view="front" alt="Crate from the front" width="272" height="272" />
+          <figcaption>Front</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img data-model-view="side" alt="Crate from the side" width="272" height="272" />
+          <figcaption>Side</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img
+            data-model-view="three-quarter"
+            alt="Crate from three-quarters"
+            width="272"
+            height="272"
+          />
+          <figcaption>Three-quarter</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img data-model-view="top" alt="Crate from the top" width="272" height="272" />
+          <figcaption>Top</figcaption>
+        </figure>
+      </div>
+      <div class="model-specs" data-layer="specs">
+        <section data-layer="limits">
+          <h2 class="model-label">Held to</h2>
+          <dl class="model-spec">
+            <dt>Box</dt>
+            <dd>1 × 1 × 1 m, standing on the ground</dd>
+            <dt>Size</dt>
+            <dd data-model-stat="size">Not drawn yet</dd>
+            <dt>Triangles</dt>
+            <dd><span data-model-stat="tris">Not counted yet</span> of 500</dd>
+          </dl>
+        </section>
+        <section data-layer="colours">
+          <h2 class="model-label">Painted</h2>
+          <div class="model-palette">
+            <figure class="model-swatch">
+              <i class="c-wood"></i>
+              <figcaption>Wood</figcaption>
+            </figure>
+            <figure class="model-swatch">
+              <i class="c-bark"></i>
+              <figcaption>Bark</figcaption>
+            </figure>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

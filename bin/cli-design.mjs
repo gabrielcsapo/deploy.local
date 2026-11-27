@@ -25,6 +25,7 @@ import {
   statusLines,
 } from './design-status.mjs';
 import { syncInstances } from '../server/design/board-html.ts';
+import { buildModel, modelPreviewPage, modelSource } from '../server/design/model-build.ts';
 import { checkDesign, parseLibrary } from '../server/features/design/board-check.ts';
 import {
   boardPlatform,
@@ -44,7 +45,7 @@ export const DESIGN_HELP = `deploy design — change what people see, on the sam
 Usage  deploy design <command> [flags]
 
   init [<name>] [--kind k] Start design/ here, with a starter design system
-                           (kinds: app, doc, slides, print, mac, game, logo, art)
+                           (kinds: app, doc, slides, print, mac, game, logo, art, model)
   export [<Board>…]        One PDF of the boards, in canvas order, at their own sizes
   guide                    How to work on this project's design
   status [<Board>…]        Where to start a board: its source, siblings, questions
@@ -353,7 +354,8 @@ export function initDesign(top, name, starter, kind = 'app') {
     }
   }
   for (const [path, bytes] of own)
-    if (path !== `${kind}.md` && path !== `library-${kind}.json`) base.set(path, bytes);
+    if (path.startsWith('models/')) put(`design/${path}`, fill(path, bytes));
+    else if (path !== `${kind}.md` && path !== `library-${kind}.json`) base.set(path, bytes);
   // The kind's starting board: one example, ready to edit, in boards/ and on the canvas.
   const startFile = startingBoards[kind];
   const startBytes = startFile ? own.get(`examples/${startFile}.html`) : undefined;
@@ -414,6 +416,7 @@ const startingBoards = {
   game: 'GameTitle',
   logo: 'LogoMark',
   art: 'ArtSprites',
+  model: 'ModelCrate',
 };
 
 /** What each kind's starting board is called after the project: "<Name> title slide". */
@@ -425,6 +428,7 @@ const startingLabels = {
   game: 'title screen',
   logo: 'mark',
   art: 'sprite sheet',
+  model: 'crate',
 };
 
 /** "garden-club" as a person would write it on a title: "Garden club". */
@@ -1442,6 +1446,7 @@ export async function runDesign(sub, args, options, deps) {
       let merged;
       const marks = [];
       const sprites = [];
+      const models = [];
       try {
         const pdfs = [];
         for (const file of files) {
@@ -1485,6 +1490,43 @@ export async function runDesign(sub, args, options, deps) {
                 svg: sprite.svg,
               });
           }
+          if (board.platform === 'model') {
+            // The model as .glb for the engine, and a page that turns it in three.js.
+            const drawn = await opened.drawing.shoot({
+              commit: WORKTREE,
+              file,
+              width: paper.width,
+              height: paper.height,
+              scheme: 'light',
+              measure: false,
+              model: true,
+            });
+            const sheet = drawn?.model;
+            const found =
+              sheet?.name && sheet.box
+                ? await modelSource(sheet.name, (path) => designFile(top, WORKTREE, path))
+                : null;
+            const built = found
+              ? await buildModel({
+                  name: sheet.name,
+                  ...found,
+                  palette: sheet.palette,
+                  box: sheet.box,
+                  cacheDir: join(top, 'output', 'design', '.models'),
+                })
+              : null;
+            if (built?.glb && !built.stats?.error)
+              models.push({ name: sheet.name, glb: built.glb, stats: built.stats });
+            else
+              step(
+                '!',
+                `No model from ${screenName(file)}`,
+                built?.unbuilt ??
+                  built?.stats?.error ??
+                  sheet?.missing ??
+                  'its model did not build',
+              );
+          }
         }
         merged = mergePdfs(pdfs);
       } finally {
@@ -1523,6 +1565,22 @@ export async function runDesign(sub, args, options, deps) {
           'Wrote',
           `output/design/art/ · ${plural(spriteFiles.length, 'sprite')} as SVG, one unit a pixel`,
         );
+      const modelFiles = [];
+      for (const model of new Map(models.map((entry) => [entry.name, entry])).values()) {
+        mkdirSync(join(top, 'output', 'design', 'models'), { recursive: true });
+        writeFileSync(join(top, 'output', 'design', 'models', `${model.name}.glb`), model.glb);
+        writeFileSync(
+          join(top, 'output', 'design', 'models', `${model.name}.html`),
+          modelPreviewPage(model),
+        );
+        modelFiles.push(`output/design/models/${model.name}.glb`);
+      }
+      if (modelFiles.length)
+        step(
+          '✓',
+          'Wrote',
+          `output/design/models/ · ${plural(modelFiles.length, 'model')} as .glb, each with a page that turns it`,
+        );
       out();
       step('✓', 'Wrote', `output/design/export/${name}.pdf · ${plural(merged.pages, 'page')}`);
       return {
@@ -1535,6 +1593,7 @@ export async function runDesign(sub, args, options, deps) {
           pages: merged.pages,
           ...(markFiles.length ? { marks: markFiles } : {}),
           ...(spriteFiles.length ? { sprites: spriteFiles } : {}),
+          ...(modelFiles.length ? { models: modelFiles } : {}),
         },
       };
     }
