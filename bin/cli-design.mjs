@@ -128,8 +128,9 @@ it). For each: the board, width and scheme, the layer, what is wrong, and the fi
   contact details, a statistic, a claim ("free delivery", "loved by 2,000 families"), or a figure
   in a report, slide or handbook. If it is neither in the brief nor left out nor marked with
   data-question on its layer, list it as a [fact] finding of its own, with the layer and the text.
-  A flagged plausible value is fine; a question worded "How many?" or "How long?" beside a stated
-  value is not.
+  A flagged plausible value is fine, however its question is worded. Flagged figures that do not
+  agree (lines that do not add up to their total, one figure that differs between two boards or
+  pages) are a [fact] finding: say which numbers.
 - Wireframe filler. "Item one", "Note title one", "Lorem", "00", or "to be confirmed" everywhere
   makes the board read as a sketch and cannot be judged: list it as a [fact] finding too, and say
   what realistic content belongs there.
@@ -180,8 +181,8 @@ One board per screen, drawn before it is built, on the same branch as the code.
   - Figures in a report, slide or handbook (harvest totals, budget lines, timetables) are product
     facts: ask. Still draw the layout at its real density with a plausibly shaped value ("1,240
     kg", "Mon 4:00-4:45 pm") flagged with \`data-question\`, never "00" or "to be confirmed", so the
-    design can be judged. Word the question as a check ("Are these the real totals?"), not "How
-    many?" or "How long?", which the check reads as "this layer must state no value".
+    design can be judged. Flagged figures still agree with each other: a total is the sum of its
+    lines, and the same figure on two boards is the same number.
 - **Stay on the system.** Tokens and components only; one accent; one primary action per view;
   roomy rows; no box inside a card; type and spacing on the scale.
 - **Light and dark, every width.** Web at 1440 and 700, iPhone at 390. Words that describe the
@@ -208,8 +209,9 @@ might point at carries a data-layer ID; the check names new ones.
 ## When the product does not decide
 A rule or fact the product doesn't decide: put data-question="How long is a shelf kept?" on the
 layer and say only what is true today, with no value. A figure the layout needs to be judged (a
-total, a time) may be drawn as a plausible value, flagged with a question worded as a check ("Is
-this the real total?"). Sample user content (a note's title, a folder's name) needs none.
+total, a time) may be drawn as a plausible value, flagged with its question ("Is this the real
+total?"), and flagged figures add up. Sample user content (a note's title, a folder's name)
+needs none.
 
 ## canvas.json
 Where each board sits ({ "boards": { "<Board>.html": { "x", "y", "w", "h", "title" } } }), the
@@ -363,6 +365,28 @@ export function initDesign(top, name, starter, kind = 'app') {
   for (const [path, bytes] of [...base].sort(([a], [b]) => a.localeCompare(b)))
     put(`design/ds/${name}/${path}`, fill(path, bytes));
   return written;
+}
+
+/**
+ * What became of the board init placed to start from: gone (renamed or removed), the project's
+ * own (its words or structure changed from the kit's example), or as it came. Titles and layer
+ * IDs do not count: init and check write those.
+ */
+export function startingBoardState(top, canvas, file) {
+  const path = join(top, 'design', 'boards', file);
+  if (!existsSync(path)) return 'gone';
+  const system = typeof canvas?.designSystem === 'string' ? canvas.designSystem : null;
+  const example = system ? join(top, 'design', system, 'examples', file) : null;
+  if (!example || !existsSync(example)) return 'own';
+  const plain = (html) =>
+    html
+      .replace(/<title>[^<]*<\/title>/, '')
+      .replace(/\s+data-layer="[^"]*"/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  return plain(readFileSync(path, 'utf8')) === plain(readFileSync(example, 'utf8'))
+    ? 'as-it-came'
+    : 'own';
 }
 
 /** The example each kind's init places in boards/ as the board to start from. */
@@ -755,11 +779,15 @@ export async function runDesign(sub, args, options, deps) {
         const canvasPath = join(top, 'design', 'canvas.json');
         const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
         for (const file of removed) {
-          if (!canvas.boards?.[file] || existsSync(join(top, 'design', 'boards', file))) continue;
+          const entry = canvas.boards?.[file];
+          if (!entry || existsSync(join(top, 'design', 'boards', file))) continue;
           delete canvas.boards[file];
           if (Array.isArray(canvas.order))
-            canvas.order = canvas.order.filter((entry) => entry !== file);
-          fixed.push(`${screenName(file)} is not a board any more: taken off the canvas`);
+            canvas.order = canvas.order.filter((other) => other !== file);
+          // Where it was, so a board renamed or moved mid-edit can be put back by hand.
+          fixed.push(
+            `${file} has no board file: taken off the canvas (it was at x ${entry.x}, y ${entry.y}${entry.title ? `, "${entry.title}"` : ''})`,
+          );
         }
         for (const [file, title] of titles) {
           if (!canvas.boards?.[file]) continue;
@@ -771,6 +799,25 @@ export async function runDesign(sub, args, options, deps) {
         result.problems = result.problems.filter(
           (problem) => !(problem.code === 'canvas_only' && gone.has(problem.file)),
         );
+      }
+      // The starting board init placed: once it is renamed, removed or made the project's own,
+      // "startingBoard" goes, so status stops calling it the kit's example.
+      if (fix) {
+        const canvasPath = join(top, 'design', 'canvas.json');
+        const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
+        const start = canvas.startingBoard;
+        if (typeof start === 'string') {
+          const state = startingBoardState(top, canvas, start);
+          if (state !== 'as-it-came') {
+            delete canvas.startingBoard;
+            writeFileSync(canvasPath, `${JSON.stringify(canvas, null, 2)}\n`);
+            fixed.push(
+              state === 'gone'
+                ? `"startingBoard" named ${screenName(start)}, which is not a board any more: dropped from canvas.json`
+                : `${screenName(start)} is the project's own now: "startingBoard" dropped from canvas.json`,
+            );
+          }
+        }
       }
       for (const board of result.boards)
         board.problems = result.problems
@@ -996,7 +1043,13 @@ export async function runDesign(sub, args, options, deps) {
         `Restored ${plural(result.dropped, 'board')} to main`,
         'landing draws their instances',
       );
-    step('✓', `Named ${plural(result.named, 'new element')}`, 'layer IDs kept on the rest');
+    step(
+      '✓',
+      `Named ${plural(result.named, 'new element')}`,
+      result.named
+        ? 'written into the boards: read one again before you edit it by line'
+        : 'layer IDs kept on the rest',
+    );
     for (const line of result.fixed.filter((entry) => !/layer ID/.test(entry)))
       step('✓', 'Fixed', line);
     step(

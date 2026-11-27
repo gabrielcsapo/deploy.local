@@ -100,6 +100,11 @@ function textSlug(text: string) {
   return name && !isPlaceholder(name) && !/to-be/.test(name) ? name : '';
 }
 
+/** A design system's or a kind kit's class prefix, which says nothing about what a layer is. */
+const kitPrefix = /^(?:ds|dl|mac|game|slides?|doc|print|logo|card)-/;
+const classRole = (tag: string) =>
+  slug(((attribute(tag, 'class') ?? '').split(/\s+/).find(Boolean) ?? '').replace(kitPrefix, ''));
+
 /** What a tag is, when its tag says so: a landmark, a heading, a figure. */
 const tagRoles: Record<string, string> = {
   nav: 'nav',
@@ -140,8 +145,7 @@ function roleOf(tag: string, name: string): { role: string; indexed: boolean } |
   if (dataRole && !isPlaceholder(dataRole)) return { role: dataRole, indexed: true };
   const label = textSlug(attribute(tag, 'aria-label') ?? '');
   if (label) return { role: label, indexed: false };
-  const firstClass = (attribute(tag, 'class') ?? '').split(/\s+/).find(Boolean) ?? '';
-  const named = slug(firstClass.replace(/^(?:ds|dl)-/, ''));
+  const named = classRole(tag);
   if (named && !isPlaceholder(named) && !/^(?:[a-z]|t|c|v|x)$/.test(named))
     return { role: named, indexed: true };
   return tagRoles[name] ? { role: tagRoles[name], indexed: name === 'li' || name === 'tr' } : null;
@@ -154,9 +158,7 @@ function layerName(tag: string, name: string, text: string) {
   if (wordsFirst.has(name) && own) return own;
   if (role) return role.role;
   if (own) return own;
-  const firstClass = attribute(tag, 'class')?.split(/\s+/).find(Boolean);
-  if (firstClass) return slug(firstClass.replace(/^dl-/, '')) || name;
-  return name;
+  return classRole(tag) || name;
 }
 
 /** A list row: its children are named after it. */
@@ -191,8 +193,31 @@ function mainText(outer: string) {
   }
   return '';
 }
-const joinName = (...parts: string[]) =>
-  parts.filter(Boolean).join('-').replace(/-+/g, '-').slice(0, 48).replace(/-+$/, '');
+/** The longest a made name gets; past it, words go from the middle of the parent's name. */
+const nameLength = 40;
+/**
+ * A parent's name and a role as one name: words the role repeats from the parent's end are said
+ * once (quick-note-popover and popover-head make quick-note-popover-head), and a name past forty
+ * characters loses whole words from the middle of the parent's, never a cut word.
+ */
+const joinName = (...parts: string[]) => {
+  const words = parts.filter(Boolean).join('-').split('-').filter(Boolean);
+  if (!words.length) return '';
+  const [first, ...rest] = parts.filter(Boolean).map((part) => part.split('-').filter(Boolean));
+  let joined = first ?? [];
+  for (const next of rest) {
+    let overlap = 0;
+    for (let n = Math.min(joined.length, next.length); n > 0; n--)
+      if (joined.slice(-n).join('-') === next.slice(0, n).join('-')) {
+        overlap = n;
+        break;
+      }
+    joined = [...joined, ...next.slice(overlap)];
+  }
+  // Keep the first word and the last two: what it belongs to, and what it is.
+  while (joined.join('-').length > nameLength && joined.length > 3) joined.splice(1, 1);
+  return joined.join('-').slice(0, 64);
+};
 
 /**
  * Give every element in the body a unique `data-layer` ID. IDs already present are kept, so running
@@ -230,8 +255,38 @@ export function assignLayerIds(html: string): string {
   for (const members of groups.values())
     if (members.length > 1)
       members.forEach((at, position) => siblingNumber.set(scanned[at].open, position + 1));
+  // Bare elements (no class, no role) that share a tag under one parent, such as a window's three
+  // traffic lights: numbered after their parent, since nothing else tells them apart.
+  const tagNumber = new Map<number, number>();
+  const bare = new Map<string, number[]>();
+  scanned.forEach((element, at) => {
+    const start = /^<([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/.exec(element.outer);
+    if (!start || /\sclass="[^"]*\S/.test(start[0]) || roleOf(start[0], start[1].toLowerCase()))
+      return;
+    const key = `${element.parent}:${start[1].toLowerCase()}`;
+    bare.set(key, [...(bare.get(key) ?? []), at]);
+  });
+  for (const members of bare.values())
+    if (members.length > 1)
+      members.forEach((at, position) => tagNumber.set(scanned[at].open, position + 1));
   // The open elements: their names, IDs and whether they are rows.
   const open: { name: string; id: string | null; row: string | null; main: string }[] = [];
+  // Tables being read: a cell is named for its table, its row and its column's header
+  // (lessons-row-2-time), never for its own words, which change with every sample.
+  const tables: {
+    stem: string;
+    columns: string[];
+    section: 'head' | 'body' | 'foot';
+    bodyRows: number;
+    row: string;
+    cells: number;
+    depth: number;
+  }[] = [];
+  const plainText = (markup: string) =>
+    markup
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
   let out = html.slice(0, bodyStart);
   let i = bodyStart;
@@ -267,6 +322,7 @@ export function assignLayerIds(html: string): string {
       if (name === 'svg' && svgDepth > 0) svgDepth--;
       const at = open.findLastIndex((entry) => entry.name === name);
       if (at >= 0) open.splice(at);
+      while (tables.length && tables.at(-1)!.depth >= open.length) tables.pop();
       out += tag;
       continue;
     }
@@ -279,6 +335,28 @@ export function assignLayerIds(html: string): string {
     const outer = outers.get(lt) ?? tag;
     const about = isRow ? mainText(outer) : '';
     let id = existing;
+    // Where a table's part sits: its section, its row and its column.
+    const table = svgDepth === 0 ? tables.at(-1) : undefined;
+    let tablePart: string | null = null;
+    if (table && ['thead', 'tbody', 'tfoot'].includes(name)) {
+      table.section = name === 'thead' ? 'head' : name === 'tfoot' ? 'foot' : 'body';
+      tablePart = joinName(table.stem, table.section);
+    } else if (table && name === 'caption') tablePart = joinName(table.stem, 'caption');
+    else if (table && name === 'tr') {
+      const header = table.section === 'body' && /^\s*<tr[^>]*>\s*<th\b/i.test(outer);
+      if (table.section === 'body' && !header) table.bodyRows++;
+      table.row =
+        table.section !== 'body' ? table.section : header ? 'head' : `row-${table.bodyRows}`;
+      table.cells = 0;
+      tablePart = joinName(
+        table.stem,
+        table.row === 'row-' + table.bodyRows ? table.row : `${table.row}-row`,
+      );
+    } else if (table && (name === 'td' || name === 'th')) {
+      table.cells++;
+      const column = table.columns[table.cells - 1] || `col-${table.cells}`;
+      tablePart = joinName(table.stem, table.row, column);
+    }
     if (isLayer) {
       const next = html.indexOf('<', i);
       const text = html.slice(i, next < 0 ? undefined : next).trim();
@@ -286,7 +364,18 @@ export function assignLayerIds(html: string): string {
       const kind = valueKind(label || text);
       let base: string;
       const listRow = name === 'li' || name === 'tr';
-      if (isRow && about && !listRow && !isPlaceholder(slug(about))) {
+      if (name === 'table') {
+        const caption = textSlug(
+          plainText(/<caption\b[^>]*>([\s\S]*?)<\/caption>/i.exec(outer)?.[1] ?? ''),
+        );
+        base = caption
+          ? joinName(caption, 'table')
+          : context?.id
+            ? joinName(context.id, 'table')
+            : 'table';
+      } else if (tablePart) {
+        base = tablePart;
+      } else if (isRow && about && !listRow && !isPlaceholder(slug(about))) {
         // A row: what it is about, and a file row says so.
         base = joinName(/\.[a-z0-9]{1,5}$/i.test(about) ? 'file' : '', slug(about));
       } else if (row?.id && !listRow) {
@@ -296,13 +385,12 @@ export function assignLayerIds(html: string): string {
         const own = slug(text || label)
           .replace(new RegExp(`(^|-)${rowAbout}(-|$)`), '$1')
           .replace(/^-+|-+$/g, '');
-        const firstClass = (attribute(tag, 'class') ?? '').split(/\s+/)[0] ?? '';
-        const classRole = slug(firstClass.replace(/^dl-/, ''));
+        const ownClass = classRole(tag);
         const role =
           kind ??
           (slug(text || label) === rowAbout
             ? 'name'
-            : own || (name === 'svg' ? 'icon' : classRole === 't' ? 'text' : classRole || name));
+            : own || (name === 'svg' ? 'icon' : ownClass === 't' ? 'text' : ownClass || name));
         base = joinName(row.id, role);
       } else {
         const plain = layerName(tag, name, text);
@@ -312,22 +400,53 @@ export function assignLayerIds(html: string): string {
         const fromRole =
           !kind && name !== 'svg' && Boolean(found?.indexed) && plain === found!.role;
         const number = siblingNumber.get(lt);
+        // A bare container (a div with no class) is named for the words it holds; an empty one
+        // for its place among its like.
+        const bareTag = plain === name && !found;
+        const holds = bareTag && !text ? textSlug(mainText(outer)) : '';
+        const place = bareTag ? tagNumber.get(lt) : undefined;
         const role = kind
           ? kind
           : name === 'svg'
             ? 'icon'
             : fromRole
               ? joinName(plain, number ? String(number) : '')
-              : /^\d/.test(plain)
-                ? 'value'
-                : generic.test(plain)
-                  ? plain
-                  : null;
+              : holds
+                ? holds
+                : place && generic.test(plain)
+                  ? String(place)
+                  : /^\d/.test(plain)
+                    ? 'value'
+                    : generic.test(plain)
+                      ? plain
+                      : null;
         // A value, an icon, a role or a name that says nothing alone takes its named ancestor's name.
         base = role ? (context?.id ? joinName(context.id, role) : role) : plain;
       }
       id = unique(base);
       tag = tag.replace(/^(<[a-zA-Z][\w:-]*)/, `$1 data-layer="${id}"`);
+    }
+    if (name === 'table' && svgDepth === 0) {
+      const caption = textSlug(
+        plainText(/<caption\b[^>]*>([\s\S]*?)<\/caption>/i.exec(outer)?.[1] ?? ''),
+      );
+      const headRow = [...outer.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].find((match) =>
+        /<th\b/i.test(match[1]),
+      );
+      const columns = headRow
+        ? [...headRow[1].matchAll(/<t[hd]\b[^>]*>([\s\S]*?)<\/t[hd]>/gi)].map(
+            (cell) => textSlug(plainText(cell[1])) || '',
+          )
+        : [];
+      tables.push({
+        stem: caption || (id ?? 'table').replace(/-table$/, '') || 'table',
+        columns,
+        section: 'body',
+        bodyRows: 0,
+        row: 'row',
+        cells: 0,
+        depth: open.length,
+      });
     }
     out += tag;
     if (!VOID.has(name) && !selfClosing && !RAW_TEXT.has(name))

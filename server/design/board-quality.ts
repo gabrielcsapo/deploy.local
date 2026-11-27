@@ -791,7 +791,7 @@ export function questionFindings(input: {
       label: `${input.title} asks: ${entry.question}`,
       detail: entry.layer ? `on ${entry.layer}` : 'on the board',
       short: 'open question',
-      fix: 'the owner answers it in a comment; until then the board shows no value',
+      fix: 'the owner answers it in a comment; until then the layer keeps its flag, with a plausible value or only what is true today',
     });
   }
   return { problems, notes };

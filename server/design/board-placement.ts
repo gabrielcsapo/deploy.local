@@ -228,6 +228,40 @@ const wordRank: Record<string, number> = {
   dark: 2,
 };
 
+const nameParts = (file: string) =>
+  (file.replace(/\.html$/, '').match(/\d+|[A-Z]?[a-z]+|[A-Z]+(?![a-z])/g) ?? []).map((part) =>
+    /^\d+$/.test(part) ? Number(part) : part.toLowerCase(),
+  );
+
+/**
+ * Whether a board comes before another by something that says so: the canvas's order when it
+ * lists both, a number in the same place of the name (Slide2 before Slide10), or a pair's words
+ * (Front before Back) after the same stem. Null when nothing does: GameLevels and GameTitle have
+ * no order but the one the author gives them, and the alphabet is not it.
+ */
+export function knownOrder(a: string, b: string, order: string[] = []): number | null {
+  const [at, bt] = [order.indexOf(a), order.indexOf(b)];
+  if (at >= 0 && bt >= 0) return at - bt;
+  const [pa, pb] = [nameParts(a), nameParts(b)];
+  for (let n = 0; n < Math.max(pa.length, pb.length); n++) {
+    const [x, y] = [pa[n], pb[n]];
+    if (x === y) continue;
+    if (typeof x === 'number' && typeof y === 'number') return x - y;
+    const [rx, ry] = [wordRank[x as string], wordRank[y as string]];
+    // Only the last word differs (CardFront, CardBack): the pair's own order.
+    if (
+      rx !== undefined &&
+      ry !== undefined &&
+      rx !== ry &&
+      n === pa.length - 1 &&
+      n === pb.length - 1
+    )
+      return rx - ry;
+    return null;
+  }
+  return 0;
+}
+
 /**
  * Board file names in the order a person counts them: Slide2 before Slide10, Front before Back.
  * A name's words and numbers are compared part by part; the canvas's own order wins when it lists
@@ -236,11 +270,13 @@ const wordRank: Record<string, number> = {
 export function boardOrder(a: string, b: string, order: string[] = []) {
   const [at, bt] = [order.indexOf(a), order.indexOf(b)];
   if (at >= 0 && bt >= 0) return at - bt;
-  const parts = (file: string) =>
-    (file.replace(/\.html$/, '').match(/\d+|[A-Z]?[a-z]+|[A-Z]+(?![a-z])/g) ?? []).map((part) =>
-      /^\d+$/.test(part) ? Number(part) : part.toLowerCase(),
-    );
-  const [pa, pb] = [parts(a), parts(b)];
+  // A board the canvas lists comes before one it does not: the author ordered it.
+  if (at >= 0 !== bt >= 0) {
+    const known = knownOrder(a, b);
+    if (known !== null && known !== 0) return known;
+    return at >= 0 ? -1 : 1;
+  }
+  const [pa, pb] = [nameParts(a), nameParts(b)];
   for (let n = 0; n < Math.max(pa.length, pb.length); n++) {
     const [x, y] = [pa[n], pb[n]];
     if (x === y) continue;
@@ -283,11 +319,22 @@ function isFree(canvas: Canvas | null | undefined, rect: Rect, gap: number, exce
 /** Boards a row holds before the next board starts another row. */
 export const rowLength = 6;
 
+/** Placed boards in reading order: row by row from the top, left to right. */
+function readingOrder(canvas: Canvas | null | undefined, files: string[]) {
+  return files
+    .map((file) => ({ file, rect: rectOf(canvas?.boards?.[file])! }))
+    .filter((entry) => entry.rect)
+    .sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)
+    .map((entry) => entry.file);
+}
+
 /**
- * Beside its siblings: boards of one kind in a row in name and number order, with the canvas's
- * gap, a new row below past six. It goes right of the sibling before it in that order, else left
- * of the one after; a place that is taken falls back to the free place nearest that sibling.
- * Null when it has no sibling placed.
+ * Beside its siblings: boards of one kind in a row in the order they are read, with the canvas's
+ * gap, a new row below past six. A new board goes after every placed sibling unless something
+ * says it comes first (the canvas's order, a number, Front before Back): after the last sibling
+ * that comes before it, else left of the first. When that place is taken it goes at the end of
+ * that row, or the start of the next one, never back across the canvas. Null when it has no
+ * sibling placed.
  */
 export function placeInRow(input: {
   canvas: Canvas | null | undefined;
@@ -296,35 +343,53 @@ export function placeInRow(input: {
   siblings: string[];
   order?: string[];
 }): { x: number; y: number; side: 'right' | 'left' | 'below' | 'bottom'; near: string } | null {
-  const placed = input.siblings
-    .filter((file) => file !== input.file && rectOf(input.canvas?.boards?.[file]))
-    .sort((a, b) => boardOrder(a, b, input.order));
+  const placed = readingOrder(
+    input.canvas,
+    input.siblings.filter((file) => file !== input.file),
+  );
   if (!placed.length) return null;
-  const before = placed.filter((file) => boardOrder(file, input.file, input.order) < 0);
-  const anchor = before.at(-1) ?? placed[0];
-  const rect = rectOf(input.canvas?.boards?.[anchor])!;
-  const gap = canvasGap(input.canvas, rect.y);
+  const comesAfter = (file: string) => {
+    const known = knownOrder(input.file, file, input.order);
+    return known !== null && known < 0;
+  };
+  const before = placed.filter((file) => !comesAfter(file));
   const except = [input.file];
   const { w, h } = input.size;
-  if (before.length) {
-    const row = placed
-      .map((file) => rectOf(input.canvas?.boards?.[file])!)
-      .filter((other) => Math.abs(other.y - rect.y) < 1);
-    if (row.length >= rowLength) {
-      const start = Math.min(...row.map((other) => other.x));
-      const bottom = Math.max(...row.map((other) => other.y + other.h));
-      const spot = { x: start, y: bottom + gap, w, h };
-      if (isFree(input.canvas, spot, gap, except))
-        return { x: spot.x, y: spot.y, side: 'below', near: anchor };
-    } else {
-      const spot = { x: rect.x + rect.w + gap, y: rect.y, w, h };
-      if (isFree(input.canvas, spot, gap, except))
-        return { x: spot.x, y: spot.y, side: 'right', near: anchor };
-    }
-  } else {
+  const rectFor = (file: string) => rectOf(input.canvas?.boards?.[file])!;
+  if (!before.length) {
+    const anchor = placed[0];
+    const rect = rectFor(anchor);
+    const gap = canvasGap(input.canvas, rect.y);
     const spot = { x: rect.x - gap - w, y: rect.y, w, h };
     if (isFree(input.canvas, spot, gap, except))
       return { x: spot.x, y: spot.y, side: 'left', near: anchor };
+    return { ...freeSpot(input.canvas, input.size, rect, except), near: anchor };
+  }
+  const anchor = before.at(-1)!;
+  const rect = rectFor(anchor);
+  const gap = canvasGap(input.canvas, rect.y);
+  const rowOf = (y: number) => placed.map(rectFor).filter((other) => Math.abs(other.y - y) < 1);
+  const row = rowOf(rect.y);
+  const right = { x: rect.x + rect.w + gap, y: rect.y, w, h };
+  if (row.length < rowLength && isFree(input.canvas, right, gap, except))
+    return { x: right.x, y: right.y, side: 'right', near: anchor };
+  // Taken: the end of this row, while it has room; else a new row under it.
+  const end = Math.max(...row.map((other) => other.x + other.w));
+  const last = row.find((other) => other.x + other.w === end)!;
+  const lastFile = placed.find((file) => rectFor(file) === last) ?? anchor;
+  const atEnd = { x: end + gap, y: rect.y, w, h };
+  if (row.length < rowLength && isFree(input.canvas, atEnd, gap, except))
+    return { x: atEnd.x, y: atEnd.y, side: 'right', near: lastFile };
+  const start = Math.min(...row.map((other) => other.x));
+  let y = Math.max(...row.map((other) => other.y + other.h)) + gap;
+  for (let tries = 0; tries < 20; tries++) {
+    const below = rowOf(y);
+    const spot = below.length
+      ? { x: Math.max(...below.map((other) => other.x + other.w)) + gap, y, w, h }
+      : { x: start, y, w, h };
+    if (below.length < rowLength && isFree(input.canvas, spot, gap, except))
+      return { x: spot.x, y: spot.y, side: below.length ? 'right' : 'below', near: anchor };
+    y = Math.max(y + 1, ...below.map((other) => other.y + other.h)) + gap;
   }
   return { ...freeSpot(input.canvas, input.size, rect, except), near: anchor };
 }

@@ -65,7 +65,13 @@ import {
   type DesignTokens,
 } from '../../design/board-quality.ts';
 import { parseBoardMeta, setBoardMetaHeight } from '../../../shared/v2/design-board-meta.ts';
-import { boardOrder, noteRect, placeBoard, rowGap } from '../../design/board-placement.ts';
+import {
+  boardOrder,
+  knownOrder,
+  noteRect,
+  placeBoard,
+  rowGap,
+} from '../../design/board-placement.ts';
 import { layerFates } from '../../design/board-layers.ts';
 import {
   fixedHeight,
@@ -584,6 +590,33 @@ test('drop lists the carried boards to put back, and the check passes', async ()
       fixed.boards.map((board) => [board.title, board.words]),
       [['Sidebar', '3 screens']],
     );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('components no screen shows yet are one line, not a "0 screens" row each', async () => {
+  const repo = repository();
+  try {
+    repo.write('design/canvas.json', JSON.stringify({ boards: {} }));
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'design/kit']);
+    // A new project's kit: a library of parts, and one board using none of them.
+    repo.write('design/ds/deploy-local/components/library.json', JSON.stringify(library('Kit')));
+    repo.write('design/boards/Title.html', '<main><h1>Lantern Rooms</h1></main>');
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({ boards: { 'Title.html': { x: 0, y: 0, w: 1440, h: 900 } } }),
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Kit']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawing().drawer);
+    const words = result.boards.map((board) => [board.title, board.words]);
+    assert.ok(!words.some(([, said]) => /^0 screens$/.test(said)), JSON.stringify(words));
+    assert.deepEqual(words[0], ['Components', '2 new or changed, on no screen yet']);
   } finally {
     repo.cleanup();
   }
@@ -2888,6 +2921,63 @@ test('the starter page reset, in any spelling, is not an inline style; other pag
   assert.equal(notes('body{margin:0;min-height:100vh;background:var(--bg) !important}'), 0);
   assert.equal(notes('body{margin:0;background:#fff}'), 1);
   assert.equal(notes('body{font-family:serif}'), 1);
+});
+
+test('new boards go right of the starting board in the order they are read, never back across the canvas', () => {
+  // Round 4's game: the starting board at 0, then Levels, Lit and Play landed right to left at
+  // negative x because the alphabet put them before Title.
+  assert.equal(knownOrder('GameLevels.html', 'GameTitle.html'), null);
+  assert.ok(knownOrder('CardFront.html', 'CardBack.html')! < 0);
+  assert.equal(knownOrder('PostcardFront.html', 'CardBack.html'), null);
+  const size = { w: 390, h: 844 };
+  const canvas: any = { boards: { 'GameTitle.html': { x: 0, y: 0, ...size } } };
+  // init's canvas lists only the starting board; the rest are placed as the check finds them.
+  for (const file of ['GameLevels.html', 'GameLit.html', 'GamePlay.html']) {
+    const spot = placeBoard({
+      canvas,
+      file,
+      size,
+      near: null,
+      siblings: Object.keys(canvas.boards),
+      order: ['GameTitle.html'],
+    });
+    canvas.boards[file] = { x: spot.x, y: spot.y, ...size };
+  }
+  const xs = ['GameTitle.html', 'GameLevels.html', 'GameLit.html', 'GamePlay.html'].map(
+    (file) => canvas.boards[file].x,
+  );
+  assert.deepEqual(
+    xs,
+    [...xs].sort((a, b) => a - b),
+  );
+  assert.ok(xs.every((x) => x >= 0));
+  assert.ok(Object.values(canvas.boards).every((placed: any) => placed.y === 0));
+
+  // A card and a postcard of different sizes: each front before its back, all in one row, even
+  // when a board is placed before the board it follows.
+  const card = { w: 504, h: 296 };
+  const post = { w: 1216, h: 816 };
+  const print: any = { boards: { 'CardFront.html': { x: 0, y: 0, ...card } } };
+  const sizes: Record<string, { w: number; h: number }> = {
+    'CardBack.html': card,
+    'PostcardFront.html': post,
+    'PostcardBack.html': post,
+  };
+  for (const file of Object.keys(sizes).sort((a, b) => boardOrder(a, b))) {
+    const spot = placeBoard({
+      canvas: print,
+      file,
+      size: sizes[file],
+      near: null,
+      siblings: Object.keys(print.boards),
+    });
+    print.boards[file] = { x: spot.x, y: spot.y, ...sizes[file] };
+  }
+  const at = (file: string) => print.boards[file];
+  assert.ok(Object.values(print.boards).every((placed: any) => placed.y === 0));
+  assert.ok(at('CardFront.html').x < at('CardBack.html').x);
+  assert.ok(at('CardBack.html').x < at('PostcardFront.html').x);
+  assert.ok(at('PostcardFront.html').x < at('PostcardBack.html').x);
 });
 
 test('new boards go in a row with their kind, in name and number order, wrapping past six', () => {

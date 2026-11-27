@@ -20,6 +20,7 @@ import {
   projectFromRemote,
   reviewQuestions,
   runDesign,
+  startingBoardState,
   titleFromBranch,
 } from './cli-design.mjs';
 
@@ -366,7 +367,7 @@ test('check prints each step, what changed per board and the problems, and exits
       run.text(),
       [
         '! Drawn by deploy.local            no browser here: this terminal has no browser',
-        '✓ Named 4 new elements             layer IDs kept on the rest',
+        '✓ Named 4 new elements             written into the boards: read one again before you edit it by line',
         '✓ Drew 3 boards beside main        1440 · 700 · light · dark   12 s',
         '✗ Projects is cut off at 700 px    "Show archived" leaves the page',
         '',
@@ -1194,6 +1195,64 @@ test('check runs on this computer on any branch, writes nothing in .git, and --f
       1240,
     );
     assert.equal(gitFolder(repo.clone), before, 'still nothing inside .git');
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("the starting board stays marked while it is the kit example; --fix drops the mark once it is renamed or made the project's own", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-start-')));
+  try {
+    mkdirSync(join(root, 'design/boards'), { recursive: true });
+    mkdirSync(join(root, 'design/ds/proj/examples'), { recursive: true });
+    const example =
+      '<meta name="design-board" content="platform=game,width=390,height=844">\n<title>Example title</title>\n<main class="game-stage"><h1>Lantern Rooms</h1></main>\n';
+    writeFileSync(join(root, 'design/ds/proj/examples/GameTitle.html'), example);
+    const canvas = { designSystem: 'ds/proj', startingBoard: 'GameTitle.html' };
+    assert.equal(startingBoardState(root, canvas, 'GameTitle.html'), 'gone');
+    // init's copy: its own title, and the layer IDs check gives; still as it came.
+    writeFileSync(
+      join(root, 'design/boards/GameTitle.html'),
+      example
+        .replace('Example title', 'Proj title screen')
+        .replace('<h1>', '<h1 data-layer="title">'),
+    );
+    assert.equal(startingBoardState(root, canvas, 'GameTitle.html'), 'as-it-came');
+    writeFileSync(
+      join(root, 'design/boards/GameTitle.html'),
+      example.replace('Lantern Rooms', 'Mirror Hall'),
+    );
+    assert.equal(startingBoardState(root, canvas, 'GameTitle.html'), 'own');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+
+  // check --fix takes a stale mark off the canvas and says so.
+  const repo = repository();
+  try {
+    git(['checkout', '-qb', 'renamed-start'], repo.clone);
+    const canvasPath = join(repo.clone, 'design/canvas.json');
+    const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
+    canvas.startingBoard = 'CardFront.html';
+    writeFileSync(canvasPath, JSON.stringify(canvas));
+    const openLocalDrawing = async () => ({
+      executable: '/fake/chromium',
+      drawing: {
+        shoot: async ({ inspect }) => ({
+          png: Buffer.from('png'),
+          measured: null,
+          inspected: inspect
+            ? { height: 900, texts: [], aligned: [], rows: {}, boxes: [], primaries: [] }
+            : null,
+        }),
+        pair: async () => Buffer.from('pair'),
+      },
+      close: async () => {},
+    });
+    const run = terminal(repo.clone, coordinator().api, { openLocalDrawing });
+    await runDesign('check', [], { fix: true }, run.deps);
+    assert.match(run.text(), /"startingBoard" named CardFront, which is not a board any more/);
+    assert.equal('startingBoard' in JSON.parse(readFileSync(canvasPath, 'utf8')), false);
   } finally {
     repo.cleanup();
   }
@@ -2134,6 +2193,13 @@ test('the review brief flags unflagged product facts and filler, not realistic s
     assert.match(readme, /carries no `<style>`/);
   }
   assert.doesNotMatch(INIT_README('p', 'slides'), /iPhone is iPhone/);
+  // The retired rule that a question must be worded as a check is gone everywhere an agent reads.
+  assert.match(brief, /however its question is worded/);
+  assert.match(brief, /do not add up to their total/);
+  for (const words of [brief, INIT_README('p', 'app'), INIT_README('p', 'doc')]) {
+    assert.doesNotMatch(words, /worded as a check|as a check \(|question_invented|shows no value/);
+  }
+  assert.match(INIT_README('p', 'slides'), /a total is the sum of its\s+lines/);
 });
 
 test('review lists only the boards changed since the branch left main, not main’s own work', async () => {

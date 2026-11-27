@@ -91,6 +91,55 @@ describe('design boards', () => {
     assert.ok(layerIds(html).every((layer) => !/^\d/.test(layer)));
   });
 
+  it('names a table cell for its table, row and column, and a kit part without its prefix or a cut word', () => {
+    const table = assignLayerIds(
+      '<body><main data-layer="handbook"><section class="doc-section"><table class="doc-table"><caption>Weekly lessons</caption>' +
+        '<thead><tr><th>Day</th><th>Time</th></tr></thead>' +
+        '<tbody><tr><td>Monday</td><td>4:00 pm</td></tr><tr><td>Tuesday</td><td><span>30</span> min</td></tr></tbody></table></section></main></body>',
+    );
+    assert.deepEqual(layerIds(table), [
+      'handbook',
+      'handbook-section',
+      'weekly-lessons-table',
+      'weekly-lessons-caption',
+      'weekly-lessons-head',
+      'weekly-lessons-head-row',
+      'weekly-lessons-head-day',
+      'weekly-lessons-head-time',
+      'weekly-lessons-body',
+      'weekly-lessons-row-1',
+      'weekly-lessons-row-1-day',
+      'weekly-lessons-row-1-time',
+      'weekly-lessons-row-2',
+      'weekly-lessons-row-2-day',
+      'weekly-lessons-row-2-time',
+      'weekly-lessons-row-2-count',
+    ]);
+    const mac = assignLayerIds(
+      '<body><div data-layer="quick-note-popover" class="mac-popover"><div class="mac-popover-head"><span class="mac-secondary">Quick note</span></div>' +
+        '<form class="mac-form"><div><label>Sort notes</label></div></form>' +
+        '<div class="mac-toolbar"><div class="mac-lights"><i></i><i></i><i></i></div></div></div></body>',
+    );
+    const ids = layerIds(mac);
+    assert.deepEqual(ids, [
+      'quick-note-popover',
+      'quick-note-popover-head',
+      'quick-note-popover-head-secondary',
+      'quick-note-popover-form',
+      'quick-note-popover-form-sort-notes',
+      'sort-notes',
+      'quick-note-popover-toolbar',
+      'quick-note-popover-toolbar-lights',
+      'quick-note-popover-toolbar-lights-1',
+      'quick-note-popover-toolbar-lights-2',
+      'quick-note-popover-toolbar-lights-3',
+    ]);
+    assert.ok(
+      ids.every((id) => id.length <= 40 && !/mac-|-div|-i(-|$)/.test(id)),
+      ids.join(),
+    );
+  });
+
   it('finds one layer’s markup, including nested elements of the same tag', () => {
     const html =
       '<body><div data-layer="a"><div data-layer="b"><span data-layer="c">Hi</span></div><br data-layer="d"></div><div data-layer="e"></div></body>';

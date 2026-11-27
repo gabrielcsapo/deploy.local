@@ -780,7 +780,7 @@ export function guideLines({ top, designSystem, all = false }) {
     '  on the layer. Report, slide and handbook figures are facts: draw plausibly shaped values at real density, flagged.',
   );
   lines.push(
-    '  Word a flag as a check, not "How many?" or "How long?": a layer that asks that and states a value is question_invented.',
+    '  Flagged figures still agree: a total is the sum of its lines, and one figure on two boards is one number.',
   );
   lines.push(
     '  A rule the product has not decided: mark the layer with data-question="How long are kept files kept?" and say only what is',

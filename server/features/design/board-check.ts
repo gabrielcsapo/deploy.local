@@ -33,7 +33,7 @@ import {
   designSystemPaths,
   firstFile,
 } from '../../../shared/v2/design-system-path.ts';
-import { placeBoard } from '../../design/board-placement.ts';
+import { boardOrder, placeBoard } from '../../design/board-placement.ts';
 import type { BoardQuestion } from '../../design/check-drawing.ts';
 import {
   contrastProblems,
@@ -747,11 +747,26 @@ export async function checkDesign(
     }
     return specimens;
   };
-  const partRows = parts.map((entry) => {
-    const { row, problems: carriedProblems } = partRow(entry.part, entry.shown, entry.carried);
-    problems.push(...carriedProblems);
-    return row;
-  });
+  // A component no screen shows yet (a new project's whole kit, a part added for a board still
+  // to come) changes nothing anyone sees: one line says how many, not a "0 screens" row each.
+  const partRows = parts
+    .filter((entry) => entry.shown || entry.carried)
+    .map((entry) => {
+      const { row, problems: carriedProblems } = partRow(entry.part, entry.shown, entry.carried);
+      problems.push(...carriedProblems);
+      return row;
+    });
+  const unshown = parts.filter((entry) => !entry.shown && !entry.carried);
+  if (unshown.length)
+    partRows.push({
+      file: 'part:unshown',
+      title: unshown.length === 1 ? unshown[0].part.name : 'Components',
+      status: 'part',
+      words:
+        unshown.length === 1
+          ? 'on no screen yet'
+          : `${unshown.length} new or changed, on no screen yet`,
+    });
   const boardRows: CheckBoardRow[] = [];
   // Heights to measure for --fix: boards whose canvas and meta disagree.
   const measureHeight = new Set<string>();
@@ -972,7 +987,10 @@ export async function checkDesign(
   // is taken before the next is found, so two new boards never land on one spot.
   const places: CheckResult['places'] = {};
   const placing = { ...canvas, boards: { ...canvas?.boards } };
-  for (const file of own) {
+  const canvasOrder: string[] = Array.isArray(canvas?.order) ? canvas.order : [];
+  // In the order they are read, so a deck's or a card's boards go in a row as they run, and
+  // canvas.json's order gets them in that order too.
+  for (const file of [...own].sort((a, b) => boardOrder(a, b, canvasOrder))) {
     const text = await after(file);
     if (text === null) continue;
     // A board the agent placed stays where it is unless it covers a board, a note or a title.
@@ -1019,7 +1037,7 @@ export async function checkDesign(
       size,
       near: originOf.get(file) ?? (sameKind.length ? null : placedSibling) ?? null,
       siblings: sameKind,
-      order: Array.isArray(canvas?.order) ? canvas.order : [],
+      order: canvasOrder,
     });
     places[file] = {
       x: spot.x,
