@@ -11,22 +11,22 @@
         {
           "id": "eyebrow",
           "label": "Eyebrow",
-          "default": "Event or date"
+          "default": "Autumn members' meeting"
         },
         {
           "id": "title",
           "label": "Title",
-          "default": "Deck title"
+          "default": "Our first full season"
         },
         {
           "id": "lede",
           "label": "Line",
-          "default": "One line of context."
+          "default": "What grew, what we built, and what we plan for spring."
         },
         {
           "id": "notes",
           "label": "Speaker notes",
-          "default": "Notes"
+          "default": "What the speaker says here."
         }
       ],
       "html": "<section class=\"ds-slide title\"><div class=\"ds-slide-eyebrow\">{{eyebrow}}</div><h1 class=\"ds-slide-display\">{{title}}</h1><p class=\"ds-slide-lede\">{{lede}}</p><aside data-notes>{{notes}}</aside></section>"
@@ -41,17 +41,17 @@
         {
           "id": "text",
           "label": "Sentence",
-          "default": "One sentence that is the whole slide."
+          "default": "Everything we grew went to a neighbour."
         },
         {
           "id": "notes",
           "label": "Speaker notes",
-          "default": "Notes"
+          "default": "What the speaker says here."
         },
         {
           "id": "deck",
           "label": "Deck name",
-          "default": "Deck name"
+          "default": "__NAME__"
         },
         {
           "id": "n",
@@ -59,7 +59,7 @@
           "default": "1"
         }
       ],
-      "html": "<section class=\"ds-slide statement\"><h2 class=\"ds-slide-display\">{{text}}</h2><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+      "html": "<section class=\"ds-slide statement\"><h2 class=\"ds-slide-display\">{{text}}</h2><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span><span class=\"ds-slide-foot-num\" data-layer=\"slide-number\" data-slide-number>{{n}}</span></div></section>"
     },
     {
       "id": "slide-list",
@@ -71,17 +71,17 @@
         {
           "id": "heading",
           "label": "Heading",
-          "default": "Heading"
+          "default": "Three things we built"
         },
         {
           "id": "notes",
           "label": "Speaker notes",
-          "default": "Notes"
+          "default": "What the speaker says here."
         },
         {
           "id": "deck",
           "label": "Deck name",
-          "default": "Deck name"
+          "default": "__NAME__"
         },
         {
           "id": "n",
@@ -89,7 +89,7 @@
           "default": "1"
         }
       ],
-      "html": "<section class=\"ds-slide list\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><ol class=\"ds-slide-list\"><li data-step=\"1\"><span class=\"n\">01</span>First item</li><li data-step=\"2\"><span class=\"n\">02</span>Second item</li><li data-step=\"3\"><span class=\"n\">03</span>Third item</li></ol><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+      "html": "<section class=\"ds-slide list\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><ol class=\"ds-slide-list\" data-question=\"Are these the real projects?\"><li data-step=\"1\"><span class=\"n\">01</span>Raised beds along the east fence</li><li data-step=\"2\"><span class=\"n\">02</span>A tool shed with a sign-out sheet</li><li data-step=\"3\"><span class=\"n\">03</span>Drip watering on the long beds</li></ol><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span><span class=\"ds-slide-foot-num\" data-layer=\"slide-number\" data-slide-number>{{n}}</span></div></section>"
     },
     {
       "id": "slide-picture",
@@ -101,25 +101,25 @@
         {
           "id": "heading",
           "label": "Heading",
-          "default": "Heading"
+          "default": "The east beds in July"
         },
         {
           "id": "lede",
           "label": "Line",
-          "default": "One line."
+          "default": "Planted in April, picked every week since."
         },
         {
           "id": "notes",
           "label": "Speaker notes",
-          "default": "Notes"
+          "default": "What the speaker says here."
         },
         {
           "id": "deck",
           "label": "Deck name",
-          "default": "Deck name"
+          "default": "__NAME__"
         }
       ],
-      "html": "<section class=\"ds-slide picture\"><div class=\"ds-slide-text\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><p class=\"ds-slide-lede\">{{lede}}</p></div><div class=\"ds-slide-picture\"></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span></div></section>"
+      "html": "<section class=\"ds-slide picture\"><div class=\"ds-slide-text\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><p class=\"ds-slide-lede\">{{lede}}</p></div><div class=\"ds-slide-picture\"></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span></div></section>"
     },
     {
       "id": "slide-two",
@@ -131,17 +131,17 @@
         {
           "id": "heading",
           "label": "Heading",
-          "default": "Heading"
+          "default": "Last spring and this spring"
         },
         {
           "id": "notes",
           "label": "Speaker notes",
-          "default": "Notes"
+          "default": "What the speaker says here."
         },
         {
           "id": "deck",
           "label": "Deck name",
-          "default": "Deck name"
+          "default": "__NAME__"
         },
         {
           "id": "n",
@@ -149,7 +149,7 @@
           "default": "1"
         }
       ],
-      "html": "<section class=\"ds-slide two\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><div class=\"ds-slide-cols\"><div class=\"ds-slide-col\"><h3>Left</h3><p>A short line.</p></div><div class=\"ds-slide-col\"><h3>Right</h3><p>A short line.</p></div></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+      "html": "<section class=\"ds-slide two\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><div class=\"ds-slide-cols\" data-question=\"Are these the real bed counts?\"><div class=\"ds-slide-col\"><h3>Last spring</h3><p>Six beds, watered by hand.</p></div><div class=\"ds-slide-col\"><h3>This spring</h3><p>Fourteen beds on drip lines.</p></div></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span><span class=\"ds-slide-foot-num\" data-layer=\"slide-number\" data-slide-number>{{n}}</span></div></section>"
     },
     {
       "id": "slide-number",
@@ -161,27 +161,27 @@
         {
           "id": "number",
           "label": "Number",
-          "default": "00"
+          "default": "38"
         },
         {
           "id": "unit",
           "label": "Unit",
-          "default": "%"
+          "default": ""
         },
         {
           "id": "label",
           "label": "Meaning",
-          "default": "What this number means."
+          "default": "Members who came at least once a month."
         },
         {
           "id": "notes",
           "label": "Speaker notes",
-          "default": "Notes"
+          "default": "What the speaker says here."
         },
         {
           "id": "deck",
           "label": "Deck name",
-          "default": "Deck name"
+          "default": "__NAME__"
         },
         {
           "id": "n",
@@ -189,37 +189,46 @@
           "default": "1"
         }
       ],
-      "html": "<section class=\"ds-slide number\"><div class=\"ds-slide-bignumber\">{{number}}<span class=\"unit\">{{unit}}</span></div><p class=\"ds-slide-numlabel\">{{label}}</p><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+      "html": "<section class=\"ds-slide number\"><div class=\"ds-slide-bignumber\" data-question=\"Is this the real count?\">{{number}}<span class=\"unit\">{{unit}}</span></div><p class=\"ds-slide-numlabel\">{{label}}</p><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span><span class=\"ds-slide-foot-num\" data-layer=\"slide-number\" data-slide-number>{{n}}</span></div></section>"
     },
     {
       "id": "slide-bars",
       "name": "Bar chart",
       "group": "Slide blocks",
       "platform": "slide",
-      "description": "Horizontal bars; --v is 0 to 100; .focus puts the accent on the one that matters.",
+      "description": "Horizontal bars, for a few groups compared; --v is 0 to 100, the largest at 100; .focus puts the accent on the one that matters. Values the brief does not give are flagged.",
       "props": [],
-      "html": "<div class=\"ds-slide-bars\"><div class=\"ds-slide-bar\"><span>Group one</span><div class=\"ds-slide-bar-track\"><div class=\"ds-slide-bar-fill\" style=\"--v: 40\"></div></div><span class=\"ds-slide-bar-value\">40</span></div><div class=\"ds-slide-bar focus\"><span>Group two</span><div class=\"ds-slide-bar-track\"><div class=\"ds-slide-bar-fill\" style=\"--v: 80\"></div></div><span class=\"ds-slide-bar-value\">80</span></div></div>"
+      "html": "<div class=\"ds-slide-bars\" data-question=\"Are these the real weights per crop, in kg?\"><div class=\"ds-slide-bar focus\"><span>Tomatoes</span><div class=\"ds-slide-bar-track\"><div class=\"ds-slide-bar-fill\" style=\"--v: 100\"></div></div><span class=\"ds-slide-bar-value\">520</span></div><div class=\"ds-slide-bar\"><span>Squash</span><div class=\"ds-slide-bar-track\"><div class=\"ds-slide-bar-fill\" style=\"--v: 60\"></div></div><span class=\"ds-slide-bar-value\">310</span></div><div class=\"ds-slide-bar\"><span>Beans</span><div class=\"ds-slide-bar-track\"><div class=\"ds-slide-bar-fill\" style=\"--v: 46\"></div></div><span class=\"ds-slide-bar-value\">240</span></div><div class=\"ds-slide-bar\"><span>Greens</span><div class=\"ds-slide-bar-track\"><div class=\"ds-slide-bar-fill\" style=\"--v: 33\"></div></div><span class=\"ds-slide-bar-value\">170</span></div></div>"
+    },
+    {
+      "id": "slide-columns",
+      "name": "Column chart",
+      "group": "Slide blocks",
+      "platform": "slide",
+      "description": "Vertical columns, for a value over time (months, quarters, years), three to eight of them; --v is 0 to 100, the largest at 100; .focus puts the accent on the one that matters. Values the brief does not give are flagged.",
+      "props": [],
+      "html": "<div class=\"ds-slide-columns\" data-question=\"Are these the real weights per month, in kg?\"><div class=\"ds-slide-column\"><span class=\"ds-slide-column-value\">40</span><div class=\"ds-slide-column-track\"><div class=\"ds-slide-column-fill\" style=\"--v: 10\"></div></div><span class=\"ds-slide-column-label\">May</span></div><div class=\"ds-slide-column\"><span class=\"ds-slide-column-value\">160</span><div class=\"ds-slide-column-track\"><div class=\"ds-slide-column-fill\" style=\"--v: 38\"></div></div><span class=\"ds-slide-column-label\">Jun</span></div><div class=\"ds-slide-column\"><span class=\"ds-slide-column-value\">380</span><div class=\"ds-slide-column-track\"><div class=\"ds-slide-column-fill\" style=\"--v: 90\"></div></div><span class=\"ds-slide-column-label\">Jul</span></div><div class=\"ds-slide-column focus\"><span class=\"ds-slide-column-value\">420</span><div class=\"ds-slide-column-track\"><div class=\"ds-slide-column-fill\" style=\"--v: 100\"></div></div><span class=\"ds-slide-column-label\">Aug</span></div><div class=\"ds-slide-column\"><span class=\"ds-slide-column-value\">240</span><div class=\"ds-slide-column-track\"><div class=\"ds-slide-column-fill\" style=\"--v: 57\"></div></div><span class=\"ds-slide-column-label\">Sep</span></div></div>"
     },
     {
       "id": "slide-table",
       "name": "Table",
       "group": "Slide blocks",
       "platform": "slide",
-      "description": "Three to five rows, three columns at most.",
+      "description": "Three to five rows, three columns at most. A total goes in <tfoot> as tr.total and is the sum of the rows above it.",
       "props": [],
-      "html": "<table class=\"ds-slide-table\"><thead><tr><th>Name</th><th>Detail</th><th class=\"num\">Number</th></tr></thead><tbody><tr><td>Row one</td><td>Detail</td><td class=\"num\">00</td></tr><tr><td>Row two</td><td>Detail</td><td class=\"num\">00</td></tr></tbody></table>"
+      "html": "<table class=\"ds-slide-table\" data-question=\"Are these the real weights per bed, in kg?\"><thead><tr><th>Bed</th><th>Grown</th><th class=\"num\">kg</th></tr></thead><tbody><tr><td>East beds</td><td>Tomatoes, beans</td><td class=\"num\">610</td></tr><tr><td>Long beds</td><td>Squash</td><td class=\"num\">380</td></tr><tr><td>Shade bed</td><td>Greens</td><td class=\"num\">250</td></tr></tbody><tfoot><tr class=\"total\"><td>Total</td><td></td><td class=\"num\">1,240</td></tr></tfoot></table>"
     },
     {
       "id": "slide-footer",
       "name": "Footer",
       "group": "Slide blocks",
       "platform": "slide",
-      "description": "Deck name at the left, slide number at the right; on every slide but the title.",
+      "description": "Deck name at the left, slide number at the right; on every slide but the title and the closing. deploy design check --fix sets both from the canvas order and the deck name.",
       "props": [
         {
           "id": "deck",
           "label": "Deck name",
-          "default": "Deck name"
+          "default": "__NAME__"
         },
         {
           "id": "n",
@@ -227,7 +236,7 @@
           "default": "1"
         }
       ],
-      "html": "<div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div>"
+      "html": "<div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span><span class=\"ds-slide-foot-num\" data-layer=\"slide-number\" data-slide-number>{{n}}</span></div>"
     },
     {
       "id": "slide-figures",
@@ -244,12 +253,12 @@
         {
           "id": "notes",
           "label": "Speaker notes",
-          "default": "Notes"
+          "default": "What the speaker says here."
         },
         {
           "id": "deck",
           "label": "Deck name",
-          "default": "Deck name"
+          "default": "__NAME__"
         },
         {
           "id": "n",
@@ -257,7 +266,7 @@
           "default": "1"
         }
       ],
-      "html": "<section class=\"ds-slide figures\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><div class=\"ds-slide-figures n3\" data-question=\"Are these the real figures?\"><div class=\"ds-slide-figure\" data-layer=\"figure-1\"><div class=\"value\">38</div><div class=\"label\">Active members</div><div class=\"context\">Up from 31 last spring</div></div><div class=\"ds-slide-figure focus\" data-layer=\"figure-2\"><div class=\"value\">1,240<span class=\"unit\">kg</span></div><div class=\"label\">Harvested this season</div><div class=\"context\">Most of it given away</div></div><div class=\"ds-slide-figure\" data-layer=\"figure-3\"><div class=\"value\">12<span class=\"unit\">weeks</span></div><div class=\"label\">Open to everyone</div><div class=\"context\">May to August</div></div></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span>{{deck}}</span><span>{{n}}</span></div></section>"
+      "html": "<section class=\"ds-slide figures\"><h2 class=\"ds-slide-heading\">{{heading}}</h2><div class=\"ds-slide-figures n3\" data-question=\"Are these the real figures?\"><div class=\"ds-slide-figure\" data-layer=\"figure-1\"><div class=\"value\">38</div><div class=\"label\">Active members</div><div class=\"context\">Up from 31 last spring</div></div><div class=\"ds-slide-figure focus\" data-layer=\"figure-2\"><div class=\"value\">1,240<span class=\"unit\">kg</span></div><div class=\"label\">Harvested this season</div><div class=\"context\">Most of it given away</div></div><div class=\"ds-slide-figure\" data-layer=\"figure-3\"><div class=\"value\">12<span class=\"unit\">weeks</span></div><div class=\"label\">Open to everyone</div><div class=\"context\">May to August</div></div></div><aside data-notes>{{notes}}</aside><div class=\"ds-slide-foot\"><span data-layer=\"deck-name\" data-deck-name>{{deck}}</span><span class=\"ds-slide-foot-num\" data-layer=\"slide-number\" data-slide-number>{{n}}</span></div></section>"
     },
     {
       "id": "slide-closing",
@@ -269,15 +278,15 @@
         {
           "id": "text",
           "label": "Closing line",
-          "default": "Thank you"
+          "default": "See you at the spring planting"
         },
         {
           "id": "notes",
           "label": "Speaker notes",
-          "default": "Notes"
+          "default": "What the speaker says here."
         }
       ],
-      "html": "<section class=\"ds-slide closing\"><h2 class=\"ds-slide-display\">{{text}}</h2><div class=\"ds-slide-next n3\"><div><span class=\"label\">Find it</span><span class=\"value\">Where the deck lives</span></div><div><span class=\"label\">Ask</span><span class=\"value\">Who answers questions</span></div><div><span class=\"label\">Next</span><span class=\"value\">What happens next</span></div></div><aside data-notes>{{notes}}</aside></section>"
+      "html": "<section class=\"ds-slide closing\"><h2 class=\"ds-slide-display\">{{text}}</h2><div class=\"ds-slide-next n3\" data-question=\"Where does the deck live, who answers questions, and when is the seed swap?\"><div><span class=\"label\">Find it</span><span class=\"value\">The shared drive, under Meetings</span></div><div><span class=\"label\">Ask</span><span class=\"value\">Ines, the garden coordinator</span></div><div><span class=\"label\">Next</span><span class=\"value\">The seed swap in March</span></div></div><aside data-notes>{{notes}}</aside></section>"
     }
   ]
 }

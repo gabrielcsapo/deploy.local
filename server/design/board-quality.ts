@@ -1585,6 +1585,12 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'type_off_scale', problem: false, means: "a font size not on its platform's type scale" },
   { code: 'page_break_inside', problem: false, means: 'doc: a printed page ends on a heading' },
   {
+    code: 'slide_footer_stale',
+    problem: false,
+    means:
+      'slides: a footer number or deck name that is not the deck order or name (--fix sets it)',
+  },
+  {
     code: 'last_page_short',
     problem: false,
     means: 'doc: the last printed page holds a few lines and the rest is blank',

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=slide,width=1920,height=1080,schemes=light" />
+    <title>Example table slide</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/slides.css" />
+  </head>
+  <body>
+    <section class="ds-slide" data-layer="slide">
+      <div class="ds-slide-eyebrow">By bed</div>
+      <h2 class="ds-slide-heading">The east beds gave half the harvest</h2>
+      <table
+        class="ds-slide-table"
+        data-layer="table"
+        data-question="Are these the real weights per bed, in kg?"
+      >
+        <thead>
+          <tr>
+            <th>Bed</th>
+            <th>Grown</th>
+            <th class="num">kg</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>East beds</td>
+            <td>Tomatoes, beans</td>
+            <td class="num">610</td>
+          </tr>
+          <tr>
+            <td>Long beds</td>
+            <td>Squash</td>
+            <td class="num">380</td>
+          </tr>
+          <tr>
+            <td>Shade bed</td>
+            <td>Greens</td>
+            <td class="num">250</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr class="total">
+            <td>Total</td>
+            <td></td>
+            <td class="num">1,240</td>
+          </tr>
+        </tfoot>
+      </table>
+      <aside data-notes>
+        The total matches the figures slide. Ask the bed leads to check their own row.
+      </aside>
+      <div class="ds-slide-foot">
+        <span data-layer="deck-name" data-deck-name>__NAME__</span
+        ><span class="ds-slide-foot-num" data-layer="slide-number" data-slide-number>5</span>
+      </div>
+    </section>
+  </body>
+</html>

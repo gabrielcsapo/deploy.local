@@ -1,7 +1,15 @@
 // deploy design start | check | propose | feedback | resolve: a design change from a terminal.
 // The caller supplies the transport, Git and the terminal (see `deps` below), so the contract
 // tests drive every command without a server, a repository or a terminal.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import * as contracts from './cli-contracts.mjs';
@@ -24,7 +32,7 @@ import {
   setBoardMetaHeight,
 } from '../shared/v2/design-board-meta.ts';
 import { boardFrame, designKinds, exportPage } from '../shared/v2/design-platforms.ts';
-import { exportOrder, mergePdfs } from './design-export.mjs';
+import { exportOrder, mergePdfs, numberSlides } from './design-export.mjs';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const LABEL = 33;
@@ -825,6 +833,41 @@ export async function runDesign(sub, args, options, deps) {
             );
           }
         }
+      }
+      // A deck's footers: each slide's number is its place in the deck, the name the deck's own.
+      {
+        const canvasPath = join(top, 'design', 'canvas.json');
+        const canvas = existsSync(canvasPath) ? JSON.parse(readFileSync(canvasPath, 'utf8')) : {};
+        const folder = join(top, 'design', 'boards');
+        const slides = (existsSync(folder) ? readdirSync(folder) : [])
+          .filter((file) => file.endsWith('.html'))
+          .map((file) => ({ file, html: readFileSync(join(folder, file), 'utf8') }))
+          .filter(
+            ({ file, html }) =>
+              boardPlatform(parseBoardMeta(html), Number(canvas.boards?.[file]?.w) || undefined) ===
+              'slide',
+          );
+        const name = typeof canvas.title === 'string' ? displayName(canvas.title) : null;
+        const footers = slides.length ? numberSlides(canvas, slides, name) : [];
+        if (fix && footers.length) {
+          for (const { file, html } of footers) writeFileSync(join(folder, file), html);
+          fixed.push(
+            `Slide footers set from the deck: ${footers.map(({ file, number }) => `${screenName(file)} ${number}`).join(', ')}`,
+          );
+        } else if (footers.length)
+          result.notes = [
+            ...(result.notes ?? []),
+            {
+              code: 'slide_footer_stale',
+              file: footers[0].file,
+              label: `${plural(footers.length, 'slide')} show a number or deck name the deck does not`,
+              detail: footers
+                .map(({ file, number }) => `${screenName(file)} is slide ${number}`)
+                .join(', '),
+              short: 'footer out of date',
+              fix: 'deploy design check --fix sets each footer from the canvas order and the deck name',
+            },
+          ];
       }
       for (const board of result.boards)
         board.problems = result.problems

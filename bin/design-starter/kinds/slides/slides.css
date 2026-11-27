@@ -385,6 +385,7 @@ body {
 
 /* ---------- Table ---------- */
 .ds-slide-table {
+  margin-top: 72px;
   width: 100%;
   border-collapse: collapse;
   font-size: var(--text-slide-body);
@@ -405,6 +406,52 @@ body {
 .ds-slide-table .num {
   text-align: right;
   padding-right: 0;
+}
+.ds-slide-table tfoot td {
+  border-top: 2px solid var(--line-strong);
+  border-bottom: 0;
+  font-weight: var(--weight-semibold);
+}
+
+/* ---------- Column chart: a value over time; --v is the column's share of the track, 0 to 100 ---------- */
+.ds-slide-columns {
+  margin-top: 72px;
+  height: 520px;
+  display: flex;
+  align-items: stretch;
+  gap: 48px;
+}
+.ds-slide-column {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  gap: 16px;
+  font-size: var(--text-slide-body);
+  line-height: var(--leading-slide-body);
+}
+.ds-slide-column-track {
+  align-self: stretch;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 2px solid var(--line-strong);
+}
+.ds-slide-column-fill {
+  width: 100%;
+  height: calc(var(--v) * 1%);
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  background: var(--ink-secondary);
+}
+.ds-slide-column.focus .ds-slide-column-fill {
+  background: var(--accent);
+}
+.ds-slide-column-value {
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.ds-slide-column-label {
+  color: var(--ink-secondary);
 }
 
 /* ---------- Builds: data-step="1", "2"… appear one step at a time.

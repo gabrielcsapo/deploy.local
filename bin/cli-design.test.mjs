@@ -1972,6 +1972,84 @@ test('init --kind with no starter for it says so; an unknown kind is wrong usage
   }
 });
 
+test('a slide footer takes its number from the canvas order and its name from the deck', async () => {
+  const { numberSlides } = await import('./design-export.mjs');
+  const foot = (name, n) =>
+    `<section class="ds-slide"><div class="ds-slide-foot"><span data-deck-name>${name}</span><span class="ds-slide-foot-num" data-slide-number>${n}</span></div></section>`;
+  const slides = [
+    { file: 'Title.html', html: '<section class="ds-slide title"><h1>Season</h1></section>' },
+    { file: 'Chart.html', html: foot('Garden club', '2') },
+    { file: 'List.html', html: foot('Deck', '7') },
+  ];
+  const canvas = { order: ['Title.html', 'List.html', 'Chart.html'], boards: {} };
+  const changed = numberSlides(canvas, slides, 'Garden club & friends');
+  assert.deepEqual(
+    changed.map(({ file, number }) => [file, number]),
+    [
+      ['List.html', 2],
+      ['Chart.html', 3],
+    ],
+    'a slide with no footer, or one already right, is left alone',
+  );
+  assert.equal(changed[0].html, foot('Garden club &amp; friends', '2'));
+  assert.equal(changed[1].html, foot('Garden club &amp; friends', '3'));
+  // Once written, the deck is in step: nothing to change.
+  const written = slides.map((slide) => changed.find((c) => c.file === slide.file) ?? slide);
+  assert.deepEqual(numberSlides(canvas, written, 'Garden club & friends'), []);
+  // With no deck name only the numbers move.
+  assert.equal(numberSlides(canvas, slides, null)[0].html, foot('Deck', '2'));
+});
+
+test('check notes a slide footer out of step, and --fix writes it from the deck', async () => {
+  const repo = repository();
+  try {
+    const slide = (n) =>
+      `<meta name="design-board" content="platform=slide,width=1920,height=1080,schemes=light">\n<section class="ds-slide" data-layer="slide"><h2 data-layer="heading">Beds</h2><div class="ds-slide-foot" data-layer="foot"><span data-deck-name>Deck name</span><span class="ds-slide-foot-num" data-slide-number>${n}</span></div></section>\n`;
+    writeFileSync(join(repo.clone, 'design/boards/Beds.html'), slide('9'));
+    writeFileSync(join(repo.clone, 'design/boards/Harvest.html'), slide('9'));
+    writeFileSync(
+      join(repo.clone, 'design/canvas.json'),
+      JSON.stringify({
+        title: 'garden-club',
+        kind: 'slides',
+        order: ['Sidebar.html', 'Harvest.html', 'Beds.html'],
+        boards: {
+          'Sidebar.html': { x: 0, y: 0, w: 1440, h: 900 },
+          'Harvest.html': { x: 2000, y: 0, w: 1920, h: 1080 },
+          'Beds.html': { x: 4000, y: 0, w: 1920, h: 1080 },
+        },
+      }),
+    );
+    const plain = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked()),
+    );
+    const noted = await runDesign('check', [], { project: 'site', json: true }, plain.deps);
+    const note = noted.json.notes.find((item) => item.code === 'slide_footer_stale');
+    assert.ok(note, 'the stale footer is a note');
+    assert.match(note.detail, /Harvest is slide 1, Beds is slide 2/);
+    assert.match(readFileSync(join(repo.clone, 'design/boards/Beds.html'), 'utf8'), /Deck name/);
+
+    const fixing = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked()),
+    );
+    await runDesign('check', [], { project: 'site', fix: true }, fixing.deps);
+    assert.match(fixing.text(), /Slide footers set from the deck: Harvest 1, Beds 2/);
+    const beds = readFileSync(join(repo.clone, 'design/boards/Beds.html'), 'utf8');
+    assert.match(beds, /<span data-deck-name>Garden club<\/span>/);
+    assert.match(beds, /data-slide-number>2<\/span>/);
+    const again = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked()),
+    );
+    const clean = await runDesign('check', [], { project: 'site', json: true }, again.deps);
+    assert.ok(!clean.json.notes.some((item) => item.code === 'slide_footer_stale'));
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test('export prints each board at its own size in canvas order into one PDF', async () => {
   const { exportOrder, mergePdfs } = await import('./design-export.mjs');
   assert.deepEqual(
@@ -2089,9 +2167,16 @@ test('init --kind with the real starter: only the kind, a starting board with tr
       // No kit file is left with filler or a name to fill in: the project's name is in its place.
       const filler =
         /__NAME__|Product name|Person Name|Role or title|\+00 000|Recipient name|Street and number|Postcode and town|Item one|Item two|Secondary line|Placeholder (?:name|text)|A few lines of message|Front line/;
+      // A deck's kit is drawn from one real deck too: no stand-in names, groups, rows or numbers.
+      const slideFiller =
+        /Deck name<|Group one|Row one|Event or (?:date|occasion)|"default": "(?:First item|Notes|Heading|00)"|Where the deck lives|>00</;
       for (const entry of readdirSync(ds, { recursive: true }).map(String))
         if (/\.(html|json|css)$/.test(entry))
-          assert.doesNotMatch(readFileSync(join(ds, entry), 'utf8'), filler, `${kind}: ${entry}`);
+          assert.doesNotMatch(
+            readFileSync(join(ds, entry), 'utf8'),
+            kind === 'slides' ? new RegExp(`${filler.source}|${slideFiller.source}`) : filler,
+            `${kind}: ${entry}`,
+          );
       assert.match(html, new RegExp(`platform=${kind === 'slides' ? 'slide' : kind}`));
       if (kind === 'game') assert.match(html, /width=390,height=844/);
       // The starting board is the project's own, marked as the starting point, and carries no style.

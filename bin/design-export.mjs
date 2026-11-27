@@ -17,6 +17,34 @@ export function exportOrder(canvas, files) {
   return ordered;
 }
 
+/**
+ * A deck's footers, set from the deck itself: each slide's [data-slide-number] is its place in the
+ * export order (the title slide counts as 1, though it shows no footer), and each [data-deck-name]
+ * is the deck's name. `slides` is every slide board's { file, html }; the answer is the boards
+ * whose footer changes, with their new html, in deck order.
+ */
+export function numberSlides(canvas, slides, deckName) {
+  const byFile = new Map(slides.map((slide) => [slide.file, slide.html]));
+  const order = exportOrder(canvas, [...byFile.keys()]);
+  const set = (html, attribute, value) =>
+    html.replace(
+      new RegExp(`(<([a-z][a-z0-9-]*)\\b[^>]*\\b${attribute}\\b[^>]*>)([^<]*)(</\\2>)`, 'gi'),
+      (whole, open, _tag, text, close) =>
+        text.trim() === value ? whole : `${open}${value}${close}`,
+    );
+  const changed = [];
+  order.forEach((file, at) => {
+    const html = byFile.get(file);
+    let next = set(html, 'data-slide-number', String(at + 1));
+    if (deckName) next = set(next, 'data-deck-name', escapeText(deckName));
+    if (next !== html) changed.push({ file, html: next, number: at + 1 });
+  });
+  return changed;
+}
+
+const escapeText = (text) =>
+  String(text).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+
 /** The objects of a PDF written by Chromium: { id, dict, stream } with `stream` the bytes after the dictionary, or null. */
 function readObjects(text) {
   const objects = [];
