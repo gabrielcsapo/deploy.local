@@ -4,6 +4,7 @@ dist/
 dist-docs/
 .DS_Store
 *.tgz
+!/vendor/react-flight-router-*.tgz
 .env
 .env.local
 .vite/
