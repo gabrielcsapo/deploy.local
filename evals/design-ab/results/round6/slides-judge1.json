@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "slides-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 3,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Slide 2 table text, column headers and footers are small for a projector across a long room."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Slide 2 shows only opening times with a confusing Closes column (Thursday's old 7 pm closing is missing), and its small legend and headers are hard to read from the back."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P shows complete old and new hours for every day in one clear table, so the change is obvious at a glance."
+    }
+  }
+}

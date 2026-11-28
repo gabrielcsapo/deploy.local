@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "slides-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "On slide 2 the column labels and the legend are small caps around 27-30 px, borderline against the 28 px floor, and Thursday's old closing time is never shown."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The footer text and the small labels look about 24 px, under the 28 px floor and hard to read from the back of a long room."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P keeps every text element at a size that carries across a long room, makes each change pop with yellow highlights in the hours table, and uses a bold, consistent layout that meets the 28 px floor where Q's footers fall short."
+    }
+  }
+}

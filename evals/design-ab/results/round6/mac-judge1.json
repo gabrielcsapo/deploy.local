@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "mac-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The dimmed '00:' hours in the clock and the many small grey labels around it make the take in progress slightly harder to read at a glance and the panel feels busy."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The progress bar has an unexplained grey block and the info on the right of the panel is thin, so the area feels a little empty."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's huge, fully bright 00:02:41 clock and big record button make the take in progress unmistakably the focus in a dim room, with a cleaner and calmer layout."
+    }
+  }
+}

@@ -189,7 +189,8 @@ Where boards sit: { "boards": { "<Board>.html": { "x", "y", "w", "h", "title" } 
 places new boards.
 
 ## What stops the check
-A board that will not draw or build, text cut off or overflowing, a broken link or missing
+A board that will not draw or build, text cut off or overflowing, text over text or past the
+edge of its button, the starting board left untouched beside your own, a broken link or missing
 picture, boards on top of each other, a layer ID that was renamed or lost, and limits the board's
 head states. Everything else (contrast, alignment, framing, readability at play size) is advice.
 `;

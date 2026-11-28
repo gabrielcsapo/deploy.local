@@ -427,14 +427,21 @@ export function startingBoardState(top, canvas, file) {
   if (!existsSync(path)) return 'gone';
   const system = typeof canvas?.designSystem === 'string' ? canvas.designSystem : null;
   const example = system ? join(top, 'design', system, 'examples', file) : null;
-  if (!example || !existsSync(example)) return 'own';
+  // An open canvas has no examples: the starting board is the one init wrote for its title and kind.
+  const written =
+    !system && typeof canvas?.title === 'string'
+      ? openCanvasFiles(canvas.title, canvas.kind ?? 'app', displayName(canvas.title)).files[
+          `design/boards/${file}`
+        ]
+      : null;
+  if (!written && (!example || !existsSync(example))) return 'own';
   const plain = (html) =>
     html
       .replace(/<title>[^<]*<\/title>/, '')
       .replace(/\s+data-layer="[^"]*"/g, '')
       .replace(/\s+/g, ' ')
       .trim();
-  return plain(readFileSync(path, 'utf8')) === plain(readFileSync(example, 'utf8'))
+  return plain(readFileSync(path, 'utf8')) === plain(written ?? readFileSync(example, 'utf8'))
     ? 'as-it-came'
     : 'own';
 }
@@ -876,6 +883,32 @@ export async function runDesign(sub, args, options, deps) {
             );
           }
         }
+      }
+      // The starting board left as it came beside boards of the project's own would ship as a
+      // placeholder: draw on it or take it away.
+      {
+        const canvasPath = join(top, 'design', 'canvas.json');
+        const canvas = existsSync(canvasPath) ? JSON.parse(readFileSync(canvasPath, 'utf8')) : {};
+        const start = canvas.startingBoard;
+        const others = existsSync(join(top, 'design', 'boards'))
+          ? readdirSync(join(top, 'design', 'boards')).filter(
+              (other) => other.endsWith('.html') && other !== start,
+            )
+          : [];
+        if (
+          typeof start === 'string' &&
+          others.length &&
+          startingBoardState(top, canvas, start) === 'as-it-came'
+        )
+          result.problems.push({
+            code: 'starter_left',
+            file: start,
+            board: screenName(start),
+            label: `${screenName(start)} is still the board init placed`,
+            detail: `beside ${plural(others.length, 'board')} of this project's own`,
+            short: 'starter left as it came',
+            fix: `draw on it, or remove it: delete design/boards/${start} and its entry in canvas.json's "boards" and "order"`,
+          });
       }
       // A deck's footers: each slide's number is its place in the deck, the name the deck's own.
       {

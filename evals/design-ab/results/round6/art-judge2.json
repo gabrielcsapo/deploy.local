@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The steam wisps look pale and possibly semi-transparent, and the lantern reads more as painted than truly lit."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The ground tile reads as regular coursed stone blocks rather than cobblestones, and the cart's steam is lost under the awning."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P has true irregular cobblestones that tile seamlessly and a cart and cat that read crisply on the plum ground, while Q's tile drifts toward brickwork."
+    }
+  }
+}

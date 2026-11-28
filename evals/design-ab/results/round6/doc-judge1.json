@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "doc-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Small body text on the first-month and seasons pages looks close to the 11 pt floor and the cover is fairly busy."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The page 4 footer sits lower than on other pages and the cover illustration's tree clips the page edge."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's Site rules page is a cleaner standalone pin-up with icons, a month strip and large rule headings that read well across a shed."
+    }
+  }
+}

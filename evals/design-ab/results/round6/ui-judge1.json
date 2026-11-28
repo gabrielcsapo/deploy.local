@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The 'Cancel alarm' label runs into its button border, and the button sits right beside Snooze with only a plain tap to trigger it."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The Snooze control is a borderless text link, so its 56 pt tap area is not visible and it sits close to Cancel."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q has a clean hierarchy with a very large 7 min, a press-and-hold Cancel that protects against accidental touches, a visibly quieter Snooze, and tidy cards for next stop and alarm, with no clipped text."
+    }
+  }
+}

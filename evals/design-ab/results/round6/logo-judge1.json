@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "logo-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The wrench and loop arrow are awkwardly fused off-axis, and the wrench shrinks to a blob at 16 px."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The wrench head is a blunt block that reads a little like a plug, and the dark green is low contrast on the dark ground."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q is a bolder, balanced symbol with a clear wrench and an upward return arrow in a U, and it stays legible at small sizes, whereas P's tilted composition gets muddy."
+    }
+  }
+}

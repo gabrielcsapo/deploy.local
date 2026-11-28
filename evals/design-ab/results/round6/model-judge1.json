@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The lamp housing is oversized and overlaps the arm base, and the counterweight lever is a tiny nub that barely reads."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The amber lamp disc sits over the arm pivot in the front view, partly hiding the arm root."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q meets every size and triangle limit, shows a clear 45-degree red arm with a white stripe, a distinct lamp, a visible counterweight and a tapered footing, and keeps the lamp tidier than P's oversized one."
+    }
+  }
+}

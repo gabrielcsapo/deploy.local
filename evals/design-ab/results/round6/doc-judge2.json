@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "doc-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Supporting text on the checklist and Who to ask cards looks smaller than 11 pt, and the cover illustration is plain and boxy."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Page 4 is crowded and its footer sits lower than on the other pages, with some fine print that looks under 11 pt."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's Site rules page works best pinned in a shed, with icons, a struck-through month strip for bonfires and a hosepipe time bar, and it adds a clear noticeboard method for reaching each role plus fill-in fields."
+    }
+  }
+}

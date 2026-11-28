@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The shells are uneven in size and the empty one is a vague dashed blob, and the dark Replay button sits above the cream Next pool, which makes the hierarchy less clear."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The hermit crab sits low and cramped in the pool, and the large gap above the buttons leaves the stacked actions slightly detached from the content."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q has a clear hierarchy, a dominant teal Next pool button above a quieter Replay, and cleanly consistent shells with a visible '2 of 3 shells' label. It shows the finished pool, and its sea-and-sand palette reads as calm."
+    }
+  }
+}

@@ -69,6 +69,10 @@ export type Inspection = {
   }[];
   /** The page's width as drawn, for the edges above. */
   width?: number;
+  /** Lines of text drawn over lines of another element's text. */
+  overlaps?: { a: string; b: string; layerA: string | null; layerB: string | null }[];
+  /** Text running past the border of the control or bordered box that holds it, in px. */
+  spills?: { layer: string | null; text: string; box: string | null; amount: number }[];
   /**
    * What the board needs to show all its content, even where a frame the size of the window
    * (a Mac window at 100% of a 100 px page) clips it: the measure --fix writes a height from.
@@ -166,7 +170,13 @@ export function inspectBoard(doc: Document = document): Inspection {
   };
 
   const texts: InspectedText[] = [];
-  const placed: { element: Element; rect: DOMRect; layer: string | null; text: string }[] = [];
+  const placed: {
+    element: Element;
+    rect: DOMRect;
+    layer: string | null;
+    text: string;
+    lines: DOMRect[];
+  }[] = [];
   const blocks: {
     layer: string;
     left: number;
@@ -199,7 +209,19 @@ export function inspectBoard(doc: Document = document): Inspection {
     const layer = layerOf(element);
     const whole = doc.createRange();
     whole.selectNodeContents(element);
-    placed.push({ element, rect: whole.getBoundingClientRect(), layer, text: text.slice(0, 40) });
+    const lines: DOMRect[] = [];
+    for (const node of own) {
+      const line = doc.createRange();
+      line.selectNodeContents(node);
+      for (const box of line.getClientRects()) if (box.width > 0 && box.height > 0) lines.push(box);
+    }
+    placed.push({
+      element,
+      rect: whole.getBoundingClientRect(),
+      layer,
+      text: text.slice(0, 40),
+      lines,
+    });
     texts.push({
       layer,
       text: text.slice(0, 40),
@@ -615,8 +637,90 @@ export function inspectBoard(doc: Document = document): Inspection {
       text: (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40),
     }));
 
+  // Text over text: lines of two elements, neither inside the other, drawn on top of each other.
+  // A layer pinned to the window (fixed), hidden from readers (aria-hidden) or kept for screen
+  // readers only is left out.
+  const pinnedOrHidden = (element: Element) => {
+    // Text for screen readers only: clipped to a pixel or so.
+    const whole = element.getBoundingClientRect();
+    if (whole.width <= 2 || whole.height <= 2) return true;
+    for (let at: Element | null = element; at && at !== doc.body; at = at.parentElement) {
+      if (at.getAttribute('aria-hidden') === 'true') return true;
+      if (view.getComputedStyle(at).position === 'fixed') return true;
+    }
+    return false;
+  };
+  const readable = placed.filter((entry) => !pinnedOrHidden(entry.element));
+  const overlaps: NonNullable<Inspection['overlaps']> = [];
+  for (let i = 0; i < readable.length && overlaps.length < 20; i++)
+    for (let j = i + 1; j < readable.length; j++) {
+      const a = readable[i];
+      const b = readable[j];
+      if (a.element.contains(b.element) || b.element.contains(a.element)) continue;
+      const hit = a.lines.some((one) =>
+        b.lines.some((two) => {
+          // A line's box runs well above and below its letters (most of all in big type set
+          // tight), so only the middle of each line counts.
+          const core = (line: DOMRect) => ({
+            top: line.top + line.height * 0.22,
+            bottom: line.bottom - line.height * 0.22,
+          });
+          const wide = Math.min(one.right, two.right) - Math.max(one.left, two.left);
+          const tall =
+            Math.min(core(one).bottom, core(two).bottom) - Math.max(core(one).top, core(two).top);
+          return wide > 2 && tall > 1;
+        }),
+      );
+      if (hit) {
+        overlaps.push({ a: a.text, b: b.text, layerA: a.layer, layerB: b.layer });
+        break;
+      }
+    }
+  // Text past the side of the border that holds it: a label wider than its button.
+  // A box that clips what overflows is left to the edge checks.
+  const spills: NonNullable<Inspection['spills']> = [];
+  for (const entry of readable) {
+    let holder: Element | null = null;
+    for (let at = entry.element as Element | null; at && at !== doc.body; at = at.parentElement) {
+      const style = view.getComputedStyle(at);
+      const control = at.matches('button, a, [role="button"], .dl-btn');
+      const bordered = ['Top', 'Right', 'Bottom', 'Left'].some(
+        (side) =>
+          Number.parseFloat((style as any)[`border${side}Width`]) > 0 &&
+          (style as any)[`border${side}Style`] !== 'none' &&
+          rgba((style as any)[`border${side}Color`])[3] > 0,
+      );
+      if (control || bordered) {
+        if (style.overflowX === 'visible' && style.overflowY === 'visible') holder = at;
+        break;
+      }
+    }
+    if (!holder || !entry.lines.length) continue;
+    const box = holder.getBoundingClientRect();
+    const style = view.getComputedStyle(holder);
+    const inner = {
+      left: box.left + Number.parseFloat(style.borderLeftWidth),
+      right: box.right - Number.parseFloat(style.borderRightWidth),
+    };
+    const past = Math.max(
+      ...entry.lines.map((line) =>
+        // Sideways only: a glyph's box is taller than a tight line, so up and down would cry wolf.
+        Math.max(inner.left - line.left, line.right - inner.right),
+      ),
+    );
+    if (past > 1)
+      spills.push({
+        layer: entry.layer,
+        text: entry.text,
+        box: layerOf(holder),
+        amount: Math.round(past),
+      });
+  }
+
   return {
     height: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight),
+    ...(overlaps.length ? { overlaps } : {}),
+    ...(spills.length ? { spills: spills.slice(0, 20) } : {}),
     width: pageWidth,
     needed: Math.round(needed),
     statusBars,

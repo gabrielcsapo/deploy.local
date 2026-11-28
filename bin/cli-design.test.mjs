@@ -2467,6 +2467,27 @@ test('init --scheme sets the schemes every board draws in', async () => {
   }
 });
 
+test('an open canvas knows its starting board as it came from one drawn on', async () => {
+  for (const kind of ['game', 'doc', 'app']) {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-start-')));
+    try {
+      git(['init', '-q', '--initial-branch=main'], root);
+      const made = terminal(root, coordinator().api);
+      await runDesign('init', ['Tide & Pool'], { kind }, made.deps);
+      const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
+      const start = canvas.startingBoard;
+      assert.equal(startingBoardState(root, canvas, start), 'as-it-came', kind);
+      const path = join(root, 'design/boards', start);
+      writeFileSync(path, readFileSync(path, 'utf8').replace('</body>', '<p>Ours</p></body>'));
+      assert.equal(startingBoardState(root, canvas, start), 'own', kind);
+      rmSync(path);
+      assert.equal(startingBoardState(root, canvas, start), 'gone', kind);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test('look draws one board as asked and says what it takes', async () => {
   const repo = repository();
   try {

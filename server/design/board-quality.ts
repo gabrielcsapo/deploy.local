@@ -1800,6 +1800,17 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     problem: true,
     means: 'a document prints on more pages than pages= in its head',
   },
+  {
+    code: 'starter_left',
+    problem: true,
+    means: 'the board init placed, untouched, beside boards of your own',
+  },
+  { code: 'text_overlaps', problem: true, means: "text drawn over another element's text" },
+  {
+    code: 'text_spills',
+    problem: true,
+    means: 'a label running past the side of the button or bordered box that holds it',
+  },
   { code: 'not_on_canvas', problem: true, means: 'a board file canvas.json does not place' },
   { code: 'canvas_only', problem: true, means: 'canvas.json places a board with no file' },
   { code: 'part_carried', problem: true, means: 'boards carried only for a component change' },
@@ -2095,6 +2106,57 @@ export function cutOffBottomProblems(input: {
           ? 'leave room above the bar (padding at the foot of the scrolling content), or end the content sooner'
           : 'make the board taller (deploy design check --fix measures it), show fewer rows, or end on a whole row',
     }));
+}
+
+/**
+ * Text drawn over another element's text, and a label running past the side of the button or
+ * bordered box that holds it: both read as broken. What main's board already did is left out.
+ */
+export function textCollisionProblems(input: {
+  file: string;
+  title: string;
+  width: number;
+  after: Inspection | null;
+  before: Inspection | null;
+}): Finding[] {
+  const at = {
+    file: input.file,
+    board: input.title,
+    width: input.width,
+    scheme: 'light' as const,
+  };
+  const name = (layer: string | null, text: string) => layer ?? `"${text}"`;
+  const oldOverlaps = new Set(
+    (input.before?.overlaps ?? []).map((entry) => `${entry.a}|${entry.b}`),
+  );
+  const overlaps = (input.after?.overlaps ?? [])
+    .filter((entry) => !oldOverlaps.has(`${entry.a}|${entry.b}`))
+    .slice(0, 5)
+    .map((entry) => ({
+      code: 'text_overlaps',
+      ...at,
+      ...(entry.layerA ? { layer: entry.layerA } : {}),
+      label: `${input.title} draws ${name(entry.layerA, entry.a)} over ${name(entry.layerB, entry.b)}`,
+      detail: `"${entry.a}" and "${entry.b}" share the same space`,
+      short: 'text over text',
+      fix: 'give each its own room: move one, leave space for what is pinned (a footer, a page number), or shorten it',
+    }));
+  const oldSpills = new Set(
+    (input.before?.spills ?? []).map((entry) => `${entry.layer} ${entry.text}`),
+  );
+  const spills = (input.after?.spills ?? [])
+    .filter((entry) => !oldSpills.has(`${entry.layer} ${entry.text}`))
+    .slice(0, 5)
+    .map((entry) => ({
+      code: 'text_spills',
+      ...at,
+      ...(entry.layer ? { layer: entry.layer } : {}),
+      label: `${input.title} ${name(entry.layer, entry.text)} runs past ${entry.box && entry.box !== entry.layer ? entry.box : 'its border'}`,
+      detail: `"${entry.text}" ends ${entry.amount} px outside its border`,
+      short: 'text past its box',
+      fix: 'make the box wider or the words shorter, or let the label wrap',
+    }));
+  return [...overlaps, ...spills];
 }
 
 /**

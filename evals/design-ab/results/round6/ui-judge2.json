@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The 'Cancel alarm' label is crammed against its button's right edge, and the stop-line timeline overruns the right margin."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Snooze has no visible button boundary, so its 56 pt hit area and its gap from Cancel can't be checked by eye."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q puts Cancel out of the right thumb's reach behind a press-and-hold, makes Snooze clearly quieter, and groups next stop and alarm status in a tidy card, with cleaner spacing overall."
+    }
+  }
+}

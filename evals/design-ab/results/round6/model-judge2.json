@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The lamp housing is oversized and bulges well past the post in plan, and the counterweight lever is so small it barely registers."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "From the front the amber lamp sits in front of the pivot and hides the boss, and the arm reads short, so the raised-arm silhouette is weaker than the lamp."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P's long red arm with its tip stripe makes a clear 45-degree silhouette with the lamp tucked behind the pivot, so the clear aspect and the arm's direction still read in the far-away view."
+    }
+  }
+}

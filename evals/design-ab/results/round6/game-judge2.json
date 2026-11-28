@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The results sheet covers most of the finished pool, so the 'shown over the pool' moment is reduced to a strip at the top."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "A stray translucent square sits behind the crab, and the outlined Replay button on the dark water reads weaker than the rest."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P meets every requirement with the cleanest hierarchy and consistent shell rating, calm sea-and-sand palette and no visible artefacts, while Q is close but has a rendering glitch behind the crab."
+    }
+  }
+}

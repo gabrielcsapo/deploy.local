@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "logo-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The dark green nearly disappears on the dark ground, and the U-shaped body risks reading as the letter U or a magnet."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 2,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The wrench head is jammed onto the loop with a stubby neck, so at 32 and 16 px it collapses into an unreadable squiggle, and it too is barely visible on dark."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P's simple, balanced wrench-plus-return-arrow silhouette stays legible down to 16 px, while Q's cramped diagonal composition blurs at small sizes."
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "mac-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The dimmed '00:' hours segment and busy waveform slightly dilute the clock's punch compared with a single solid readout."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The best take's row gets only a small badge with no row highlight, and the toolbar is sparse, so the lower half feels plainer and less studio-specific."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P pairs a dominant, glowing Take 7 panel with a live waveform, meters and marker, plus a clearly highlighted best take and a richer native toolbar, all polished and consistent for a dim control room."
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Cat and cart use dark brown outlines that sink into the plum background, and the cobble tile reads as a brick-like wall with visible horizontal banding when repeated."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cart is cramped with a small pot and faint steam, and the tile's mortar network looks somewhat busy and uniform when repeated."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's black outlines and bold shapes pop against the dark plum ground at play size, and its irregular cobble tile tiles more naturally."
+    }
+  }
+}

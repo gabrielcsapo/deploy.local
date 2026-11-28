@@ -55,6 +55,7 @@ import {
   contrastProblems,
   cutOffBottomProblems,
   cutOffSideProblems,
+  textCollisionProblems,
   drawnNotes,
   heightProblem,
   inlineStyleNotes,
@@ -1551,6 +1552,8 @@ export async function checkDesign(
               found.problems.push(
                 ...cutOffSideProblems({ file, title, width, platform, ...inspected }),
               );
+            if (scheme === stepSchemes[0])
+              found.problems.push(...textCollisionProblems({ file, title, width, ...inspected }));
           }
         }
         const png = await drawing.pair({

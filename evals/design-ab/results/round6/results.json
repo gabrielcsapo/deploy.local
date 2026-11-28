@@ -1,0 +1,358 @@
+{
+  "kinds": {
+    "art": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "art-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 3.5,
+          "craft": 4.0,
+          "ready": 3.0
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    },
+    "doc": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "doc-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 5.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    },
+    "game": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "game-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.0,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 5.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    },
+    "logo": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [1, 0]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 0,
+      "split": 0,
+      "per_brief": {
+        "logo-1": [1, 0, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 3.5,
+          "craft": 4.0,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 2.5,
+          "craft": 3.0,
+          "ready": 2.5
+        }
+      }
+    },
+    "mac": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 0,
+      "split": 1,
+      "per_brief": {
+        "mac-1": [0, 0, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 5.0,
+          "reads": 5.0,
+          "craft": 4.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 4.5,
+          "craft": 4.5,
+          "ready": 4.0
+        }
+      }
+    },
+    "model": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [1, 0]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 0,
+      "split": 1,
+      "per_brief": {
+        "model-2": [0, 0, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 3.5,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 3.5,
+          "craft": 3.5,
+          "ready": 3.5
+        }
+      }
+    },
+    "slides": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 0,
+      "split": 1,
+      "per_brief": {
+        "slides-1": [0, 0, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 3.0,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 3.5,
+          "craft": 4.0,
+          "ready": 3.5
+        }
+      }
+    },
+    "ui": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "ui-2": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 3.0,
+          "ready": 3.0
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 4.5,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    }
+  },
+  "runs": {
+    "r06": {
+      "brief": "doc-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The page 4 footer sits lower than on other pages and the cover illustration's tree clips the page edge.",
+        "Page 4 is crowded and its footer sits lower than on the other pages, with some fine print that looks under 11 pt."
+      ]
+    },
+    "r09": {
+      "brief": "logo-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The wrench and loop arrow are awkwardly fused off-axis, and the wrench shrinks to a blob at 16 px.",
+        "The wrench head is jammed onto the loop with a stubby neck, so at 32 and 16 px it collapses into an unreadable squiggle, and it too is barely visible on dark."
+      ]
+    },
+    "r10": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The hermit crab sits low and cramped in the pool, and the large gap above the buttons leaves the stacked actions slightly detached from the content.",
+        "The results sheet covers most of the finished pool, so the 'shown over the pool' moment is reduced to a strip at the top."
+      ]
+    },
+    "r11": {
+      "brief": "slides-1",
+      "arm": "B",
+      "positions": [1, 0],
+      "flaws": [
+        "Slide 2 shows only opening times with a confusing Closes column (Thursday's old 7 pm closing is missing), and its small legend and headers are hard to read from the back.",
+        "On slide 2 the column labels and the legend are small caps around 27-30 px, borderline against the 28 px floor, and Thursday's old closing time is never shown."
+      ]
+    },
+    "r16": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [0, 1],
+      "flaws": [
+        "The amber lamp disc sits over the arm pivot in the front view, partly hiding the arm root.",
+        "From the front the amber lamp sits in front of the pivot and hides the boss, and the arm reads short, so the raised-arm silhouette is weaker than the lamp."
+      ]
+    },
+    "r17": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "Cart is cramped with a small pot and faint steam, and the tile's mortar network looks somewhat busy and uniform when repeated.",
+        "The steam wisps look pale and possibly semi-transparent, and the lantern reads more as painted than truly lit."
+      ]
+    },
+    "r18": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The Snooze control is a borderless text link, so its 56 pt tap area is not visible and it sits close to Cancel.",
+        "Snooze has no visible button boundary, so its 56 pt hit area and its gap from Cancel can't be checked by eye."
+      ]
+    },
+    "r19": {
+      "brief": "mac-1",
+      "arm": "B",
+      "positions": [1, 0],
+      "flaws": [
+        "The dimmed '00:' hours in the clock and the many small grey labels around it make the take in progress slightly harder to read at a glance and the panel feels busy.",
+        "The dimmed '00:' hours segment and busy waveform slightly dilute the clock's punch compared with a single solid readout."
+      ]
+    },
+    "t01": {
+      "brief": "doc-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Small body text on the first-month and seasons pages looks close to the 11 pt floor and the cover is fairly busy.",
+        "Supporting text on the checklist and Who to ask cards looks smaller than 11 pt, and the cover illustration is plain and boxy."
+      ]
+    },
+    "t02": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [1, 0],
+      "flaws": [
+        "The lamp housing is oversized and overlaps the arm base, and the counterweight lever is a tiny nub that barely reads.",
+        "The lamp housing is oversized and bulges well past the post in plan, and the counterweight lever is so small it barely registers."
+      ]
+    },
+    "t03": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The 'Cancel alarm' label runs into its button border, and the button sits right beside Snooze with only a plain tap to trigger it.",
+        "The 'Cancel alarm' label is crammed against its button's right edge, and the stop-line timeline overruns the right margin."
+      ]
+    },
+    "t04": {
+      "brief": "slides-1",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "Slide 2 table text, column headers and footers are small for a projector across a long room.",
+        "The footer text and the small labels look about 24 px, under the 28 px floor and hard to read from the back of a long room."
+      ]
+    },
+    "t05": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The shells are uneven in size and the empty one is a vague dashed blob, and the dark Replay button sits above the cream Next pool, which makes the hierarchy less clear.",
+        "A stray translucent square sits behind the crab, and the outlined Replay button on the dark water reads weaker than the rest."
+      ]
+    },
+    "t06": {
+      "brief": "mac-1",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "The progress bar has an unexplained grey block and the info on the right of the panel is thin, so the area feels a little empty.",
+        "The best take's row gets only a small badge with no row highlight, and the toolbar is sparse, so the lower half feels plainer and less studio-specific."
+      ]
+    },
+    "t07": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Cat and cart use dark brown outlines that sink into the plum background, and the cobble tile reads as a brick-like wall with visible horizontal banding when repeated.",
+        "The ground tile reads as regular coursed stone blocks rather than cobblestones, and the cart's steam is lost under the awning."
+      ]
+    },
+    "t08": {
+      "brief": "logo-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The wrench head is a blunt block that reads a little like a plug, and the dark green is low contrast on the dark ground.",
+        "The dark green nearly disappears on the dark ground, and the U-shaped body risks reading as the letter U or a magnet."
+      ]
+    }
+  }
+}
