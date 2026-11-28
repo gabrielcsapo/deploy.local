@@ -3703,6 +3703,7 @@ try {
       width: { type: 'string' },
       scheme: { type: 'string' },
       angle: { type: 'string' },
+      zoom: { type: 'string' },
     },
     strict: false,
   }));

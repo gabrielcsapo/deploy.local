@@ -499,7 +499,6 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
       carried.text(),
       [
         '! Drawn by deploy.local            no browser here: this terminal has no browser',
-        '✓ Named 0 new elements             layer IDs kept on the rest',
         '✓ Drew 1 board beside main         1440 · 700 · light · dark   3 s',
         '✗ Sidebar is carried on 234 screens landing draws them; run deploy design check --drop-instances',
         '',
@@ -531,7 +530,6 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
       [
         '! Drawn by deploy.local            no browser here: this terminal has no browser',
         '✓ Restored 234 boards to main      landing draws their instances',
-        '✓ Named 0 new elements             layer IDs kept on the rest',
         '✓ Drew 1 board beside main         1440 · 700 · light · dark   3 s',
         '',
         '  Board     What changed',
@@ -2447,6 +2445,28 @@ test('init starts an open canvas: a short README, look.css and one blank board p
   }
 });
 
+test('init --scheme sets the schemes every board draws in', async () => {
+  for (const [scheme, schemes] of [
+    ['dark', ['dark']],
+    ['both', ['light', 'dark']],
+  ]) {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-scheme-')));
+    try {
+      git(['init', '-q', '--initial-branch=main'], root);
+      const made = terminal(root, coordinator().api);
+      await runDesign('init', ['Larder'], { kind: 'app', scheme }, made.deps);
+      const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
+      assert.deepEqual(canvas.schemes, schemes);
+      await assert.rejects(
+        runDesign('init', ['Other'], { scheme: 'sepia' }, made.deps),
+        (e) => e.exitCode === 2,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test('look draws one board as asked and says what it takes', async () => {
   const repo = repository();
   try {
@@ -2466,11 +2486,15 @@ test('look draws one board as asked and says what it takes', async () => {
     assert.equal(shot[0].width, 700);
     assert.equal(shot[0].scheme, 'dark');
     assert.ok(existsSync(join(repo.clone, 'output/design/look/Sidebar-700-dark.png')));
+    const closer = await runDesign('look', ['Sidebar'], { zoom: '3' }, run.deps);
+    assert.equal(shot[1].scale, 3);
+    assert.match(closer.json.pictures[0], /-x3\.png$/);
     for (const [args, options] of [
       [[], {}],
       [['Sidebar'], { scheme: 'sepia' }],
       [['Sidebar'], { width: '20' }],
       [['Sidebar'], { angle: '30' }],
+      [['Sidebar'], { zoom: '9' }],
     ])
       await assert.rejects(runDesign('look', args, options, run.deps), (e) => e.exitCode === 2);
   } finally {

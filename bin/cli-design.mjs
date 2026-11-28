@@ -49,19 +49,30 @@ const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', 
 const LABEL = 33;
 
 /** `deploy design --help`, `deploy design -h` and `deploy help design`. */
+/** A title as written in HTML, as plain text for canvas.json (Spoke &amp; Mend is Spoke & Mend). */
+const decodeEntities = (text) =>
+  text.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (whole, name) => {
+    const lower = name.toLowerCase();
+    if (lower.startsWith('#x')) return String.fromCodePoint(parseInt(lower.slice(2), 16));
+    if (lower.startsWith('#')) return String.fromCodePoint(Number(lower.slice(1)));
+    return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' }[lower] ?? whole;
+  });
+
 export const DESIGN_HELP = `deploy design — draw what people will see, and check it, on an open canvas
 
 Usage  deploy design <command> [flags]
 
   init [<name>] [--kind k] Start design/: a README, look.css and one blank board
                            (kinds: app, doc, slides, print, mac, game, logo, art, model)
+                           --scheme light|dark|both  which schemes boards draw in
   look <Board>             Draw one board into output/design/look/
-                           --width 700  --scheme dark  --angle 30,20 (a model: round, up)
+                           --width 700 (the page)  --zoom 3 (closer)  --scheme dark
+                           --angle 30,20 (a model: degrees round from the front, and up)
   check [--fix]            Draw what changed beside main; problems stop, advice is yours
   export [<Board>…]        PDF of the boards; logo marks and sprites as SVG; models as .glb
   status [<Board>…]        A board's source, siblings and open questions
   guide                    Platforms, sizes and check codes
-  review                   A brief for a second agent to review what you changed
+  review                   Questions to review what changed with fresh eyes (yours or another agent's)
   dev                      Open the Design page on this folder, as you save
   kit <kind>               An old starter kit, copied to output/design/kit/ to read
 
@@ -787,10 +798,11 @@ export async function runDesign(sub, args, options, deps) {
         canvas.boards ??= {};
         for (const [file, place] of places) {
           const html = readFileSync(join(top, 'design', 'boards', file), 'utf8');
-          const title =
+          const title = decodeEntities(
             parseBoardMeta(html).title ??
-            /<title>([^<]*)<\/title>/.exec(html)?.[1] ??
-            screenName(file);
+              /<title>([^<]*)<\/title>/.exec(html)?.[1] ??
+              screenName(file),
+          );
           const { near, side, why, ...rect } = place;
           // A height measured in this same run wins over the place's default height.
           if (result.heights?.[file]) rect.h = result.heights[file];
@@ -1087,10 +1099,14 @@ export async function runDesign(sub, args, options, deps) {
     }
   };
 
+  // A code's fix is said once a run: the second open question needs no second lesson.
+  const fixesSaid = new Set();
   const printFinding = (mark, finding) => {
     step(mark, finding.label, finding.detail);
-    if (finding.fix)
+    const said = finding.code && fixesSaid.has(`${finding.code} ${finding.fix}`);
+    if (finding.fix && !said)
       out(`  ${paint.dim(`${finding.code ? `${finding.code} · ` : ''}fix: ${finding.fix}`)}`);
+    if (finding.code) fixesSaid.add(`${finding.code} ${finding.fix}`);
   };
   const printProblems = (result) => {
     for (const problem of result.problems) printFinding('✗', problem);
@@ -1136,13 +1152,12 @@ export async function runDesign(sub, args, options, deps) {
         `Restored ${plural(result.dropped, 'board')} to main`,
         'landing draws their instances',
       );
-    step(
-      '✓',
-      `Named ${plural(result.named, 'new element')}`,
-      result.named
-        ? 'written into the boards: read one again before you edit it by line'
-        : 'layer IDs kept on the rest',
-    );
+    if (result.named)
+      step(
+        '✓',
+        `Named ${plural(result.named, 'new element')}`,
+        'written into the boards: read one again before you edit it by line',
+      );
     for (const line of result.fixed.filter((entry) => !/layer ID/.test(entry)))
       step('✓', 'Fixed', line);
     step(
@@ -1417,6 +1432,11 @@ export async function runDesign(sub, args, options, deps) {
       // A design for this project, here: no branch, no worktree, no network.
       const top = root();
       if (args.length > 1) throw cliError('Give one name.', 'deploy design init larder', 2);
+      if (
+        options.scheme !== undefined &&
+        !['light', 'dark', 'both'].includes(String(options.scheme))
+      )
+        throw cliError('--scheme is light, dark or both.', 'deploy design init --scheme dark', 2);
       if (existsSync(join(top, 'design')))
         throw cliError('This project already has design/.', 'deploy design guide', 1);
       const name = designSlug(args[0] ?? basename(top)) || 'project';
@@ -1437,7 +1457,12 @@ export async function runDesign(sub, args, options, deps) {
         const canvas = {
           title: name,
           ...(kind === 'app' ? {} : { kind }),
-          schemes: ['light'],
+          schemes:
+            options.scheme === 'dark'
+              ? ['dark']
+              : options.scheme === 'both'
+                ? ['light', 'dark']
+                : ['light'],
           boards: {
             [open.file]: {
               x: 0,
@@ -1616,7 +1641,10 @@ export async function runDesign(sub, args, options, deps) {
       const spriteFiles = [];
       const spriteNames = new Set();
       for (const sprite of sprites) {
-        const slug = designSlug(sprite.name) || 'sprite';
+        // Named as the board names it (StrayCatIdle stays StrayCatIdle), else as a slug.
+        const slug = /^[A-Za-z0-9][\w-]{0,63}$/.test(sprite.name)
+          ? sprite.name
+          : designSlug(sprite.name) || 'sprite';
         let spriteFile = `art/${sprite.board}/${slug}.svg`;
         for (let n = 2; spriteNames.has(spriteFile); n++)
           spriteFile = `art/${sprite.board}/${slug}-${n}.svg`;
@@ -1717,6 +1745,9 @@ export async function runDesign(sub, args, options, deps) {
           `deploy design look ${args[0]} --width 700`,
           2,
         );
+      const zoom = options.zoom === undefined ? 1 : Number(options.zoom);
+      if (!(zoom >= 1 && zoom <= 4))
+        throw cliError('--zoom is 1 to 4.', `deploy design look ${args[0]} --zoom 3`, 2);
       const angle = options.angle === undefined ? null : String(options.angle);
       const turn =
         angle && /^-?\d+(\.\d+)?(,-?\d+(\.\d+)?)?$/.test(angle) ? angle.split(',') : null;
@@ -1750,9 +1781,10 @@ export async function runDesign(sub, args, options, deps) {
           measure: false,
           fullPage: tall,
           model: board.platform === 'model',
+          ...(zoom !== 1 ? { scale: zoom } : {}),
         });
         if (!drawn) throw cliError(`${file} could not be drawn.`, 'deploy design check', 1);
-        const picture = `${stem}-${width}-${scheme}.png`;
+        const picture = `${stem}-${width}-${scheme}${zoom !== 1 ? `-x${zoom}` : ''}.png`;
         writeFileSync(join(folder, picture), drawn.png);
         written.push(`output/design/look/${picture}`);
         const sheet = drawn.model;

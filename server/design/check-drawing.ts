@@ -107,7 +107,69 @@ export async function buildBoardPage(html: string, sources: BoardSources) {
     page = page.replace(match[0], () => `<style>${css?.toString() ?? ''}</style>`);
   }
   if (/\sdata-model-(?:view|stat)="/.test(page)) page = await fillModel(page, sources.model);
-  return inlineBoardCaptures(page, sources.capture);
+  page = await inlineBoardCaptures(page, sources.capture);
+  return inlineBoardImages(page, (path) => sources.css(path));
+}
+
+const imageTypes: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+};
+const imageLink = /(<img\b[^>]*?\ssrc=")([^"]+)(")/g;
+
+/**
+ * Where a board's own picture lives under design/, from the src a board in boards/ gives it
+ * (../sprites/cat.png, art/cat.svg): null for data, a web address, or a path that leaves design/.
+ */
+export function boardImagePath(src: string): string | null {
+  if (/^(?:data:|[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src) || !src) return null;
+  const parts: string[] = ['boards'];
+  for (const part of src.split(/[?#]/)[0].split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') {
+      if (!parts.length) return null;
+      parts.pop();
+    } else parts.push(part);
+  }
+  return parts.length ? parts.join('/') : null;
+}
+
+/** A board's pictures under design/, as data, since a drawn page has no address to load from. */
+export async function inlineBoardImages(
+  page: string,
+  read: (path: string) => Promise<Buffer | null>,
+) {
+  const found = new Map<string, string | null>();
+  for (const match of page.matchAll(imageLink)) {
+    const path = boardImagePath(match[2]);
+    const type = imageTypes[path?.split('.').pop()?.toLowerCase() ?? ''];
+    if (!path || !type || found.has(match[2])) continue;
+    const bytes = await read(path);
+    found.set(match[2], bytes ? `data:${type};base64,${bytes.toString('base64')}` : null);
+  }
+  if (![...found.values()].some(Boolean)) return page;
+  return page.replace(imageLink, (whole, before, src, after) =>
+    found.get(src) ? `${before}${found.get(src)}${after}` : whole,
+  );
+}
+
+/** The pictures a board names that are not there: src paths under design/ with no file. */
+export async function missingBoardImages(
+  html: string,
+  exists: (path: string) => Promise<boolean>,
+): Promise<string[]> {
+  const missing: string[] = [];
+  for (const match of html.matchAll(imageLink)) {
+    const src = match[2];
+    if (/^(?:data:|[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src) || missing.includes(src)) continue;
+    const path = boardImagePath(src);
+    if (!path || !(await exists(path))) missing.push(src);
+  }
+  return missing;
 }
 
 /** What a model board's page carries for the check: the model, its box and budget, and its build. */

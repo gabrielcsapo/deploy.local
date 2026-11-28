@@ -1687,6 +1687,8 @@ const systemOnly = new Set([
   'no_status_bar',
   'box_in_card',
   'differs_from_source',
+  // The same question again as open_question says it: once is enough on an open canvas.
+  'question_sample_value',
 ]);
 
 /**
@@ -1787,6 +1789,12 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: 'an element still drawn under a new ID; keep the old',
   },
   { code: 'broken_link', problem: true, means: 'a link to a board that does not exist' },
+  { code: 'image_missing', problem: true, means: 'an img src under design/ with no file there' },
+  {
+    code: 'over_page_limit',
+    problem: true,
+    means: 'a document prints on more pages than pages= in its head',
+  },
   { code: 'not_on_canvas', problem: true, means: 'a board file canvas.json does not place' },
   { code: 'canvas_only', problem: true, means: 'canvas.json places a board with no file' },
   { code: 'part_carried', problem: true, means: 'boards carried only for a component change' },

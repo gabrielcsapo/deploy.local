@@ -715,7 +715,12 @@ export function guideLines({ top, designSystem, all = false }) {
         : ownPlatforms.map((platform) => platformHelp[platform] ?? platform).join(', ')
     }.`,
   );
-  if (!trimmed || design.kind === 'game')
+  if (open && design.kind === 'game')
+    lines.push(
+      '  A game board with device=phone is an iPhone screen (390 x 844, or 844 x 390 turned sideways): keep play and text out of the top 54 and bottom 34 px',
+      '  (the sides, 54 px, in landscape); outside_safe_area says so. immersive=true in the head opts out for a full-screen game.',
+    );
+  else if (!trimmed || design.kind === 'game')
     lines.push(
       '  A game board with device=phone is an iPhone screen (390 x 844, or 844 x 390 turned sideways): draw the status bar in its top 54 px, keep content out of',
       '  the top 54 and bottom 34 px (the sides, 54 px, in landscape); outside_safe_area and no_status_bar say so. immersive=true in the head opts out for a',
@@ -724,7 +729,7 @@ export function guideLines({ top, designSystem, all = false }) {
     );
   if (open)
     lines.push(
-      '  Limits from the brief go in the head too, and the check holds the board to them: size= and tris= (model), tile= and play= (art), contrast=aa (low contrast stops the check).',
+      '  Limits from the brief go in the head too, and the check holds the board to them: size= and tris= (model), tile= and play= (art), pages= (doc), contrast=aa (low contrast stops the check).',
       '  Anything that must scroll sideways says so (overflow-x: auto or data-scroll-x); the rest ends inside its edge (cut_off_side).',
     );
   else
@@ -825,7 +830,7 @@ export function guideLines({ top, designSystem, all = false }) {
     section('The loop');
     lines.push(
       '  1. edit design/boards/<Board>.html    link ../look.css; keep data-layer IDs',
-      '  2. deploy design look <Board>        see it (--width, --scheme dark, --angle for a model)',
+      '  2. deploy design look <Board>        see it (--zoom 3, --width, --scheme dark, --angle for a model)',
       '  3. deploy design check --fix        beside main; fix every problem, weigh the advice',
       '  4. deploy design export             the files to hand on',
     );

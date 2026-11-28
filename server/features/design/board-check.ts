@@ -34,7 +34,11 @@ import {
   firstFile,
 } from '../../../shared/v2/design-system-path.ts';
 import { boardOrder, placeBoard } from '../../design/board-placement.ts';
-import type { BoardQuestion, ModelSheet } from '../../design/check-drawing.ts';
+import {
+  missingBoardImages,
+  type BoardQuestion,
+  type ModelSheet,
+} from '../../design/check-drawing.ts';
 import {
   artGridProblems,
   artPaletteProblems,
@@ -712,14 +716,16 @@ export async function checkDesign(
   const own = files.filter((file) => !carried.has(file));
 
   // New elements get layer IDs; existing IDs are kept. What became of main's IDs is judged on
-  // the board as written, before naming, so an element left with no ID shows as such.
+  // the board as written, before naming, so an element left with no ID shows as such. On an open
+  // canvas the designer names the layers that matter and nothing is named for them: a hundred
+  // made-up names are noise they would only rename.
   let named = 0;
   const layers: Record<string, string> = {};
   const written = new Map<string, string | null>();
   for (const file of own) {
     const html = await after(file);
     written.set(file, html);
-    if (html === null) continue;
+    if (html === null || openCanvas) continue;
     const next = assignLayerIds(html);
     if (next !== html) {
       named += layerIds(next).length - layerIds(html).length;
@@ -897,6 +903,22 @@ export async function checkDesign(
         short: `links to ${to}`,
         fix: `link to a board that exists, or add ${to}`,
       });
+    for (const src of text
+      ? await missingBoardImages(
+          text,
+          async (path) =>
+            (await git.read(['cat-file', '-e', `${commit}:${folder}/${path}`])) !== null,
+        )
+      : [])
+      problems.push({
+        code: 'image_missing',
+        file,
+        board: title,
+        label: `${title} shows a picture that is not there: ${src}`,
+        detail: 'it draws broken',
+        short: `missing ${src.split('/').pop()}`,
+        fix: 'commit the picture under design/ and point src at it from boards/ (../art/cat.png), or use a data: URL',
+      });
     if (text) {
       const meta = parseBoardMeta(text);
       // A new board is judged against the board it came from: the one its head names, else the
@@ -1048,13 +1070,23 @@ export async function checkDesign(
         measureHeight.add(file);
       }
     }
+    // A board gone because another of the branch's boards replaces it says so.
+    let replacedBy: string | null = null;
+    if (!text)
+      for (const other of own)
+        if (other !== file && parseBoardMeta(await after(other)).replacesAll?.includes(file)) {
+          replacedBy = other;
+          break;
+        }
     boardRows.push({
       file,
       title,
       status: !before ? 'new' : !text ? 'removed' : 'changed',
-      words: comparedWith.has(file)
-        ? `${boardWords(before, text)}, judged against ${screenName(comparedWith.get(file)!)}`
-        : (modelWords(before, text, changedModels) ?? boardWords(before, text)),
+      words: replacedBy
+        ? `replaced by ${screenName(replacedBy)}`
+        : comparedWith.has(file)
+          ? `${boardWords(before, text)}, judged against ${screenName(comparedWith.get(file)!)}`
+          : (modelWords(before, text, changedModels) ?? boardWords(before, text)),
       ...(comparedWith.has(file) ? { comparedWith: comparedWith.get(file) } : {}),
     });
   }
@@ -1315,6 +1347,18 @@ export async function checkDesign(
               pageHeight: step.layout.pageHeight,
             });
             if (short) found.notes.push(short);
+            // A page count the brief states, written in the head as pages=4.
+            const limit = Number(meta.other.pages);
+            if (limit > 0 && afterShot.pages.length > limit)
+              found.problems.push({
+                code: 'over_page_limit',
+                file,
+                board: title,
+                label: `${title} prints on ${afterShot.pages.length} pages`,
+                detail: `its head allows ${limit} (pages=${limit})`,
+                short: `${afterShot.pages.length} of ${limit} pages`,
+                fix: 'cut or tighten until it fits, or change pages= if the brief allows more',
+              });
           }
           // Printed pages: where the sheets break, nothing else read twice.
           if (scheme === stepSchemes[0] && step.layout?.kind === 'pages' && afterShot.pages?.length)

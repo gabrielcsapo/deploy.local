@@ -138,6 +138,20 @@ const modelScript = `# Prop: what it is, in one line. Built with bpy; the check 
 part('box', 'block', (0.6, 0.6, 0.6), at=(0, 0, 0.3), colour='base')
 `;
 
+/** One line for a kind whose boards have a rule the rest do not. */
+const kindTips = {
+  doc: 'A document prints on its @page (size and margins in look.css). Start each page with `break-before: page`; `check` draws the printed sheets, and `pages=4` in the head stops it when the text runs onto a fifth.',
+  slides:
+    'One board per slide, all linking look.css; `export` puts them in canvas order as one PDF.',
+  print:
+    'A face is trim plus bleed; text and marks stay inside the safe margin. `export --marks` adds crop marks.',
+  art: 'Set `tile=` and `play=` from the brief (pixels a tile, size shown in play). `export` writes each sprite as an SVG named for its data-layer.',
+  model:
+    'The model is design/models/<Name>.py; its front faces -Y (the front view looks at it), z is up, metres. `look Model --angle 30,20` turns it.',
+  logo: 'The mark is the svg with data-layer="mark"; the check draws it alone down to 16 px. Set fill-rule on the path itself.',
+  game: 'Keep play and text out of the top 54 px and bottom 34 px, or put immersive=true in the head.',
+};
+
 /** design/README.md: the canvas in a page, for an agent who has never seen it. */
 export const openReadme = (kind) => `# Design
 
@@ -148,7 +162,8 @@ shared look into \`look.css\` and reuse it.
 ## The loop
 1. Draw \`design/boards/<Board>.html\`. Start from the board init placed (rename it with plain
    \`mv\` and its key in \`canvas.json\`). Link \`../look.css\` and put the shared look there.
-2. \`deploy design look <Board>\` to see it (\`--width\`, \`--scheme dark\`, \`--angle 30\` for a model).
+2. \`deploy design look <Board>\` to see it (\`--zoom 3\` closer, \`--scheme dark\`, \`--angle 30\` for a model).
+   Use it instead of starting a browser yourself.
 3. \`deploy design check --fix\`: draws what changed beside main into \`output/design/pairs\`,
    places new boards, and lists problems (fix them) and advice (weigh it).
 4. \`deploy design export\` for the finished files (PDF, SVG marks and sprites, .glb models).
@@ -158,20 +173,21 @@ A standalone page with no scripts and no remote images, sized in its head:
 
     <meta name="design-board" content="${kinds[kind]?.meta ?? kinds.app.meta}">
 
-Keys: width, height, platform, schemes (light, or light dark), title, source, replaces, and the
-brief's limits: \`size=\` and \`tris=\` for a model, \`tile=\` and \`play=\` for sprites, \`contrast=aa\`
-to make low contrast stop the check. Give every element someone might point at a \`data-layer\` ID
-(check adds missing ones) and keep IDs when you rework a board: other agents refer to them.
-A fact the brief doesn't give (a price, an opening time) gets \`data-question="…"\` on its layer.
-
+Keys: width, height, platform, schemes (light, dark, or light dark), title, source, replaces, and
+the brief's limits: \`size=\` and \`tris=\` for a model, \`tile=\` and \`play=\` for sprites, \`pages=\`
+for a document, \`contrast=aa\` to make low contrast stop the check. Name the parts others will
+point at with \`data-layer\` IDs and keep them when you rework a board. A fact you made up that
+the brief doesn't give (a price, an opening time) gets \`data-question="…"\` on its layer.
+${kindTips[kind] ? `\n${kindTips[kind]}\n` : ''}
 ## canvas.json
 Where boards sit: { "boards": { "<Board>.html": { "x", "y", "w", "h", "title" } }, "order": [],
-"notes": {}, "schemes": ["light"] }. \`check --fix\` places new boards.
+"notes": {}, "schemes": ["light"] }. "schemes" is what every board draws in; \`check --fix\`
+places new boards.
 
 ## What stops the check
-A board that will not draw or build, text cut off or overflowing, a broken link, boards on top of
-each other, a layer ID that was renamed or lost, and limits the board's head states. Everything
-else (contrast, alignment, framing, readability at play size) is advice.
+A board that will not draw or build, text cut off or overflowing, a broken link or missing
+picture, boards on top of each other, a layer ID that was renamed or lost, and limits the board's
+head states. Everything else (contrast, alignment, framing, readability at play size) is advice.
 `;
 
 /** The files deploy design init writes for an open canvas, by path under the project. */
