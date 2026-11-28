@@ -1,0 +1,52 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The middle shell is a tiny faded ghost while the third is a dashed outline, so the rating reads as one shell earned, not two."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "A large empty gap above the buttons and odd triangular shell bases make the layout feel loose."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The inset card runs down behind the home indicator with a visible sand seam, crowding Replay against the bottom edge."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The green check badge introduces a colour outside the sea-and-sand palette and the darker pool feels slightly heavy."
+        },
+        "T": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The unearned third shell is a filled cream shell rather than an empty outline, so two-of-three is less obvious at a glance."
+        },
+        "U": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 5,
+          "flaw": "Status bar icons are slightly unevenly spaced."
+        }
+      },
+      "ranking": ["U", "T", "S", "Q", "R", "P"],
+      "why_top": "U shows every required element with an unmistakable two-of-three shell rating, clear moves versus target, calm sea-and-sand colours and well-sized thumb-reach actions, with almost nothing to fix."
+    }
+  }
+}

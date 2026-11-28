@@ -1,0 +1,52 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Replay button is about 55 pt tall, just under the 56 pt minimum, and the gap above the buttons is empty."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 5,
+          "ready": 5,
+          "flaw": "Replay sits above Next pool, so the main action is the lowest and the pool art is a bit flat."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The sheet runs into the home indicator and Replay is about 55 pt, under the minimum."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Replay is about 55 pt tall and the 'moves' and 'target' captions are small next to the numerals."
+        },
+        "T": {
+          "fulfils": 2,
+          "reads": 2,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The shell rating is confusing: one large, one tiny faint and one dashed shell do not clearly read as two earned out of three, and Replay is about 55 pt."
+        },
+        "U": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The badge uses a green check that feels like a task status, and the dark teal art is heavier than the calm brief suggests."
+        }
+      },
+      "ranking": ["Q", "U", "P", "S", "R", "T"],
+      "why_top": "Q meets every constraint including 56 pt buttons, has a clear two-of-three shell rating, and a calm sea and sand palette with polished, consistent craft."
+    }
+  }
+}

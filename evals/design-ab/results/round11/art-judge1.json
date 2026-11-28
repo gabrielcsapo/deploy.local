@@ -1,0 +1,100 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cart is cramped and its steam and pot read weakly; cobble tile is a bit regular."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Cat and lantern are noisy with stripe texture and the cart is cluttered, so shapes blur at play size."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Cart is thin and spindly with a weak steaming pot, and the tile looks like irregular crazy paving."
+        },
+        "S": {
+          "fulfils": 2,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Cart is a confusing square block with a huge wheel and no clear awning or handcart form."
+        },
+        "T": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Lantern shading is muddy and banded, and the tile has small seam hints at its edges."
+        },
+        "U": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cart is dark and muddled under the awning, and the cat is slightly stiff."
+        }
+      },
+      "ranking": ["P", "T", "U", "Q", "R", "S"],
+      "why_top": "P has the cleanest, most readable set: a clear cat, a bold lantern, a tidy seamless cobble tile and a recognisable cart."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Gardener's watering can is a blobby green mass and the tile's pale edge looks like a cream border."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Tray seedlings are tiny and sparse, and the gardener's face and apron are a bit plain."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The packet is green rather than paper-like and the watering can is red and oddly shaped."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Gardener is lanky with a flat torso and the watering can lacks a spout."
+        },
+        "T": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Gardener is a muddled green shirt blob with no clear apron, and the tray is very dark."
+        },
+        "U": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Gardener has a cream shirt blob and the tray is dark with sparse seedlings that blend into the soil."
+        }
+      },
+      "ranking": ["S", "P", "Q", "R", "U", "T"],
+      "why_top": "S has the clearest gardener, a tray with six plump seedlings, a cleanly aligned brick tile and a well-drawn packet."
+    }
+  }
+}

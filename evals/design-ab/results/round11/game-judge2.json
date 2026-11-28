@@ -1,0 +1,52 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The shells sit on odd triangular stands that read like lamp bases, and a large empty gap sits above the buttons."
+        },
+        "Q": {
+          "fulfils": 2,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Only one shell reads as earned; the middle shell is a faint ghost, so the two-of-three rating is wrong."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The hermit crab is awkwardly drawn and perched on the sand edge at the top rather than in the pool."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The inset card's sand-lipped bottom runs into the home indicator, leaving a cramped seam at the screen edge."
+        },
+        "T": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The top-down crab reads as a spider, and the unearned third shell is a solid fill that is easy to mistake for earned."
+        },
+        "U": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "Status bar icons are slightly mis-spaced and the inline 'moves' and 'target' labels are small next to the numbers."
+        }
+      },
+      "ranking": ["U", "P", "S", "R", "T", "Q"],
+      "why_top": "U meets every requirement with the most polished, calm sea-and-sand finish, clear 2-of-3 shells and well-placed thumb-reach actions."
+    }
+  }
+}

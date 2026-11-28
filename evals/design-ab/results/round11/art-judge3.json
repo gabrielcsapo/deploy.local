@@ -1,0 +1,100 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The noodle cart reads as a boxy crate with an off-centre single wheel and a flat awning, not a clear handcart."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The lantern is a tall oval rather than round, and the pot sits beside the cart rather than on top."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The lantern is a wide banded hexagon rather than a round paper lantern."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The ground tile reads as regular brickwork rows, not cobbles, and the cart's awning floats on a crate with one wheel."
+        },
+        "T": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The steam pixels look faint and possibly semi-transparent, and the cart's wheels are tiny."
+        },
+        "U": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The noodle cart is cluttered and muddy, with the dome awning, goods and pot crowding together."
+        }
+      },
+      "ranking": ["T", "R", "U", "Q", "P", "S"],
+      "why_top": "T has the most convincing irregular cobble tile, a properly round lit lantern and a clear awning-and-pot cart, all reading well on the plum ground."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The seedlings stand tall above the tray so the two rows read as stacked leaves rather than a shallow tray."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The seedlings read as one row of six, and the packet's folded top is barely suggested."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The seed tray is a deep crate with cluttered seedlings that do not read as two neat rows of three."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The packet has a crimped serrated top instead of a folded one."
+        },
+        "T": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The gardener's arm and can are slightly stiff and blocky."
+        },
+        "U": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The plain brick tile lacks any texture and the light tan mortar is close to the wall in value."
+        }
+      },
+      "ranking": ["T", "U", "P", "R", "S", "Q"],
+      "why_top": "T meets every item cleanly, with an unmistakable two-by-three seedling tray, a clearly folded packet, a seamless dark-mortar running bond and strong outlines on the pale wall."
+    }
+  }
+}

@@ -1,0 +1,266 @@
+{
+  "kinds": {
+    "art": {
+      "by_judge": {
+        "judge1": [9, 9],
+        "judge2": [8, 10],
+        "judge3": [11, 7]
+      },
+      "pipeline_wins": 3,
+      "pipeline_losses": 2,
+      "split": 13,
+      "per_brief": {
+        "art-1": [2, 1, 6],
+        "art-2": [1, 1, 7]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.56,
+          "reads": 3.83,
+          "craft": 3.61,
+          "ready": 3.33
+        },
+        "B": {
+          "fulfils": 3.72,
+          "reads": 3.78,
+          "craft": 3.44,
+          "ready": 3.22
+        }
+      },
+      "mean_rank": {
+        "art-1": {
+          "A_mean_rank": 0.44,
+          "B_mean_rank": 0.56,
+          "won": 5,
+          "lost": 4,
+          "tied": 0
+        },
+        "art-2": {
+          "A_mean_rank": 0.53,
+          "B_mean_rank": 0.47,
+          "won": 5,
+          "lost": 4,
+          "tied": 0
+        }
+      }
+    },
+    "game": {
+      "by_judge": {
+        "judge1": [7, 2],
+        "judge2": [3, 6],
+        "judge3": [5, 4]
+      },
+      "pipeline_wins": 3,
+      "pipeline_losses": 2,
+      "split": 4,
+      "per_brief": {
+        "game-1": [3, 2, 4]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.78,
+          "reads": 4.0,
+          "craft": 3.67,
+          "ready": 3.56
+        },
+        "B": {
+          "fulfils": 3.89,
+          "reads": 3.89,
+          "craft": 3.78,
+          "ready": 3.44
+        }
+      },
+      "mean_rank": {
+        "game-1": {
+          "A_mean_rank": 0.47,
+          "B_mean_rank": 0.53,
+          "won": 4,
+          "lost": 4,
+          "tied": 1
+        }
+      }
+    }
+  },
+  "runs": {
+    "b01": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [4, 1, 0],
+      "flaws": [
+        "Gardener has a cream shirt blob and the tray is dark with sparse seedlings that blend into the soil.",
+        "The seed packet's top is a flat band rather than a clearly folded top.",
+        "The gardener's arm and can are slightly stiff and blocky."
+      ]
+    },
+    "b02": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [0, 5, 5],
+      "flaws": [
+        "Cart is cramped and its steam and pot read weakly; cobble tile is a bit regular.",
+        "The cart is weak: one small grey wheel, a boxy floating awning and a stick handle make it look unfinished.",
+        "The ground tile reads as regular brickwork rows, not cobbles, and the cart's awning floats on a crate with one wheel."
+      ]
+    },
+    "b03": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [5, 5, 5],
+      "flaws": [
+        "The shell rating is confusing: one large, one tiny faint and one dashed shell do not clearly read as two earned out of three, and Replay is about 55 pt.",
+        "Only one shell reads as earned; the middle shell is a faint ghost, so the two-of-three rating is wrong.",
+        "The middle shell is a tiny faded ghost while the third is a dashed outline, so the rating reads as one shell earned, not two."
+      ]
+    },
+    "b04": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [5, 0, 3],
+      "flaws": [
+        "Gardener is a muddled green shirt blob with no clear apron, and the tray is very dark.",
+        "The tray's dark interior makes the seedlings a little cramped and murky at play size.",
+        "The seed tray is a deep crate with cluttered seedlings that do not read as two neat rows of three."
+      ]
+    },
+    "b05": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [2, 1, 3],
+      "flaws": [
+        "Replay button is about 55 pt tall, just under the 56 pt minimum, and the gap above the buttons is empty.",
+        "The shells sit on odd triangular stands that read like lamp bases, and a large empty gap sits above the buttons.",
+        "A large empty gap above the buttons and odd triangular shell bases make the layout feel loose."
+      ]
+    },
+    "b06": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [2, 1, 2],
+      "flaws": [
+        "Cart is dark and muddled under the awning, and the cat is slightly stiff.",
+        "The cart is crowded and busy, with awning, food, pot and red panel merging at play size.",
+        "The noodle cart is cluttered and muddy, with the dome awning, goods and pot crowding together."
+      ]
+    },
+    "b07": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [1, 3, 4],
+      "flaws": [
+        "Gardener's watering can is a blobby green mass and the tile's pale edge looks like a cream border.",
+        "The tray's seedlings are a cluttered clump that doesn't read clearly as two neat rows of three.",
+        "The packet has a crimped serrated top instead of a folded one."
+      ]
+    },
+    "b08": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [3, 4, 3],
+      "flaws": [
+        "Cat and lantern are noisy with stripe texture and the cart is cluttered, so shapes blur at play size.",
+        "The cat's tail is a straight striped strip, not a tail curled to the right.",
+        "The lantern is a tall oval rather than round, and the pot sits beside the cart rather than on top."
+      ]
+    },
+    "b09": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [3, 0, 0],
+      "flaws": [
+        "Replay is about 55 pt tall and the 'moves' and 'target' captions are small next to the numerals.",
+        "Status bar icons are slightly mis-spaced and the inline 'moves' and 'target' labels are small next to the numbers.",
+        "Status bar icons are slightly unevenly spaced."
+      ]
+    },
+    "d01": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [3, 5, 5],
+      "flaws": [
+        "The packet is green rather than paper-like and the watering can is red and oddly shaped.",
+        "The seedlings read as one dense row rather than two rows of three, and the green packet and red can stray from the cosy brown and cream brief.",
+        "The seedlings read as one row of six, and the packet's folded top is barely suggested."
+      ]
+    },
+    "d02": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [4, 2, 0],
+      "flaws": [
+        "Cart is thin and spindly with a weak steaming pot, and the tile looks like irregular crazy paving.",
+        "The cart's wheels are tiny stubs and the steam is so faint it nearly vanishes.",
+        "The steam pixels look faint and possibly semi-transparent, and the cart's wheels are tiny."
+      ]
+    },
+    "d03": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [1, 3, 2],
+      "flaws": [
+        "The badge uses a green check that feels like a task status, and the dark teal art is heavier than the calm brief suggests.",
+        "The hermit crab is awkwardly drawn and perched on the sand edge at the top rather than in the pool.",
+        "The green check badge introduces a colour outside the sea-and-sand palette and the darker pool feels slightly heavy."
+      ]
+    },
+    "d04": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [0, 2, 2],
+      "flaws": [
+        "Gardener is lanky with a flat torso and the watering can lacks a spout.",
+        "The packet has no real folded top, and the brick highlights suggest light from the left.",
+        "The seedlings stand tall above the tray so the two rows read as stacked leaves rather than a shallow tray."
+      ]
+    },
+    "d05": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [0, 4, 1],
+      "flaws": [
+        "Replay sits above Next pool, so the main action is the lowest and the pool art is a bit flat.",
+        "The top-down crab reads as a spider, and the unearned third shell is a solid fill that is easy to mistake for earned.",
+        "The unearned third shell is a filled cream shell rather than an empty outline, so two-of-three is less obvious at a glance."
+      ]
+    },
+    "d06": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [5, 3, 4],
+      "flaws": [
+        "Cart is a confusing square block with a huge wheel and no clear awning or handcart form.",
+        "The noodle cart is a muddled block with an off-centre wheel and steam painted flat onto the awning, so it hardly reads as a handcart.",
+        "The noodle cart reads as a boxy crate with an off-centre single wheel and a flat awning, not a clear handcart."
+      ]
+    },
+    "d07": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [2, 4, 1],
+      "flaws": [
+        "Tray seedlings are tiny and sparse, and the gardener's face and apron are a bit plain.",
+        "The brick shading puts dark edges on the right, so the light reads from the left instead of the top right, and the gardener's outline is broken in places.",
+        "The plain brick tile lacks any texture and the light tan mortar is close to the wall in value."
+      ]
+    },
+    "d08": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [1, 0, 1],
+      "flaws": [
+        "Lantern shading is muddy and banded, and the tile has small seam hints at its edges.",
+        "The lantern's faceted diamond shape is less round than the brief asks for.",
+        "The lantern is a wide banded hexagon rather than a round paper lantern."
+      ]
+    },
+    "d09": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [4, 2, 4],
+      "flaws": [
+        "The sheet runs into the home indicator and Replay is about 55 pt, under the minimum.",
+        "The inset card's sand-lipped bottom runs into the home indicator, leaving a cramped seam at the screen edge.",
+        "The inset card runs down behind the home indicator with a visible sand seam, crowding Replay against the bottom edge."
+      ]
+    }
+  }
+}

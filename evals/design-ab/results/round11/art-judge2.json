@@ -1,0 +1,100 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The noodle cart is a muddled block with an off-centre wheel and steam painted flat onto the awning, so it hardly reads as a handcart."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The cat's tail is a straight striped strip, not a tail curled to the right."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The lantern's faceted diamond shape is less round than the brief asks for."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The cart is crowded and busy, with awning, food, pot and red panel merging at play size."
+        },
+        "T": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 2,
+          "ready": 2,
+          "flaw": "The cart is weak: one small grey wheel, a boxy floating awning and a stick handle make it look unfinished."
+        },
+        "U": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The cart's wheels are tiny stubs and the steam is so faint it nearly vanishes."
+        }
+      },
+      "ranking": ["R", "S", "U", "P", "Q", "T"],
+      "why_top": "R gives the cleanest, most consistent set: a well-shaped cat with a curled tail, a lit lantern, a seamless cobble tile and a clearly readable cart with awning and steaming pot."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The seed packet's top is a flat band rather than a clearly folded top."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The tray's seedlings are a cluttered clump that doesn't read clearly as two neat rows of three."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The brick shading puts dark edges on the right, so the light reads from the left instead of the top right, and the gardener's outline is broken in places."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The packet has no real folded top, and the brick highlights suggest light from the left."
+        },
+        "T": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The seedlings read as one dense row rather than two rows of three, and the green packet and red can stray from the cosy brown and cream brief."
+        },
+        "U": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The tray's dark interior makes the seedlings a little cramped and murky at play size."
+        }
+      },
+      "ranking": ["U", "P", "S", "Q", "R", "T"],
+      "why_top": "U meets every point, including a clearly folded packet top lit from the top right, a clean running-bond tile and a well-outlined gardener facing left with apron, hat and can."
+    }
+  }
+}

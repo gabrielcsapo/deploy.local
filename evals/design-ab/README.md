@@ -199,3 +199,27 @@ Mean "ready": art A 3.42, B 3.17 (round 9: A 3.25, B 3.50); game A 3.50, B 3.33.
 drew from pixel grids, and none wrote its own drawing script. Working tokens a run (less about 125k
 fixed): art about 70k (round 9 A 81k, B 67k), game about 32k (round 9 A 41k, B 32k). Minutes: art A 7
 to 10, game A 3 to 4.4. Results: results/round10.
+
+## Round 11 (2026-11-28, sprite look, the biggest flaw, three judges)
+
+What changed first (commit e91a77e0): `look <Sprite>` draws one sprite close up, at play size on each
+`.art-ground` and a tile 3×3; the review questions end with the one flaw a reviewer would name first;
+the eval blinds for three judges (Sonnet, Opus, Opus) and reports each run's mean rank.
+
+Runs: the round 9 briefs, 3 new flow runs (A) a brief against round 9's 3 plain runs (B).
+
+| Brief  | A mean rank | B mean rank | Pairs by mean rank (won-lost-tied) | Opus judges only    |
+| ------ | ----------- | ----------- | ---------------------------------- | ------------------- |
+| art-1  | 0.44        | 0.56        | 5-4-0                              | 0.33 vs 0.67, 7-1-1 |
+| art-2  | 0.53        | 0.47        | 5-4-0                              | 0.63 vs 0.37, 2-7-0 |
+| game-1 | 0.47        | 0.53        | 4-4-1                              | 0.53 vs 0.47, 3-6-0 |
+
+Judge agreement (Spearman between judges' rankings): Sonnet against either Opus judge -0.43 to 0.03 on
+art and 0.03 to 0.66 on game; the two Opus judges 0.43 to 0.77. Sonnet's art rankings are noise
+beside Opus's, which is why so many earlier pairs came out split. Two of three art-2 flow runs were
+again marked down for light from the wrong side.
+
+Designer actions (results/round11/designer-actions.md, against round 10's): 51 `look <Sprite>` calls,
+but own scripts did not fall (103 against 98) and pictures read rose (97 against 79). The scripts
+are now mostly the work itself (grid generators, procedural cobbles, path geometry) and text patches
+done in Python because the Edit tool needs a Read first; PIL previews fell from 20 to 16.

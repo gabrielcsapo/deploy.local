@@ -1,0 +1,42 @@
+[
+  {
+    "id": "art-1",
+    "kind": "art",
+    "title": "Night Market Lantern Alley: Street Vendor Sprites",
+    "brief": "Game: 'Paper Moon Alley', a top-down 2D cosy-stealth game where the player is a stray cat slipping between stalls in a crowded night market; camera is a fixed top-down view with a 3/4 tilt. All sprites are 24x24 pixels, drawn with a single shared palette of at most 14 colours across all four assets, no anti-aliasing, no gradients, no dithering, 1px outline allowed only in the darkest palette colour, and no semi-transparent pixels (hard alpha, on or off). Exactly 4 named assets: (1) StrayCatIdle, a ginger cat with a white chest sitting and facing the camera, tail curled to the right; (2) PaperLantern, a round red paper lantern with a gold cap and a short tassel, lit, hanging pose; (3) CobbleTile, a seamlessly repeating ground tile of pale grey-beige cobblestones with darker mortar gaps, edges must wrap on all four sides with no visible seam when tiled 4x4; (4) NoodleCart, a small wooden handcart with a green awning and a steaming pot on top. Sprites are played on a flat dark charcoal-plum (#1c1620) ground background with a faint 1px square grid line every 24 pixels in a slightly lighter plum, so the sprites must stay readable against it and no asset may use that plum as its main fill.",
+    "render": {
+      "roles": [
+        ["cat", "cat|stray|idle"],
+        ["lantern", "lantern|paper"],
+        ["tile", "cobble|tile|ground"],
+        ["cart", "cart|noodle"]
+      ],
+      "ground": "background-color:#1c1620;background-image:linear-gradient(#2a2230 {z}px,transparent {z}px),linear-gradient(90deg,#2a2230 {z}px,transparent {z}px);background-size:calc({z}px*24) calc({z}px*24)",
+      "dark": true,
+      "width": 1100
+    }
+  },
+  {
+    "id": "art-2",
+    "kind": "art",
+    "title": "Greenhouse Seed Bank: Botanical Lab Sprites",
+    "brief": "Game: 'Sprout & Ledger', a side-view 2D puzzle-platformer set in a bright glass-roofed seed bank, where the player is a small gardener moving seed trays between shelves; camera is side-on, one room per screen. All sprites are 32x32 pixels, drawn with one shared palette of at most 16 colours across all four assets, no anti-aliasing, no dithering, hard-edged pixels only, light from the top right on every asset, and no semi-transparent pixels. Exactly 4 named assets: (1) GardenerIdle, a gardener in a brown apron and wide straw hat holding a watering can, one standing frame facing left; (2) SeedTray, a shallow wooden tray of dark soil with six small green seedlings in two rows of three; (3) TerracottaTile, a seamlessly repeating floor tile of orange-brown terracotta bricks in a running bond, must tile horizontally and vertically with no visible seam and the mortar lines must line up across every join; (4) SeedPacket, an upright paper packet with a folded top, a cream label and a tiny red tomato icon. Sprites are played on a flat pale mint-white (#e4f1e6) back wall with a faint 1px vertical line every 16 pixels like glass-pane frames, so sprites need a dark outline to stay readable and no asset may use the wall colour as its main fill.",
+    "render": {
+      "roles": [
+        ["gardener", "gardener|player|hero"],
+        ["tray", "tray|seedling"],
+        ["tile", "terracotta|tile|brick|floor"],
+        ["packet", "packet|seed-packet|seedpacket"]
+      ],
+      "ground": "background-color:#e4f1e6;background-image:linear-gradient(90deg,#c9dccc {z}px,transparent {z}px);background-size:calc({z}px*16) 100%",
+      "dark": false,
+      "width": 1300
+    }
+  },
+  {
+    "id": "game-1",
+    "kind": "game",
+    "title": "Tide Pool Puzzle Game Level Complete Screen",
+    "brief": "Game: 'Rockpool', a calm puzzle game on iPhone where the player guides a hermit crab through tide pools; held in portrait, one thumb. Design one screen: the Level Complete screen for level 12, 'Kelp Corner', shown over the finished pool. It must show the level name, three shells as the star rating with two earned, the moves used '18' against the target '20', a new personal best badge, and two actions: 'Next pool' (main) and 'Replay'. Hard constraints: 390 x 844 points, content clear of the status bar and home indicator, both actions in the bottom third within thumb reach and at least 56 pt tall, text at least 17 pt, and a palette of sea and sand colours that reads as calm, not arcade."
+  }
+]
