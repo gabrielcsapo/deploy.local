@@ -18,6 +18,7 @@ const viewWords: Record<ModelView, string> = {
   side: 'the side',
   'three-quarter': 'the three-quarter view',
   top: 'the top',
+  bottom: 'the view from underneath',
 };
 const axes = ['wide', 'deep', 'tall'];
 
@@ -181,6 +182,21 @@ export function modelFindings(input: { file: string; title: string; model: Model
           "paint every part with pal('<name>') from the kit's --pal-* colours",
         ),
       );
+  }
+  const flush = stats.flush ?? [];
+  if (flush.length) {
+    const said = flush
+      .slice(0, 3)
+      .map((pair) => `${pair.a} and ${pair.b} (${Math.max(1, Math.round(pair.area * 10000))} cm²)`);
+    problems.push(
+      finding(
+        'model_flush_faces',
+        `${name} has faces that flicker`,
+        `where parts in two colours lie flush, in one plane: ${said.join(', ')}${flush.length > 3 ? ` and ${flush.length - 3} more` : ''}. The surface flickers between the colours in every engine and speckles in the pictures`,
+        'flush faces',
+        'let one part sit a hair (a millimetre or two) inside or outside the other, or leave out the face nobody sees',
+      ),
+    );
   }
   return { problems, notes };
 }

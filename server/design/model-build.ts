@@ -1,4 +1,4 @@
-// A model board's model, built in Blender: its pictures from four sides, its .glb and what the
+// A model board's model, built in Blender: its pictures from every side, its .glb and what the
 // check reads (triangles, bounds, colours, where each picture's model and box fall). The model is
 // design/models/<Name>.py (a bpy script, with pal() and part() to hand), .glb, .gltf or .blend.
 // Builds are kept by what went in, so a board drawn twice, or before and after with the model
@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 declare const __DESIGN_BLENDER_RUNNER__: string | undefined;
 
-export const modelViews = ['front', 'side', 'three-quarter', 'top'] as const;
+export const modelViews = ['front', 'side', 'three-quarter', 'top', 'bottom'] as const;
 export type ModelView = (typeof modelViews)[number];
 export const modelExtensions = ['py', 'glb', 'gltf', 'blend'] as const;
 
@@ -51,6 +51,9 @@ export type ModelStats = {
   uncoloured?: number;
   /** Each part's own bounds, so a check can say which part is past the box. */
   parts?: { name: string; min: [number, number, number]; max: [number, number, number] }[];
+  /** Faces of two parts in two colours that lie flush in one plane, facing the same way: they
+   * flicker in every engine. The overlap in square metres, the biggest first. */
+  flush?: { a: string; b: string; area: number }[];
   views?: Partial<Record<ModelView, ModelPicture>>;
 };
 

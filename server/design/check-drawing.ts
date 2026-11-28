@@ -137,7 +137,7 @@ const modelPlaceholder = (text: string) =>
   ).toString('base64')}`;
 
 /**
- * A model board with its model drawn in: each <img data-model-view="front|side|three-quarter|top">
+ * A model board with its model drawn in: each <img data-model-view="front|side|three-quarter|top|bottom">
  * gets the picture from that side, each data-model-stat="tris|size" the number measured, and the
  * page carries the build's stats for the check.
  */

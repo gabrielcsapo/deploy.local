@@ -193,6 +193,27 @@ test('a model past its box names the parts that leave it, the furthest first', (
   assert.match(found.problems[0].detail, /the parts past it: handle, lid/);
 });
 
+test('parts in two colours that lie flush are named, the biggest overlap first', () => {
+  const found = modelFindings({
+    file: 'M.html',
+    title: 'M',
+    model: sheet({
+      flush: [
+        { a: 'bell body', b: 'rim band', area: 0.69 },
+        { a: 'bezel', b: 'glass', area: 0.00004 },
+      ],
+    }),
+  });
+  assert.deepEqual(
+    found.problems.map((entry) => entry.code),
+    ['model_flush_faces'],
+  );
+  assert.match(
+    found.problems[0].detail,
+    /in one plane: bell body and rim band \(6900 cm²\), bezel and glass \(1 cm²\)\. /,
+  );
+});
+
 test("a model's preview page carries the model and turns it with three.js", () => {
   const page = modelPreviewPage({
     name: 'Crate <1>',

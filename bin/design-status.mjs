@@ -603,7 +603,8 @@ const kindWords = {
   game: 'game screens',
   logo: 'a logo (the mark from 512 down to 16 px)',
   art: 'game art: sprites and tiles on a pixel grid, read at play size',
-  model: 'game models: built in Blender, drawn from four sides in the box they must fit',
+  model:
+    'game models: built in Blender, drawn from every side, underneath too, in the box they must fit',
 };
 
 /** Check codes only an app's web and iPhone boards meet. */

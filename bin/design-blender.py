@@ -6,7 +6,7 @@
 #   blender -b --factory-startup --python design-blender.py -- (the same)
 #
 # A model is a Python script that builds it with bpy (with pal() and part() to hand), or a .glb,
-# .gltf or .blend file. DIR gets model.glb, a picture from the front, side, three-quarter and top
+# .gltf or .blend file. DIR gets model.glb, a picture from the front, side, three-quarter, top and underneath
 # (orthographic, on a transparent ground, framed on the declared box and any part past it) and
 # stats.json: triangles, bounds, colours, and where each picture's model and box fall.
 #
@@ -22,7 +22,7 @@ import traceback
 import bpy
 from mathutils import Matrix, Vector
 
-VIEWS = ['front', 'side', 'three-quarter', 'top']
+VIEWS = ['front', 'side', 'three-quarter', 'top', 'bottom']
 
 
 def arguments():
@@ -207,6 +207,7 @@ def measured():
     uncoloured = 0
     objects = 0
     parts = []
+    faces = []
     for obj in bpy.context.scene.objects:
         if obj.type not in ('MESH', 'CURVE', 'SURFACE', 'META', 'FONT') or obj.hide_render:
             continue
@@ -229,6 +230,16 @@ def measured():
             high = Vector(map(max, high, part_high))
             parts.append({'name': obj.name, 'min': list(part_low), 'max': list(part_high)})
         slots = evaluated.material_slots
+        rotation = matrix.to_3x3()
+        for polygon in mesh.polygons:
+            index = polygon.material_index
+            material = slots[index].material if index < len(slots) else None
+            normal = (rotation @ polygon.normal)
+            if normal.length < 1e-9:
+                continue
+            normal.normalize()
+            points = [matrix @ mesh.vertices[v].co for v in polygon.vertices]
+            faces.append((obj.name, material.name if material else None, normal, normal.dot(points[0]), points))
         for triangle in mesh.loop_triangles:
             index = triangle.material_index
             material = slots[index].material if index < len(slots) else None
@@ -248,7 +259,75 @@ def measured():
         'colours': sorted(colours.values(), key=lambda entry: -entry['tris']),
         'uncoloured': uncoloured,
         'parts': parts[:400],
+        'flush': flush_faces(faces),
     }
+
+
+def convex_area(points):
+    return abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(points, points[1:] + points[:1]))) / 2
+
+
+def clip(subject, clipper):
+    """Sutherland-Hodgman: the part of one convex polygon inside another, both in 2D."""
+    def inside(point, a, b, sign):
+        return sign * ((b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0])) >= -1e-12
+
+    def cross_point(p, q, a, b):
+        x1, y1, x2, y2, x3, y3, x4, y4 = *p, *q, *a, *b
+        d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if abs(d) < 1e-15:
+            return q
+        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d
+        return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
+
+    area_sign = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(clipper, clipper[1:] + clipper[:1]))
+    sign = 1 if area_sign >= 0 else -1
+    output = subject
+    for a, b in zip(clipper, clipper[1:] + clipper[:1]):
+        if not output:
+            break
+        given, output = output, []
+        for p, q in zip(given, given[1:] + given[:1]):
+            if inside(q, a, b, sign):
+                if not inside(p, a, b, sign):
+                    output.append(cross_point(p, q, a, b))
+                output.append(q)
+            elif inside(p, a, b, sign):
+                output.append(cross_point(p, q, a, b))
+    return output
+
+
+def flush_faces(faces, gap=0.0005, least=0.0001):
+    """
+    Faces of two parts in two colours that lie in one plane, facing the same way, and overlap: the
+    engine cannot tell which is in front, so the surface flickers between the colours (z-fighting).
+    Faces that meet back to back (a block on a block) face apart and are fine.
+    """
+    groups = {}
+    for face in faces:
+        normal = face[2]
+        groups.setdefault((round(normal.x, 2), round(normal.y, 2), round(normal.z, 2)), []).append(face)
+    pairs = {}
+    for group in groups.values():
+        group.sort(key=lambda face: face[3])
+        for i, (name, material, normal, offset, points) in enumerate(group):
+            for other in group[i + 1:]:
+                if other[3] - offset > gap:
+                    break
+                if other[0] == name or other[1] == material or normal.dot(other[2]) < 0.9999:
+                    continue
+                # Both faces in the plane's own 2D axes.
+                axis = normal.orthogonal().normalized()
+                second = normal.cross(axis)
+                flat = lambda pts: [(p.dot(axis), p.dot(second)) for p in pts]
+                shared = clip(flat(points), flat(other[4]))
+                area = convex_area(shared) if len(shared) > 2 else 0
+                if area < least:
+                    continue
+                key = tuple(sorted((name, other[0])))
+                pairs[key] = pairs.get(key, 0) + area
+    found = [{'a': a, 'b': b, 'area': round(area, 4)} for (a, b), area in pairs.items()]
+    return sorted(found, key=lambda entry: -entry['area'])[:20]
 
 
 def material_colour(material):
@@ -273,6 +352,8 @@ def view_direction(view):
         'side': Vector((1, 0, 0)),
         'three-quarter': Vector((1, -1, 0.82)).normalized(),
         'top': Vector((0, 0, 1)),
+        # From underneath, looking up: an open bottom, feet or wheels are judged here.
+        'bottom': Vector((0, 0, -1)),
     }[view]
 
 
@@ -325,7 +406,7 @@ def aim(camera, view, box, bounds):
     high = Vector(map(max, *points)) if len(points) > 1 else points[0]
     centre = (low + high) / 2
     toward = view_direction(view)
-    up = Vector((0, 1, 0)) if view == 'top' else Vector((0, 0, 1))
+    up = Vector((0, 1, 0)) if view in ('top', 'bottom') else Vector((0, 0, 1))
     # The picture's right is x, its up is y, and the camera looks down -z (toward the model).
     right = up.cross(toward).normalized()
     upward = toward.cross(right).normalized()
@@ -415,7 +496,11 @@ def main():
         return 0
     scene, camera = setup_scene(size, samples)
     edges = [(a, b) for a in range(8) for b in range(a + 1, 8) if bin(a ^ b).count('1') == 1]
+    key = bpy.data.objects['key']
+    above = key.rotation_euler.copy()
     for view in VIEWS:
+        # Underneath is lit from below, the same way the other views are lit from above.
+        key.rotation_euler = (math.radians(180) - above.x, above.y, above.z) if view == 'bottom' else above
         aim(camera, view, box, stats.get('bounds'))
         path = os.path.join(out, f'{view}.png')
         scene.render.filepath = path

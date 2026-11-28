@@ -1,4 +1,4 @@
-/* Model kind: a game's 3D models, each drawn in Blender from four sides on a sheet. Load
+/* Model kind: a game's 3D models, each drawn in Blender from every side on a sheet. Load
    tokens.css and components.css first. A model board shows one model: its pictures come from the
    check (each <img data-model-view>), drawn from design/models/<Name>.py in the box its meta
    gives. The sheet around the pictures is plain UI: neutral, from tokens. */
@@ -103,8 +103,9 @@ body {
   color: var(--ink-secondary);
 }
 
-/* The four pictures, in a row: front, side, three-quarter, top. Each is square, on the sunken
-   ground, with its name under it. The check draws the model's box over each, dashed. */
+/* The pictures, in a row: front, side, three-quarter, top, and underneath when the board shows
+   it. Each is square, on the sunken ground, with its name under it. The check draws the model's
+   box over each, dashed. Five fit the sheet at a smaller size. */
 .model-views {
   display: flex;
   gap: var(--space-6);
@@ -123,6 +124,10 @@ body {
   background: var(--bg-sunken);
   border-radius: var(--radius-sm);
   box-shadow: inset 0 0 0 1px var(--line);
+}
+.model-views:has(> .model-view:nth-child(5)) .model-view img {
+  width: 216px;
+  height: 216px;
 }
 .model-view figcaption {
   font-size: var(--text-meta);

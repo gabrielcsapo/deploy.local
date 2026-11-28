@@ -937,7 +937,7 @@ test("the art kit's sprites are read and drawn at play size on each ground, and 
   }
 });
 
-test("the model kit's crate builds in Blender, is drawn from four sides in its box and passes; a broken crate fails each check", async (t) => {
+test("the model kit's crate builds in Blender, is drawn from every side in its box and passes; a broken crate fails each check", async (t) => {
   const { findBlender, buildModel, modelSource } = await import('../server/design/model-build.ts');
   if (!findBlender()) return t.skip('no Blender here (install Blender or pip install bpy)');
   const { browser, reason } = await openChromium();
@@ -991,6 +991,7 @@ test("the model kit's crate builds in Blender, is drawn from four sides in its b
     assert.equal(model.budget, 500);
     assert.ok(model.stats.tris > 100 && model.stats.tris <= 500, `${model.stats.tris} triangles`);
     assert.deepEqual(Object.keys(model.stats.views).sort(), [
+      'bottom',
       'front',
       'side',
       'three-quarter',
@@ -1017,14 +1018,21 @@ lamp = part('sphere', 'lamp', (0.2, 0.2, 0.2), at=(0, 0, 0.5), colour='wood')
 lamp.data.materials[0] = glow
 for i in range(6):
     part('cylinder', f'peg {i}', (0.05, 0.05, 0.05), at=(0, 0, 0.5), colour='bark', sides=32)
+# A patch whose front face lies in the body's front face, in another colour: it flickers.
+part('box', 'patch', (0.3, 0.1, 0.3), at=(0, -0.4, 0.5), colour='bark')
 `;
     const bad = (await shoot(board, { 'models/Crate.py': broken })).model;
     const codes = findings(bad).map((entry) => entry.code);
     assert.deepEqual(codes.sort(), [
+      'model_flush_faces',
       'model_off_palette',
       'model_out_of_bounds',
       'model_over_budget',
     ]);
+    assert.match(
+      findings(bad).find((entry) => entry.code === 'model_flush_faces').detail,
+      /body and patch/,
+    );
     // The lid past the box is still in every picture, above the box.
     assert.ok(bad.stats.views.front.bounds[1] < bad.stats.views.front.box[1][1]);
     const failed = (
