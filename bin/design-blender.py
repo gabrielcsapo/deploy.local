@@ -108,18 +108,84 @@ def make_helpers(palette):
             modifier.limit_method = 'ANGLE'
         return obj
 
-    return pal, part
+    def finish(obj, name, colour, at, rotate):
+        obj.name = name
+        obj.rotation_euler = [math.radians(a) for a in rotate]
+        obj.location = at
+        obj.data.materials.append(pal(colour))
+        bpy.context.scene.collection.objects.link(obj)
+        return obj
+
+    def lathe(name, profile, at=(0, 0, 0), colour=None, sides=16, rotate=(0, 0, 0)):
+        """A part turned round its own up axis (z): profile is [(radius, z), ...] from bottom to top,
+        in metres. A radius of 0 closes that end. A dish, a barrel, a cone roof, a pot, a lamp shade."""
+        if colour is None:
+            raise ValueError(f'lathe "{name}" needs a colour from the palette: colour=\'<name>\'')
+        if len(profile) < 2:
+            raise ValueError(f'lathe "{name}" needs at least two (radius, z) points')
+        verts, faces, rings = [], [], []
+        for radius, z in profile:
+            if radius <= 1e-6:
+                rings.append([len(verts)])
+                verts.append((0, 0, z))
+                continue
+            ring = []
+            for i in range(sides):
+                angle = 2 * math.pi * i / sides
+                ring.append(len(verts))
+                verts.append((radius * math.cos(angle), radius * math.sin(angle), z))
+            rings.append(ring)
+        for low, high in zip(rings, rings[1:]):
+            if len(low) == 1 and len(high) == 1:
+                continue
+            for i in range(sides):
+                j = (i + 1) % sides
+                if len(low) == 1:
+                    faces.append((low[0], high[i], high[j])[::-1])
+                elif len(high) == 1:
+                    faces.append((low[i], low[j], high[0]))
+                else:
+                    faces.append((low[i], low[j], high[j], high[i]))
+        mesh = bpy.data.meshes.new(name)
+        mesh.from_pydata(verts, [], faces)
+        mesh.update()
+        return finish(bpy.data.objects.new(name, mesh), name, colour, at, rotate)
+
+    def beam(name, start, end, width, colour=None, depth=None, sides=0):
+        """A bar from one point to another, in metres: a leg, a strut, a ladder rail, a cable.
+        width (and depth, default width) is its cross-section; sides=0 is square, 6 or more round."""
+        if colour is None:
+            raise ValueError(f'beam "{name}" needs a colour from the palette: colour=\'<name>\'')
+        a, b = Vector(start), Vector(end)
+        length = (b - a).length
+        if length < 1e-6:
+            raise ValueError(f'beam "{name}" starts and ends at the same point')
+        if sides:
+            bpy.ops.mesh.primitive_cylinder_add(vertices=sides, radius=0.5, depth=1)
+        else:
+            bpy.ops.mesh.primitive_cube_add(size=1)
+        obj = bpy.context.active_object
+        obj.name = name
+        obj.scale = (width, depth or width, length)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        obj.rotation_mode = 'QUATERNION'
+        obj.rotation_quaternion = Vector((0, 0, 1)).rotation_difference((b - a).normalized())
+        obj.location = (a + b) / 2
+        obj.data.materials.append(pal(colour))
+        return obj
+
+    return pal, part, lathe, beam
 
 
 def load_model(path, palette):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     ext = os.path.splitext(path)[1].lower()
     if ext == '.py':
-        pal, part = make_helpers(palette)
+        pal, part, lathe, beam = make_helpers(palette)
         with open(path, encoding='utf8') as handle:
             code = compile(handle.read(), path, 'exec')
-        exec(code, {'__name__': '__model__', 'bpy': bpy, 'pal': pal, 'part': part, 'math': math,
-                    'Vector': Vector, 'Matrix': Matrix})
+        exec(code, {'__name__': '__model__', 'bpy': bpy, 'pal': pal, 'part': part, 'lathe': lathe,
+                    'beam': beam, 'math': math, 'Vector': Vector, 'Matrix': Matrix})
     elif ext in ('.glb', '.gltf'):
         bpy.ops.import_scene.gltf(filepath=path)
     elif ext == '.blend':
@@ -140,6 +206,7 @@ def measured():
     colours = {}
     uncoloured = 0
     objects = 0
+    parts = []
     for obj in bpy.context.scene.objects:
         if obj.type not in ('MESH', 'CURVE', 'SURFACE', 'META', 'FONT') or obj.hide_render:
             continue
@@ -151,10 +218,16 @@ def measured():
         mesh.calc_loop_triangles()
         tris += len(mesh.loop_triangles)
         matrix = evaluated.matrix_world
+        part_low = Vector((math.inf,) * 3)
+        part_high = Vector((-math.inf,) * 3)
         for vertex in mesh.vertices:
             point = matrix @ vertex.co
-            low = Vector(map(min, low, point))
-            high = Vector(map(max, high, point))
+            part_low = Vector(map(min, part_low, point))
+            part_high = Vector(map(max, part_high, point))
+        if part_low.x != math.inf:
+            low = Vector(map(min, low, part_low))
+            high = Vector(map(max, high, part_high))
+            parts.append({'name': obj.name, 'min': list(part_low), 'max': list(part_high)})
         slots = evaluated.material_slots
         for triangle in mesh.loop_triangles:
             index = triangle.material_index
@@ -174,6 +247,7 @@ def measured():
         'bounds': {'min': list(low), 'max': list(high)},
         'colours': sorted(colours.values(), key=lambda entry: -entry['tris']),
         'uncoloured': uncoloured,
+        'parts': parts[:400],
     }
 
 

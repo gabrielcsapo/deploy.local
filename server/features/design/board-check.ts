@@ -849,7 +849,10 @@ export async function checkDesign(
     const title = screenName(file);
     // Comments and pins point at layer IDs, so one main has must survive while its element does.
     const removed: string[] = [];
-    for (const entry of layerFates(before, written.get(file) ?? text)) {
+    // The board init placed to start from is the kit's example: nobody has commented on its IDs,
+    // so its sprites, sets and blocks take the project's own names.
+    const kitStart = mainCanvas?.startingBoard === file;
+    for (const entry of kitStart ? [] : layerFates(before, written.get(file) ?? text)) {
       if (entry.fate === 'removed') removed.push(entry.layer);
       else if (entry.fate === 'renamed')
         problems.push({

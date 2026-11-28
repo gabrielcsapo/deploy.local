@@ -1665,7 +1665,7 @@ test('a clean check ends with the pairs to open and the questions a reviewer ask
     );
     assert.match(
       text,
-      /\n {2}8\. Is every open question asked with data-question instead of guessed\?\n$/,
+      /\n {2}8\. Is every old layer ID kept, and every new one named for what it is\?\n$/,
     );
   } finally {
     repo.cleanup();
@@ -2225,13 +2225,23 @@ test('init --kind with the real starter: only the kind, a starting board with tr
           );
       assert.match(html, new RegExp(`platform=${kind === 'slides' ? 'slide' : kind}`));
       if (kind === 'game') assert.match(html, /width=390,height=844/);
-      // A model kind's models go to design/models/, where its boards name them, not into ds/.
+      // A model kind's starting model goes to design/models/, where its board names it; the kit's
+      // worked examples stay in ds/, out of the project's way.
       if (kind === 'model') {
-        assert.ok(existsSync(join(root, 'design/models/Crate.py')));
-        assert.ok(existsSync(join(root, 'design/models/Tree.py')));
-        assert.equal(existsSync(join(ds, 'models')), false);
-        assert.match(html, /model=Crate,size=1x1x1,tris=500/);
+        assert.ok(existsSync(join(root, 'design/models/Prop.py')));
+        assert.equal(existsSync(join(root, 'design/models/Crate.py')), false);
+        assert.ok(existsSync(join(ds, 'models/Crate.py')));
+        assert.ok(existsSync(join(ds, 'models/Tree.py')));
+        assert.match(html, /model=Prop,size=1x1x1,tris=500/);
+        assert.doesNotMatch(
+          readFileSync(join(root, 'design/models/Prop.py'), 'utf8'),
+          /__NAME__|__DS__/,
+        );
       }
+      // Art starts with the palette and grounds to make the brief's, and no sets of anyone else's.
+      if (kind === 'art') assert.doesNotMatch(html, /class="art-set"/);
+      // check and export write pictures into output/, which git leaves alone.
+      assert.match(readFileSync(join(root, '.gitignore'), 'utf8'), /^output\/$/m);
       // The starting board is the project's own, marked as the starting point, and carries no style.
       assert.match(html, /<title>Proj [a-z ]+<\/title>/, kind);
       assert.doesNotMatch(html, /Example/, kind);

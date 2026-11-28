@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="design-board"
+      content="platform=model,width=1280,height=720,model=Prop,size=1x1x1,tris=500"
+    />
+    <title>Example model</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/model.css" />
+  </head>
+  <body>
+    <main class="model-sheet">
+      <header class="model-head" data-layer="model-head">
+        <h1>__NAME__</h1>
+        <!-- Name the model for what the brief asks (rename models/Prop.py and model= with it),
+             say in one line what it is in the game, and set size= and tris= to the brief's box and budget. -->
+        <p>What it is in the game, in one line.</p>
+      </header>
+      <div class="model-views" data-layer="views">
+        <figure class="model-view">
+          <img data-model-view="front" alt="Model from the front" width="272" height="272" />
+          <figcaption>Front</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img data-model-view="side" alt="Model from the side" width="272" height="272" />
+          <figcaption>Side</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img
+            data-model-view="three-quarter"
+            alt="Model from three-quarters"
+            width="272"
+            height="272"
+          />
+          <figcaption>Three-quarter</figcaption>
+        </figure>
+        <figure class="model-view">
+          <img data-model-view="top" alt="Model from the top" width="272" height="272" />
+          <figcaption>Top</figcaption>
+        </figure>
+      </div>
+      <div class="model-specs" data-layer="specs">
+        <section data-layer="limits">
+          <h2 class="model-label">Held to</h2>
+          <dl class="model-spec">
+            <dt>Box</dt>
+            <dd>1 × 1 × 1 m until the brief gives its box</dd>
+            <dt>Size</dt>
+            <dd data-model-stat="size">Not drawn yet</dd>
+            <dt>Triangles</dt>
+            <dd><span data-model-stat="tris">Not counted yet</span> of 500</dd>
+          </dl>
+        </section>
+        <section data-layer="colours">
+          <h2 class="model-label">Painted</h2>
+          <div class="model-palette">
+            <figure class="model-swatch">
+              <i class="c-stone"></i>
+              <figcaption>Stone</figcaption>
+            </figure>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

@@ -98,6 +98,26 @@ export function modelFindings(input: { file: string; title: string; model: Model
       if (under > slack && axis !== 2) over.push(`${metres(under)} past the ${sides[axis][0]}`);
       if (past > slack) over.push(`${metres(past)} past the ${sides[axis][1]}`);
     }
+    // Which parts reach past the box, the furthest first: the script's names for them.
+    const outside = (stats.parts ?? [])
+      .map((part) => {
+        let reach = 0;
+        for (let axis = 0; axis < 3; axis++) {
+          const slack = Math.max(0.005, box[axis] * 0.01);
+          if (axis !== 2) reach = Math.max(reach, limits[axis][0] - part.min[axis] - slack);
+          reach = Math.max(reach, part.max[axis] - limits[axis][1] - slack);
+        }
+        return { name: part.name, reach };
+      })
+      .filter((part) => part.reach > 0)
+      .sort((a, b) => b.reach - a.reach);
+    if (over.length && outside.length)
+      over.push(
+        `the part${outside.length === 1 ? '' : 's'} past it: ${outside
+          .slice(0, 5)
+          .map((part) => part.name)
+          .join(', ')}${outside.length > 5 ? ` and ${outside.length - 5} more` : ''}`,
+      );
     const cut = Object.entries(stats.views ?? {})
       .filter(([, picture]) => picture?.edges.length)
       .map(([view, picture]) => `${viewWords[view as ModelView]} (${picture!.edges.join(', ')})`);

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="design-board" content="platform=art,width=1280,height=960,tile=16,play=48" />
+    <title>Example sprite sheet</title>
+    <link rel="stylesheet" href="../ds/__DS__/tokens.css" />
+    <link rel="stylesheet" href="../ds/__DS__/components.css" />
+    <link rel="stylesheet" href="../ds/__DS__/art.css" />
+  </head>
+  <body>
+    <main class="art-sheet">
+      <header class="art-head">
+        <h1>__NAME__ sprites</h1>
+        <p>16 px art on a 16 px tile, drawn at 48 px in play.</p>
+      </header>
+      <div class="art-row">
+        <section data-layer="palette-block">
+          <h2 class="art-label">Palette</h2>
+          <div class="art-palette" data-layer="palette">
+            <figure class="art-swatch">
+              <i class="c-ink"></i>
+              <figcaption>Ink</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-shade"></i>
+              <figcaption>Shade</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-mid"></i>
+              <figcaption>Mid</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-light"></i>
+              <figcaption>Light</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-white"></i>
+              <figcaption>White</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-red"></i>
+              <figcaption>Red</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-orange"></i>
+              <figcaption>Orange</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-yellow"></i>
+              <figcaption>Yellow</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-brown"></i>
+              <figcaption>Brown</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-dirt"></i>
+              <figcaption>Dirt</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-green"></i>
+              <figcaption>Green</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-leaf"></i>
+              <figcaption>Leaf</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-blue"></i>
+              <figcaption>Blue</figcaption>
+            </figure>
+            <figure class="art-swatch">
+              <i class="c-sky"></i>
+              <figcaption>Sky</figcaption>
+            </figure>
+          </div>
+        </section>
+        <section data-layer="grounds-block">
+          <h2 class="art-label">Played on</h2>
+          <div class="art-grounds" data-layer="grounds">
+            <figure class="art-swatch wide">
+              <i class="art-ground g-day" data-layer="ground-day"></i>
+              <figcaption>Day</figcaption>
+            </figure>
+            <figure class="art-swatch wide">
+              <i class="art-ground g-dusk" data-layer="ground-dusk"></i>
+              <figcaption>Dusk</figcaption>
+            </figure>
+            <figure class="art-swatch wide">
+              <i class="art-ground g-night" data-layer="ground-night"></i>
+              <figcaption>Night</figcaption>
+            </figure>
+          </div>
+        </section>
+      </div>
+      <!-- One .art-set for each thing the brief names, as ArtSprites in ds/__DS__/examples/ draws them.
+           The palette and grounds above are the kit's sample: make them the brief's first, in art.css. -->
+      <div class="art-sets" data-layer="sets"></div>
+    </main>
+  </body>
+</html>

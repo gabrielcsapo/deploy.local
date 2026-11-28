@@ -1298,6 +1298,41 @@ test('an ID main has must survive its element: renamed and lost are problems, re
   assert.deepEqual(layerFates(main, main), []);
 });
 
+test("the board init placed to start from takes the project's own layer names", async () => {
+  const repo = repository();
+  try {
+    repo.write(
+      'design/canvas.json',
+      JSON.stringify({
+        boards: { 'A.html': { x: 0, y: 0, w: 1440, h: 900 } },
+        startingBoard: 'A.html',
+      }),
+    );
+    repo.write(
+      'design/boards/A.html',
+      '<main data-layer="page"><p data-layer="hero">Hi</p><p data-layer="coin">Coin</p></main>',
+    );
+    repo.run(['add', '.']);
+    repo.run(['commit', '-qm', 'Main']);
+    const main = repo.run(['rev-parse', 'HEAD']);
+    repo.run(['checkout', '-qb', 'own']);
+    repo.write(
+      'design/boards/A.html',
+      '<main data-layer="page"><p data-layer="crab">Hi</p><p>Shell</p></main>',
+    );
+    repo.run(['commit', '-qam', 'Own']);
+    const commit = repo.run(['rev-parse', 'HEAD']);
+    const { drawer } = drawing();
+    const result = await checkDesign({ commit, base: main }, git(repo.root), drawer);
+    assert.deepEqual(
+      result.problems.filter((p) => /layer/.test(p.code ?? '')).map((p) => p.code),
+      [],
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test('the check reports renamed, lost and removed layers against what the board was written as', async () => {
   const repo = repository();
   try {

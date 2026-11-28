@@ -49,6 +49,8 @@ export type ModelStats = {
   bounds?: { min: [number, number, number]; max: [number, number, number] };
   colours?: { colour: string; material: string; tris: number }[];
   uncoloured?: number;
+  /** Each part's own bounds, so a check can say which part is past the box. */
+  parts?: { name: string; min: [number, number, number]; max: [number, number, number] }[];
   views?: Partial<Record<ModelView, ModelPicture>>;
 };
 

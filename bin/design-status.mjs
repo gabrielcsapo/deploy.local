@@ -398,7 +398,14 @@ export function designStatus({
     if (!board) {
       // No board yet: the current boards of the same screen, on this platform first, then the
       // others, which the new board takes as its source.
-      const platform = platformOfName(file, design.kind);
+      // A name with no platform in it (no Phone, Mac…) is the kind's own platform; in an app whose
+      // boards are all phone boards, a new one is a phone board too, and the line says how to ask.
+      const named = platformOfName(file, design.kind) !== kindPlatform(design.kind);
+      const allPhone =
+        design.files.length > 0 &&
+        design.files.every((other) => design.boards.get(other)?.platform === 'phone');
+      const platform =
+        !named && design.kind === 'app' && allPhone ? 'phone' : platformOfName(file, design.kind);
       const family = screenFamily(file, design.files).filter(current);
       const same = family.filter((other) => design.boards.get(other)?.platform === platform);
       const other = family.filter((entry) => !same.includes(entry));
@@ -416,6 +423,7 @@ export function designStatus({
         file,
         exists: false,
         platform,
+        ...(!named && design.kind === 'app' ? { platformFromName: false } : {}),
         sizes: stepWidths(drawSteps(platform, parseBoardMeta(null), {})),
         drawnAt: drawnAt(platform, parseBoardMeta(null), {}),
         startFrom: same.slice(0, 5),
@@ -481,6 +489,10 @@ export function statusLines(status) {
   for (const board of status.boards) {
     if (!board.exists) {
       lines.push(`${board.file}  no board yet · ${board.platform} · ${board.drawnAt}`);
+      if (board.platformFromName === false)
+        lines.push(
+          `  ${label('Platform')}its name says none: platform=phone or platform=web in its head decides, and the check draws it so`,
+        );
       if (board.means)
         lines.push(`  ${label('Means')}${board.means}: work on that board, it is this screen`);
       else if (board.copyFrom)

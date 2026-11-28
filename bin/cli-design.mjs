@@ -147,9 +147,13 @@ it). For each: the board, width and scheme, the layer, what is wrong, and the fi
 - NOT a finding: sample user content, what a person using the product would have typed or made
   (note titles and text, folder names, a contact in a list, a photo caption, a level's room number,
   a recipe) when it is realistic, specific and plausible. Do not ask for it to be flagged or removed.
-- Only the design system's tokens and components; one primary action and calm restraint;
-  consistency across boards and between web and iPhone; every width and scheme readable, nothing
-  cut off, words true to the render; layer IDs kept and named; a sensible canvas.
+- The brief first: every hard limit met, and what matters most to the person in the brief's
+  situation is what they see first. A screen, sprite or prop that could belong to any product,
+  every fact laid out alike, is a [judgement] finding even when it is on the system.
+- The design system's tokens and components, changed in ds/ where the brief needs more than they
+  give; one primary action; consistency across boards and between web and iPhone; every width
+  and scheme readable, nothing cut off, words true to the render; layer IDs kept and named; a
+  sensible canvas.
 
 Skip praise. If nothing needs fixing, say so in one line.
 
@@ -169,7 +173,8 @@ One board per screen, drawn before it is built, on the same branch as the code.
 4. \`deploy design check --fix\`: draws each changed board in light and dark into
    \`output/design/pairs\`, places new boards on the canvas, and lists problems and notes.
 5. Look at every pair, fix every problem.
-6. \`deploy design review\`: hand the brief it prints to a second agent, act on its facts, then
+6. \`deploy design review\`: if you can start a second agent, hand it the brief this prints and
+   act on its facts; if you can't, answer the brief's list yourself against every pair. Then
    check again and commit with the code.
 
 ## What agents get wrong
@@ -193,12 +198,19 @@ One board per screen, drawn before it is built, on the same branch as the code.
     kg", "Mon 4:00-4:45 pm") flagged with \`data-question\`, never "00" or "to be confirmed", so the
     design can be judged. Flagged figures still agree with each other: a total is the sum of its
     lines, and the same figure on two boards is the same number.
-- **Stay on the system.** Tokens and components only; one accent; one primary action per view;
-  roomy rows; no box inside a card; type and spacing on the scale.
+- **The brief decides the look; the system carries it.** The starter system is a neutral default,
+  not this product's design. Find what matters most to the person in the brief's situation (the
+  time they must be back, the shift they can claim) and make it what they see first; don't lay
+  every fact out as the same row. Where the brief asks for more than the system gives (bigger
+  targets, more contrast, a dark screen at dawn, its own colours), change the tokens or add the
+  component in \`ds/${name}/\`, then use it: never a one-off style on a board.
+- **Stay on the system.** Tokens and components; one accent; one primary action per view; no box
+  inside a card; type and spacing on the scale.
 - **Light and dark, every width.** Web at 1440 and 700, iPhone at 390. Words that describe the
   render ("Light", "Web 1440") must be true in every render.
-- **iPhone is iPhone.** Sheets with Cancel and the confirm action in their bar, inset grouped
-  rows, native pickers and steppers; never a web select, date field or checkbox.
+- **iPhone is iPhone.** Sheets with Cancel and the confirm action in their bar, native pickers
+  and steppers; never a web select, date field or checkbox. Inset grouped rows are for settings
+  and lists of like things, not for every screen.
 - **Never type inside a component.** Set its data-props and run \`deploy design sync\`.
 - **Keep layer IDs** when you rebuild something, and name new ones for what they are.
 - **Draw each state completely**: after an action, show where its result appears.
@@ -277,6 +289,13 @@ export function initDesign(top, name, starter, kind = 'app') {
     )}\n`,
   );
   put('design/README.md', INIT_README(name, kind));
+  // check and export write their pictures into output/: never something to commit.
+  const ignore = join(top, '.gitignore');
+  const ignored = existsSync(ignore) ? readFileSync(ignore, 'utf8') : '';
+  if (!/^\/?output\/?$/m.test(ignored)) {
+    writeFileSync(ignore, `${ignored}${ignored && !ignored.endsWith('\n') ? '\n' : ''}output/\n`);
+    written.push('.gitignore');
+  }
   mkdirSync(join(design, 'boards'), { recursive: true });
   writeFileSync(join(design, 'boards', '.gitkeep'), '');
   written.push('design/boards/');
@@ -285,7 +304,7 @@ export function initDesign(top, name, starter, kind = 'app') {
   // kit would otherwise say "Product name": the project's own, as a title would write it.
   const shown = displayName(name).replace(/[&<>"\\]/g, (c) => `&#${c.charCodeAt(0)};`);
   const fill = (path, bytes) =>
-    /\.(html|css|md|json)$/.test(path)
+    /\.(html|css|md|json|py)$/.test(path)
       ? Buffer.from(
           Buffer.from(bytes)
             .toString('utf8')
@@ -353,8 +372,15 @@ export function initDesign(top, name, starter, kind = 'app') {
       // A library that does not read is left as the base has it.
     }
   }
+  // The starting board's model goes to design/models/, where its board names it; the kit's other
+  // models are worked examples, kept beside the system's own examples in ds/.
+  const startModel = /\bmodel=([\w-]+)/.exec(
+    Buffer.from(own.get(`examples/${startingBoards[kind]}.html`) ?? '').toString('utf8'),
+  )?.[1];
   for (const [path, bytes] of own)
-    if (path.startsWith('models/')) put(`design/${path}`, fill(path, bytes));
+    if (path.startsWith('models/') && startModel && path.startsWith(`models/${startModel}.`))
+      put(`design/${path}`, fill(path, bytes));
+    else if (path.startsWith('models/')) base.set(path, fill(path, bytes));
     else if (path !== `${kind}.md` && path !== `library-${kind}.json`) base.set(path, bytes);
   // The kind's starting board: one example, ready to edit, in boards/ and on the canvas.
   const startFile = startingBoards[kind];
@@ -415,8 +441,8 @@ const startingBoards = {
   mac: 'MacMain',
   game: 'GameTitle',
   logo: 'LogoMark',
-  art: 'ArtSprites',
-  model: 'ModelCrate',
+  art: 'ArtStart',
+  model: 'ModelProp',
 };
 
 /** What each kind's starting board is called after the project: "<Name> title slide". */
@@ -428,7 +454,7 @@ const startingLabels = {
   game: 'title screen',
   logo: 'mark',
   art: 'sprite sheet',
-  model: 'crate',
+  model: 'model',
 };
 
 /** "garden-club" as a person would write it on a title: "Garden club". */
@@ -566,14 +592,14 @@ export function painter(enabled) {
 
 /** What a reviewer asks of a clean check: the agent answers these looking at the pairs. */
 export const reviewQuestions = [
-  'Does it answer the task fully?',
-  'Are the words, data and actions true to the product code?',
-  'Does it use only components and tokens?',
-  'One primary action, roomy, every size on the scale?',
-  "Does it match its siblings' structure, sizes and chrome?",
+  'Does it answer the brief fully, every hard limit included: sizes, counts, colours, budgets?',
+  'In the situation the brief describes (the hand, the light, the ground, the distance), what does a person see first? Is it what matters most to them?',
+  "Is it this product's own, or could it be any app, game or prop? Name what in it comes from the brief.",
+  'Are the words, data and actions true to the brief or the code, and is every guess asked with data-question?',
+  'Where the brief needs more than the design system gives (a bigger target, more contrast, its own colours), did you change the system instead of settling for its default?',
   'Is every width and scheme readable, nothing cut off, and do the scheme words match the render? If the board names a scheme or size, is it true in every render?',
+  "Does it match its siblings' structure, sizes and chrome, where it has siblings?",
   'Is every old layer ID kept, and every new one named for what it is?',
-  'Is every open question asked with data-question instead of guessed?',
 ];
 
 /** One step: a mark, what happened, and a quieter detail in its own column. */

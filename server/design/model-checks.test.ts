@@ -176,6 +176,23 @@ test('a model that stopped, floats, sinks, is small, is cut off or has no materi
   );
 });
 
+test('a model past its box names the parts that leave it, the furthest first', () => {
+  const found = modelFindings({
+    file: 'M.html',
+    title: 'M',
+    model: sheet({
+      bounds: { min: [-0.5, -0.5, 0], max: [0.8, 0.5, 1.2] },
+      parts: [
+        { name: 'body', min: [-0.5, -0.5, 0], max: [0.5, 0.5, 1] },
+        { name: 'handle', min: [0.4, -0.1, 0.4], max: [0.8, 0.1, 0.6] },
+        { name: 'lid', min: [-0.5, -0.5, 1], max: [0.5, 0.5, 1.2] },
+      ],
+    }),
+  });
+  assert.equal(found.problems[0].code, 'model_out_of_bounds');
+  assert.match(found.problems[0].detail, /the parts past it: handle, lid/);
+});
+
 test("a model's preview page carries the model and turns it with three.js", () => {
   const page = modelPreviewPage({
     name: 'Crate <1>',
