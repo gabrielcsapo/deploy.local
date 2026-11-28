@@ -1671,7 +1671,7 @@ test('a clean check ends with the pairs to open and the questions a reviewer ask
     );
     assert.match(
       text,
-      /\n {2}8\. Is every old layer ID kept, and every new one named for what it is\?\n$/,
+      /\n {2}8\. Is every old layer ID kept, and every new one named for what it is\?\n {2}9\. What one flaw would a reviewer name first[^\n]*Fix it, or say in one line why it stays\.\n$/,
     );
   } finally {
     repo.cleanup();
