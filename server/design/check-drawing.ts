@@ -686,7 +686,10 @@ export function readSprites(doc: Document = document) {
         svg.getAttribute('data-layer') || svg.getAttribute('aria-label') || `sprite ${index + 1}`,
       set:
         set?.getAttribute('data-layer') || set?.querySelector('h2, h3')?.textContent?.trim() || '',
-      tile: svg.classList.contains('tile'),
+      // A tile says so by its class, or by its name (CobbleTile, floor-tile).
+      tile:
+        svg.classList.contains('tile') ||
+        /tile/i.test(svg.getAttribute('data-layer') || svg.getAttribute('aria-label') || ''),
       width,
       height,
       drawn: { width: rect.width, height: rect.height },

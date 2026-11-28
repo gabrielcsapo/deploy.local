@@ -1804,6 +1804,17 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     means: 'text drawn smaller than min-text= in its head (28, or 11pt)',
   },
   {
+    code: 'tap_too_small',
+    problem: true,
+    means: 'a button, link or field under tap= in its head (56) in height or width',
+  },
+  {
+    code: 'out_of_reach',
+    problem: true,
+    means:
+      'a control above the bottom share of the board that reach= in its head names (third, half, 0.4)',
+  },
+  {
     code: 'over_page_limit',
     problem: true,
     means: 'a document prints on more pages than pages= in its head',
@@ -1881,6 +1892,17 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     problem: false,
     means:
       'art: at play size on a ground, under half a sprite and under 70% of its outline stand apart from it (1.5:1), or it is under 12 px across',
+  },
+  {
+    code: 'art_play_unstated',
+    problem: false,
+    means: 'art: no play= in the head, so sprites are read at a guessed 3x',
+  },
+  {
+    code: 'art_tile_seam',
+    problem: false,
+    means:
+      'art: a tile (class tile, or tile in its name) whose edges jump, or draw a line twice or alone, where copies meet',
   },
   {
     code: 'art_same_silhouette',
@@ -2342,4 +2364,70 @@ export function schemePinnedProblems(input: {
       short: `pinned to ${entry.theme}`,
       fix: schemeFix,
     }));
+}
+
+/** The share of the board's height that reach= names: third, half, or a fraction like 0.4. */
+function reachShare(value: string | undefined) {
+  if (!value) return null;
+  const word = { third: 1 / 3, half: 1 / 2, quarter: 1 / 4 }[value.trim().toLowerCase()];
+  const share = word ?? Number(value);
+  return share > 0 && share <= 1 ? share : null;
+}
+
+/**
+ * Limits on what a finger hits, as the board's head states them from the brief: tap=56 (every
+ * control at least that many px or pt tall and wide) and reach=third (every control inside the
+ * bottom third, where a thumb reaches; also half, or a share like 0.4). One problem for each.
+ */
+export function tapProblems(input: {
+  file: string;
+  title: string;
+  tap?: string;
+  reach?: string;
+  height: number;
+  controls: NonNullable<Inspection['controls']>;
+}): Finding[] {
+  const found: Finding[] = [];
+  const name = (control: (typeof input.controls)[number]) =>
+    control.layer ?? (control.text ? `"${control.text}"` : 'a control');
+  const tap = Number.parseFloat(input.tap ?? '');
+  if (tap > 0) {
+    const small = input.controls.filter(
+      (control) => Math.min(control.width, control.height) < tap - 0.5,
+    );
+    if (small.length)
+      found.push({
+        code: 'tap_too_small',
+        file: input.file,
+        board: input.title,
+        ...(small.length === 1 && small[0].layer ? { layer: small[0].layer } : {}),
+        label: `${input.title} has ${small.length === 1 ? 'a control' : `${small.length} controls`} under ${tap} px`,
+        detail: small
+          .slice(0, 4)
+          .map((control) => `${name(control)} is ${control.width} × ${control.height}`)
+          .join('; '),
+        short: 'small tap target',
+        fix: `make each control at least ${tap} px tall and wide, or change tap= if the brief allows smaller`,
+      });
+  }
+  const share = reachShare(input.reach);
+  if (share && input.height > 0) {
+    const line = Math.round(input.height * (1 - share));
+    const high = input.controls.filter((control) => control.top < line - 0.5);
+    if (high.length)
+      found.push({
+        code: 'out_of_reach',
+        file: input.file,
+        board: input.title,
+        ...(high.length === 1 && high[0].layer ? { layer: high[0].layer } : {}),
+        label: `${input.title} has ${high.length === 1 ? 'a control' : `${high.length} controls`} above thumb reach`,
+        detail: `reach=${input.reach} keeps controls below y ${line}: ${high
+          .slice(0, 4)
+          .map((control) => `${name(control)} starts at y ${control.top}`)
+          .join('; ')}`,
+        short: 'out of reach',
+        fix: `move the controls below y ${line}, or make the one up there plain text if it is not something to press`,
+      });
+  }
+  return found;
 }

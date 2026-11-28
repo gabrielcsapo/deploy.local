@@ -83,10 +83,11 @@ const kinds = {
   art: {
     file: 'Sprites',
     label: 'sprite sheet',
-    meta: 'platform=art,width=1280,height=960,tile=16,play=48',
+    meta: 'platform=art,width=1280,height=960,tile=16',
     body: () => `<!-- Each sprite is an svg.art-sprite whose viewBox is its size in pixels, drawn however the
          art wants; a thing's frames sit together in a .art-set with an h2. Colours named
-         --pal-* and grounds --stage-* on :root in look.css are its palette. -->
+         --pal-* and grounds --stage-* on :root in look.css are its palette. A pixel sprite can
+         be written as a grid in design/pixels/<Name>.txt instead (see design/README.md). -->
     <section class="art-set" data-layer="first-set">
       <h2>First sprite</h2>
       <svg class="art-sprite" viewBox="0 0 16 16" width="128" height="128" data-layer="first">
@@ -154,11 +155,22 @@ const kindTips = {
     'One board per slide, all linking look.css; `export` puts them in canvas order as one PDF.',
   print:
     'A face is trim plus bleed; text and marks stay inside the safe margin. `export --marks` adds crop marks.',
-  art: 'Set `tile=` and `play=` from the brief (pixels a tile, size shown in play). `export` writes each sprite once, as an SVG named for its data-layer.',
+  art: `Set \`tile=\` from the brief (pixels a tile) and \`play=\` (the px it is drawn at in play) when the brief gives one; when it doesn't, choose and put \`data-question="What size is a tile drawn at in play?"\` on the board. A sprite that repeats gets class \`tile\` (or "tile" in its name), and the check looks at its seams. \`export\` writes each sprite once, as an SVG named for its data-layer.
+
+Pixel sprites can be written as text: design/pixels/<Name>.txt is a legend (\`K = ink\` for --pal-ink, \`. \` is see-through), then rows of equal width, a character a pixel, and \`tile\` on a line of its own for a tile. \`look\` and \`check --fix\` (or \`deploy design pixels\`) draw each grid into the art board as its svg.art-sprite, so the grid is what you edit:
+
+    # design/pixels/Slime.txt
+    K = ink
+    G = moss
+    ..KKKK..
+    .KGGGGK.
+    KGGGGGGK
+
+\`<svg data-pixels="Slime" width="96" height="72"></svg>\` anywhere on the board shows that sprite again, at that size (in a scene, say).`,
   model:
     'The model is design/models/<Name>.py; its front faces -Y (the front view looks at it), z is up, metres. `look Model --angle 30,20` turns it.',
   logo: 'The mark is the svg with data-layer="mark"; the check draws it alone down to 16 px. Set fill-rule on the path itself.',
-  game: 'Keep play and text out of the top 54 px and bottom 34 px, or put immersive=true in the head.',
+  game: 'Keep play and text out of the top 54 px and bottom 34 px, or put immersive=true in the head. `tap=44` in the head makes a control smaller than 44 px stop the check, and `reach=third` (or half) one outside the bottom third, where a thumb holding the phone reaches.',
 };
 
 /** design/README.md: the canvas in a page, for an agent who has never seen it. */
@@ -187,6 +199,7 @@ A standalone page with no scripts and no remote images, sized in its head:
 
 Keys: width, height, platform, schemes (light, dark, or light dark), title, source, replaces, and
 the brief's limits: \`size=\` and \`tris=\` for a model, \`tile=\` and \`play=\` for sprites,
+\`tap=44\` and \`reach=third\` for the smallest control and how far up a thumb reaches,
 \`palette=14\` (the most colours the brief allows; each must be one of look.css's --pal-*, and
 nothing see-through) and \`pixels=hard\` (whole pixels only) when the brief asks for them, \`pages=\` for a document, \`min-text=28\` (or \`11pt\`) for the smallest type the brief allows, \`contrast=aa\`
 to make low contrast stop the check. Name the parts others will

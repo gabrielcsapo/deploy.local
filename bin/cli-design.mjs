@@ -43,6 +43,7 @@ import {
 } from '../shared/v2/design-platforms.ts';
 import { exportOrder, mergePdfs, numberSlides } from './design-export.mjs';
 import { openCanvasFiles, openReadme } from './design-open.mjs';
+import { syncPixels } from './design-pixels.mjs';
 
 /** The box a new board takes on the canvas, from its head. */
 const openBox = (html) => {
@@ -66,6 +67,8 @@ Usage  deploy design <command> [flags]
                            --width 700 (the page)  --zoom 3 (closer, 0.25 afar)  --scheme dark
                            --angle 30,20 (a model: degrees round from the front, and up)
   check [--fix]            Draw what changed beside main; problems stop, advice is yours
+  pixels                   Draw the sprites in design/pixels/*.txt into their art board
+                           (look and check --fix do this too)
   export [<Board>…]        PDF of the boards; logo marks and sprites as SVG; models as .glb
   status [<Board>…]        A board's source, siblings and open questions
   guide                    Platforms, sizes and check codes
@@ -656,6 +659,24 @@ function stepLine(paint, mark, label, detail = '') {
 }
 
 /**
+ * Sprites drawn from design/pixels/ into their art boards. Throws with what is wrong in a grid;
+ * returns one line saying what was drawn, or null when nothing changed.
+ */
+export function drawGrids(top) {
+  const { drawn, problems } = syncPixels(top);
+  if (problems.length)
+    throw cliError(
+      `A pixel grid can't be drawn: ${problems.join('; ')}.`,
+      'Fix the grid in design/pixels/, then run it again',
+      2,
+    );
+  const names = Object.entries(drawn).map(
+    ([file, sprites]) => `${sprites.join(', ')} on ${screenName(file)}`,
+  );
+  return names.length ? `Drawn from design/pixels: ${names.join('; ')}` : null;
+}
+
+/**
  * Runs one design command. Returns `{ exitCode, json }`; throws cliError for usage and failures.
  * deps: api, git(args, cwd) → stdout (throws on failure), cwd, computer, write(text), color,
  * interactive, prompt(question), now(), sleep(ms), exists(path), serverUrl, home, spinner,
@@ -748,6 +769,7 @@ export async function runDesign(sub, args, options, deps) {
       throw cliError('This project has no design yet.', 'deploy design init', 1);
     // A board renamed by hand keeps its place, its slot in "order" and its starting-board mark.
     const carried = fix ? carryRenamedBoard(top) : null;
+    const grids = fix ? drawGrids(top) : null;
     const opened = deps.openLocalDrawing
       ? await deps.openLocalDrawing(top)
       : { reason: 'this terminal has no browser' };
@@ -760,7 +782,7 @@ export async function runDesign(sub, args, options, deps) {
       await opened.close?.();
     }
     const { result, sent, cleanup } = run;
-    const fixed = carried ? [carried] : [];
+    const fixed = [carried, grids].filter(Boolean);
     const pairFiles = [];
     let questionsSeen = false;
     try {
@@ -1787,9 +1809,18 @@ export async function runDesign(sub, args, options, deps) {
       };
     }
 
+    case 'pixels': {
+      // Every grid in design/pixels/ drawn into its art board as svg.art-sprite.
+      const top = needsDesign(root());
+      const line = drawGrids(top);
+      if (!options.json) out(line ?? 'Every sprite already matches its grid in design/pixels.');
+      return { exitCode: 0, json: { ok: true, code: 'pixels', drawn: line } };
+    }
     case 'look': {
       // One board drawn as asked: any width, either scheme, a model from any angle. Nothing checked.
       const top = needsDesign(root());
+      const gridLine = drawGrids(top);
+      if (gridLine && !options.json) step('✓', gridLine.split(':')[0], gridLine.split(': ')[1]);
       if (args.length !== 1) throw cliError('Name one board.', 'deploy design look Home', 2);
       const design = readDesign(top, deps.designSystem);
       const file = boardFileName(args[0]);

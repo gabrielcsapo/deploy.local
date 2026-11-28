@@ -46,6 +46,15 @@ export type Inspection = {
   boxes: { layer: string; inside: string }[];
   /** Primary buttons that show. */
   primaries: string[];
+  /** Every control a finger or pointer hits (a button, link or field), where it is drawn. */
+  controls?: {
+    layer: string | null;
+    text: string;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }[];
   /**
    * Text partly hidden at the bottom of a fixed-height frame (or of a phone screen), or under a
    * bar pinned to its bottom.
@@ -343,6 +352,22 @@ export function inspectBoard(doc: Document = document): Inspection {
   const primaries = [...doc.body.querySelectorAll('.dl-btn.primary, [data-primary]')]
     .filter((element) => shown(element) && !inactive(element))
     .map((element) => layerOf(element) ?? element.textContent!.trim().slice(0, 40));
+  // Controls, outermost only (a link inside a button is one target), for tap= and reach= limits.
+  const tappable = 'button, a[href], [role="button"], input, select, textarea, [data-tap]';
+  const controls = [...doc.body.querySelectorAll(tappable)]
+    .filter((element) => shown(element) && !element.parentElement?.closest(tappable))
+    .map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        layer: layerOf(element),
+        text: (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40),
+        left: Math.round(rect.left),
+        top: Math.round(rect.top + view.scrollY),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
+    })
+    .filter((control) => control.width > 0 && control.height > 0);
 
   // Frames: elements that clip what overflows them at a fixed height, and a phone screen itself.
   const frames: { element: Element | null; bottom: number; left: number; right: number }[] = [];
@@ -766,6 +791,7 @@ export function inspectBoard(doc: Document = document): Inspection {
     tables,
     boxes,
     primaries,
+    controls,
   };
 }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { settleFindings } from './board-quality.ts';
+import { settleFindings, tapProblems } from './board-quality.ts';
 
 test('an open canvas stops on breakage and stated limits; taste is advice and system checks go', () => {
   const finding = (code: string, file = 'A.html') => ({ code, file });
@@ -29,4 +29,31 @@ test('an open canvas stops on breakage and stated limits; taste is advice and sy
   );
   const kept = settleFindings(problems, notes, { system: true, stated });
   assert.equal(kept.problems.length, 7);
+});
+
+test('tap= and reach= in the head hold every control to the brief', () => {
+  const control = (layer: string, top: number, height: number) => ({
+    layer,
+    text: layer,
+    left: 24,
+    top,
+    width: 342,
+    height,
+  });
+  const controls = [control('next', 700, 64), control('replay', 500, 48)];
+  const found = tapProblems({
+    file: 'A.html',
+    title: 'A',
+    tap: '56',
+    reach: 'third',
+    height: 844,
+    controls,
+  });
+  assert.deepEqual(
+    found.map((p) => p.code),
+    ['tap_too_small', 'out_of_reach'],
+  );
+  assert.match(found[0].detail, /replay is 342 × 48/);
+  assert.match(found[1].detail, /below y 563/);
+  assert.deepEqual(tapProblems({ file: 'A.html', title: 'A', height: 844, controls }), []);
 });

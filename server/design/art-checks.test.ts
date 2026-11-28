@@ -6,6 +6,7 @@ import {
   artPaletteProblems,
   artReadNote,
   artSilhouetteNote,
+  tileSeamNote,
   type ArtSheet,
 } from './art-checks.ts';
 
@@ -206,4 +207,39 @@ test('palette= in the head caps how many colours the sprites use', () => {
   const [problem] = artPaletteProblems({ ...board, art: { palette: [], sprites }, most: 2 });
   assert.equal(problem.code, 'art_off_palette');
   assert.match(problem.label, /3 colours, more than its palette=2/);
+});
+
+test('a tile that shows its joins is a note; one that runs on across them is not', () => {
+  const stone: [number, number, number] = [200, 190, 170];
+  const mortar: [number, number, number] = [110, 100, 90];
+  // 8 px a tile, shown at 6x: stones with mortar on one top row and one left column.
+  const tile = (pixel: (x: number, y: number) => [number, number, number]) =>
+    sprite('CobbleTile', {
+      tile: true,
+      width: 8,
+      height: 8,
+      renders: [
+        {
+          ground: 'Night',
+          colour: 'rgb(0, 0, 0)',
+          png: pngOf(48, (x, y) => pixel(Math.floor(x / 6), Math.floor(y / 6))),
+        },
+      ],
+    });
+  const seen = (pixel: (x: number, y: number) => [number, number, number]) =>
+    tileSeamNote({ file: 'Sprites.html', title: 'Sprites', art: { sprites: [tile(pixel)] } });
+  assert.equal(
+    seen((x, y) => (y === 0 || y === 4 || x === 0 ? mortar : stone)),
+    null,
+  );
+  // Mortar along the top and the bottom: twice as thick where two tiles meet.
+  assert.match(
+    seen((x, y) => (y === 0 || y === 7 || x === 3 ? mortar : stone))?.detail ?? '',
+    /both its top and bottom/,
+  );
+  // A bright line along the bottom that the inside never draws.
+  assert.match(
+    seen((x, y) => (y === 7 ? [250, 250, 250] : x === 3 ? mortar : stone))?.detail ?? '',
+    /line along its bottom edge/,
+  );
 });

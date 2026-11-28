@@ -48,6 +48,7 @@ import {
   artPaletteProblems,
   artReadNote,
   artSilhouetteNote,
+  tileSeamNote,
   type ArtSheet,
 } from '../../design/art-checks.ts';
 import { modelFindings } from '../../design/model-checks.ts';
@@ -66,6 +67,7 @@ import {
   questionFindings,
   statedClaims,
   unflaggedClaimsNote,
+  tapProblems,
   readTokens,
   boardSchemes,
   schemeDroppedProblem,
@@ -1360,6 +1362,23 @@ export async function checkDesign(
               fix: 'make that text bigger, or cut it, or change min-text= if the brief allows smaller',
             });
         }
+        // What a finger hits, as the head states it from the brief: tap=56, reach=third.
+        if (
+          inspect &&
+          afterShot.inspected?.controls &&
+          scheme === stepSchemes[0] &&
+          (meta.other.tap || meta.other.reach)
+        )
+          found.problems.push(
+            ...tapProblems({
+              file,
+              title,
+              tap: meta.other.tap,
+              reach: meta.other.reach,
+              height: meta.height ?? afterShot.inspected.height,
+              controls: afterShot.inspected.controls,
+            }),
+          );
         if (inspect && afterShot.inspected && step.mode === 'pages') {
           // A last sheet of a few lines, from the sheets as printed.
           if (
@@ -1504,6 +1523,17 @@ export async function checkDesign(
               );
             if (platform === 'art' && afterShot.art) {
               const art = afterShot.art;
+              // Read at play size: when the head does not say what that is, it is a guess.
+              if (!meta.other.play && art.sprites.length)
+                found.notes.push({
+                  code: 'art_play_unstated',
+                  file,
+                  board: title,
+                  label: `${title} does not say its play size`,
+                  detail: `with no play= in its head its sprites are read at ${art.play} px a tile (${Math.round(art.play / art.tile)}×)`,
+                  short: 'play size not stated',
+                  fix: 'put the size the game shows a tile at in the head (play=72), and if the brief does not give one, ask: data-question on the sheet',
+                });
               found.problems.push(
                 ...artGridProblems({ file, title, art }),
                 ...artPaletteProblems({
@@ -1516,6 +1546,7 @@ export async function checkDesign(
               for (const note of [
                 artReadNote({ file, title, art }),
                 artSilhouetteNote({ file, title, art }),
+                tileSeamNote({ file, title, art }),
               ])
                 if (note) found.notes.push(note);
             }

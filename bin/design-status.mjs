@@ -36,7 +36,7 @@ const boardSizeKeys = {
   print: ',size=85x55mm,bleed=3mm,safe=4mm',
   game: ',device=phone,width=390,height=844',
   logo: ',width=1024,height=1024',
-  art: ',width=1280,height=960,tile=16,play=48',
+  art: ',width=1280,height=960,tile=16',
   model: ',width=1280,height=720,model=<Name>,size=1x1x1,tris=500',
 };
 
@@ -695,7 +695,7 @@ export function guideLines({ top, designSystem, all = false }) {
     print: 'print (size=85x55mm,bleed=3mm,safe=4mm)',
     game: 'game (device=phone, width=390,height=844)',
     logo: 'logo',
-    art: 'art (tile=16,play=48: the tile in art pixels, and the px it is drawn at in play)',
+    art: 'art (tile=16, and play=48 when the brief gives one: the tile in art pixels, and the px it is drawn at in play)',
     model:
       'model (model=Crate,size=1x1x1,tris=500: design/models/Crate.py, the box it fits in metres, its triangle budget)',
   };

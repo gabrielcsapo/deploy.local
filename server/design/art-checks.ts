@@ -343,3 +343,90 @@ export function artSilhouetteNote(input: {
     fix: 'give each thing a player must tell apart a shape of its own (height, width, a part that sticks out); colour alone is lost at a glance',
   };
 }
+
+/**
+ * Tiles that show where they join when repeated: an edge that jumps further from the opposite
+ * edge than any two neighbouring rows or columns inside differ, a line drawn along both opposite
+ * edges (tiled, it is twice as thick), or a line along one edge that the inside has nowhere. Read
+ * from the tile's own pixels, one sample a pixel. A note.
+ */
+export function tileSeamNote(input: {
+  file: string;
+  title: string;
+  art: Pick<ArtSheet, 'sprites'>;
+}): Finding | null {
+  const found: string[] = [];
+  for (const sprite of input.art.sprites) {
+    if (!sprite.tile || !sprite.renders.length || !sprite.width || !sprite.height) continue;
+    let grid: Rgb[][];
+    try {
+      const { width, height, rgba } = decodePng(sprite.renders[0].png);
+      const across = width / sprite.width;
+      const down = height / sprite.height;
+      grid = Array.from({ length: sprite.height }, (_, y) =>
+        Array.from({ length: sprite.width }, (_, x) => {
+          const at =
+            (Math.min(height - 1, Math.floor((y + 0.5) * down)) * width +
+              Math.min(width - 1, Math.floor((x + 0.5) * across))) *
+            4;
+          return [rgba[at], rgba[at + 1], rgba[at + 2]] as Rgb;
+        }),
+      );
+    } catch {
+      continue;
+    }
+    const seam = seamOf(grid, sprite.name);
+    if (seam) found.push(seam);
+    const turned = grid[0].map((_, x) => grid.map((row) => row[x]));
+    const side = seamOf(turned, sprite.name, true);
+    if (side) found.push(side);
+  }
+  if (!found.length) return null;
+  return {
+    code: 'art_tile_seam',
+    file: input.file,
+    board: input.title,
+    scheme: 'light',
+    label: `${input.title} has tiles that show their joins`,
+    detail: listed(found),
+    short: 'tile seam',
+    fix: 'repeat the tile 3 × 3 (look --zoom 3) and draw across the join: carry each stone or line over the edge, and draw an edge line on one side only',
+  };
+}
+
+/** Where a tile's rows (or, turned, its columns) show a join: its top and bottom edges. */
+function seamOf(rows: Rgb[][], name: string, sideways = false) {
+  const apart = (a: Rgb[], b: Rgb[]) =>
+    a.reduce((sum, colour, at) => sum + far(colour, b[at]), 0) / a.length;
+  const plain = (row: Rgb[]) => {
+    const counts = new Map<string, number>();
+    for (const colour of row) counts.set(hex(colour), (counts.get(hex(colour)) ?? 0) + 1);
+    const [top, count] = [...counts].sort((a, b) => b[1] - a[1])[0];
+    return count / row.length >= 0.85 ? top : null;
+  };
+  const last = rows.length - 1;
+  if (last < 2) return null;
+  const inside = rows.slice(0, last).map((row, at) => apart(row, rows[at + 1]));
+  const wrap = apart(rows[last], rows[0]);
+  const [first, end] = sideways ? ['left', 'right'] : ['top', 'bottom'];
+  if (wrap > 60 && wrap > Math.max(...inside) * 1.25)
+    return `${name}'s ${end} edge does not run on into its ${first} edge`;
+  const ends = [plain(rows[0]), plain(rows[last])];
+  if (
+    ends[0] &&
+    ends[0] === ends[1] &&
+    plain(rows[1]) !== ends[0] &&
+    plain(rows[last - 1]) !== ends[0]
+  )
+    return `${name} draws a ${ends[0]} line along both its ${first} and ${end} edges, twice as thick where tiles meet`;
+  // A line in a colour the tile's inside never uses: tiled, it rules a grid over the ground.
+  for (const [at, colour] of ends.entries()) {
+    if (!colour) continue;
+    const used = rows
+      .slice(1, last)
+      .some((row) => row.slice(1, -1).some((pixel) => hex(pixel) === colour));
+    if (!used)
+      return `${name} has a line along its ${at ? end : first} edge that its inside never draws`;
+  }
+  return null;
+}
