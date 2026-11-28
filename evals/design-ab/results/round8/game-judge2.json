@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The unearned shell is a dashed outline that looks more like a balloon than a shell, and the Replay button looks just under 56 pt tall."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "White status bar text sits on light sand with weak contrast, and the Replay button looks just under 56 pt tall."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's three shells match each other, it shows Level 12 outright, and its layout looks more polished than P's mismatched shells and edge-clipped rocks."
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "kinds": {
+    "game": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "game-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 3.0,
+          "ready": 3.0
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    }
+  },
+  "runs": {
+    "r10": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The status bar icons are pale on tan sand, and the Replay button is only about 55 pt tall.",
+        "White status bar text sits on light sand with weak contrast, and the Replay button looks just under 56 pt tall."
+      ]
+    },
+    "v01": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The three shells are inconsistent: the middle one is larger and the unearned one is a dashed outline that looks unfinished.",
+        "The unearned shell is a dashed outline that looks more like a balloon than a shell, and the Replay button looks just under 56 pt tall."
+      ]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "v01": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab9/runs/v01/tide"
+  },
+  "r10": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r10/tide"
+  }
+}

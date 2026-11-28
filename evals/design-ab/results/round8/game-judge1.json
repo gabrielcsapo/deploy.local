@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The three shells are inconsistent: the middle one is larger and the unearned one is a dashed outline that looks unfinished."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The status bar icons are pale on tan sand, and the Replay button is only about 55 pt tall."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q has evenly sized, well-drawn shells, a clearer pool scene and a neat stats and badge layout."
+    }
+  }
+}

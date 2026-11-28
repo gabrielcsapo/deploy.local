@@ -82,6 +82,64 @@ Caveats as before: 8 pairs a kind, and the briefs differ from round 2, so the ab
 not compare cleanly between rounds. Several designers in both arms said /tmp/chromium hung for
 them.
 
+## Rounds 4 to 8 (2026-11-28, the open canvas, Opus designers, Sonnet and Opus judges)
+
+The kits are gone: `deploy design init` starts an open canvas (a short README, the project's own
+look.css and one blank board), and the check stops only on breakage and on limits a board's head
+states (`min-text=`, `pages=`, `tris=` and the rest). Briefs are fresh and cover all nine kinds
+(`results/round6/briefs.json`). Every designer is Opus with no coaching beyond the brief. Each
+pair is judged twice, blind: judge1 is Sonnet, judge2 is Opus. Arm B (no pipeline, plain files) was
+run once, in round 4; later rounds rerun arm A only on the briefs it had not yet won or tied, against
+those same B runs, after fixing what the round showed. Results are in `results/round4` to `round8`.
+
+Latest result per brief, arm A against arm B (W won with both judges, L lost with both, S split):
+
+| kind   | briefs and result    | rounds it took   |
+| ------ | -------------------- | ---------------- |
+| ui     | ui-1 W, ui-2 W       | 4; 7             |
+| model  | model-1 W, model-2 S | 4; 6             |
+| print  | print-1 W            | 4                |
+| logo   | logo-1 W             | 6                |
+| mac    | mac-1 S              | every round      |
+| slides | slides-1 S           | 6                |
+| doc    | doc-1 S              | 7                |
+| art    | art-2 W, art-1 L     | art-1 lost 4–7   |
+| game   | game-1 L             | tied 4, lost 5–8 |
+
+The two judges agreed on 29 of the 37 pairs in rounds 4 to 8. Seven kinds now win or tie. art-1 and game-1 lose on taste
+at one run a side: the cart's steam and the cobble tile in art-1, and in game-1 the unearned shell
+drawn as a dashed outline and the shells' sizes. The check cannot settle these without a kit.
+
+Hand-off (`results/handoff`): a second Opus designer, who never met the first, added a barcode
+screen to the pharmacy app (ui-1) and two slides to the library deck (slides-1). Judged on
+consistency with the existing work, the brief and craft, arm A won all four judgements (both kinds,
+both judges). Arm B's added deck repeated its own closing slide.
+
+Tokens per designer run (subagent tokens less about 125k of fixed context; tool calls; minutes):
+
+| run set        | working tokens | tool calls | minutes |
+| -------------- | -------------: | ---------: | ------: |
+| arm B, round 4 |            40k |       26.8 |     7.8 |
+| arm A, round 4 |            61k |       35.8 |     7.1 |
+| arm A, round 5 |            58k |       34.6 |     7.0 |
+| arm A, round 6 |            46k |       28.2 |     5.5 |
+| arm A, round 7 |            45k |       26.5 |     5.8 |
+
+What the rounds fixed, each from a misuse or a flaw the check missed:
+
+- `look` and `status` follow the canvas's schemes; `look --zoom 0.25` shows work as met from afar.
+- `min-text=` (px or pt) in a board's head stops the check on smaller text.
+- Text over text, a label past or pressed against its button's edge, and words that print over the
+  next sheet of a document stop the check.
+- The untouched starting board left beside the designer's own stops the check.
+- A phone game starts inside its status bar and home indicator, and a game board without one gets
+  a note on the open canvas too.
+
+Gaps left: designers report `/tmp/chromium --dump-dom` hanging when they launch it themselves (an
+environment issue); `look --zoom` with `--angle` zooms the board, not the turned view; art export
+writes every drawn copy of a sprite unless it is marked `art-copy`; slides are judged from a picture
+640 wide.
+
 ## Rerun
 
     BRIEFS=briefs-round2.json python3 setup.py /tmp/ab ~/.ab-key.json   # BRIEFS picks a briefs file for setup, render and make_blind
