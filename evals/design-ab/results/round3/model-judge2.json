@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Pole stops at the saddle and hangs from nothing, with a thin stub below the belly, so the pole-only-support read is weak."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Pole ends on top of the saddle and the horse looks perched on a stub, with a flat red saddle slab that barely reads."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The belly hatch is drawn as a red panel with a brass frame, which is busy but still legible."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Pole only pokes through the belly as a short stub and the tail is ivory rather than a bold dark wedge."
+        }
+      },
+      "ranking": ["R", "S", "Q", "P"],
+      "why_top": "R's brass pole visibly passes through the back and out the belly so it clearly carries the horse, with a clear bridle, saddle and hatch, at 1050 triangles within limits."
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Lamp is tucked under the arm pivot and the arm sits off the post, so the lamp position and arm side read poorly."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Arm points left and the lamp is a small disc mostly hidden behind the arm boss."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Lamp is partly hidden under the arm and the footing is a low flat slab, making it look less solid."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Lamp housing is oversized and sticks out sideways from the post, with a flat thin arm that is hard to see edge-on."
+        }
+      },
+      "ranking": ["S", "Q", "R", "P"],
+      "why_top": "S shows a clear 45 degree raised red arm with white stripe and a big amber lamp housing clearly behind the pivot on a lattice post and square footing."
+    }
+  }
+}

@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 all_briefs = {b['id']: b for b in json.load(open(os.environ.get('BRIEFS') or os.path.join(HERE, 'briefs.json')))}
 notes = {
     'art': "Each picture shows one candidate's four sprites: in play at 4x on the brief's background, the ground tile repeated 3 x 3, and a close-up at 8x on a checkerboard. Every candidate is shown the same way.",
-    'model': "Each picture shows one candidate's 3D model rendered the same way from four sides (orthographic), a tiny far-away view, and its measured triangles and size against the brief's limits.",
+    'model': "Each picture shows one candidate's 3D model rendered the same way from five sides (orthographic: front, side, three-quarter, top and underneath), a tiny far-away view, and its measured triangles and size against the brief's limits.",
     'ui': "Each picture is one candidate's phone screen, captured the same way at 390 x 844 points (shown at 2x).",
 }
 template = open(os.path.join(HERE, 'judge_prompt.md')).read()

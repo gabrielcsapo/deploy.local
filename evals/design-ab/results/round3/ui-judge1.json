@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Held-until label is lighter grey and the layout leaves a large dead gap above the button."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Grey Held-until text on grey background likely misses 7:1 and half the screen is empty."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Medication line runs to the card edge and the order number has odd gaps around the hyphen."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Splits the copay into a big amount and a smaller label, and the Window icon is a confusing laptop."
+        }
+      },
+      "ranking": ["P", "S", "Q", "R"],
+      "why_top": "P has a clear, high-contrast hierarchy with the huge order number, bold key facts and a full-width button, all in a clean layout."
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Big empty gaps and a bare text snooze make the layout loose and the controls feel unanchored."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Cancel is a bland grey button of similar weight to the text, with empty voids between sections."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Stop timeline is unevenly spaced and the snooze button is a filled box close to cancel."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cancel sits close beside snooze, so the gap between the two controls is only a little above the minimum."
+        }
+      },
+      "ranking": ["S", "P", "Q", "R"],
+      "why_top": "S gives a dominant amber 7 min, a clearly flagged but outlined cancel at the top, a quieter outlined snooze, and a compact progress card with all data."
+    }
+  }
+}

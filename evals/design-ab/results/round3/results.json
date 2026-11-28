@@ -1,0 +1,291 @@
+{
+  "kinds": {
+    "art": {
+      "pipeline_wins": 4,
+      "pipeline_losses": 4,
+      "split": 0,
+      "per_brief": {
+        "art-1": [3, 1, 0],
+        "art-2": [1, 3, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.88,
+          "reads": 3.5,
+          "craft": 3.62,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 3.75,
+          "reads": 4.12,
+          "craft": 3.38,
+          "ready": 3.12
+        }
+      }
+    },
+    "model": {
+      "pipeline_wins": 0,
+      "pipeline_losses": 6,
+      "split": 2,
+      "per_brief": {
+        "model-1": [0, 4, 0],
+        "model-2": [0, 2, 2]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.25,
+          "reads": 3.12,
+          "craft": 3.25,
+          "ready": 3.12
+        },
+        "B": {
+          "fulfils": 4.25,
+          "reads": 4.12,
+          "craft": 3.88,
+          "ready": 3.88
+        }
+      }
+    },
+    "ui": {
+      "pipeline_wins": 1,
+      "pipeline_losses": 6,
+      "split": 1,
+      "per_brief": {
+        "ui-1": [0, 4, 0],
+        "ui-2": [1, 2, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.88,
+          "reads": 3.5,
+          "craft": 3.25,
+          "ready": 3.0
+        },
+        "B": {
+          "fulfils": 4.5,
+          "reads": 4.12,
+          "craft": 3.62,
+          "ready": 3.62
+        }
+      }
+    }
+  },
+  "runs": {
+    "r01": {
+      "brief": "ui-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "Splits the copay into a big amount and a smaller label, and the Window icon is a confusing laptop.",
+        "'$12.40 copay' is split across two lines in a tile and the Window 2 icon is a confusing laptop glyph."
+      ]
+    },
+    "r02": {
+      "brief": "model-1",
+      "arm": "A",
+      "positions": [3, 3],
+      "flaws": [
+        "The head is thin and the legs are spindly with a very small pole stub, so the horse looks less chunky and the pole barely reads from below.",
+        "Pole stops at the saddle and hangs from nothing, with a thin stub below the belly, so the pole-only-support read is weak."
+      ]
+    },
+    "r03": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The gardener's apron is small and the watering can is a flat blue block.",
+        "Gardener's watering can and body are slightly stiff and the packet's folded top is only a flat band."
+      ]
+    },
+    "r04": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [2, 3],
+      "flaws": [
+        "Cancel is a bland grey button of similar weight to the text, with empty voids between sections.",
+        "A large empty band above the route chip and the Alert detail buried in a bottom card weaken the hierarchy."
+      ]
+    },
+    "r05": {
+      "brief": "model-1",
+      "arm": "A",
+      "positions": [2, 2],
+      "flaws": [
+        "Belly hatch is a plain brass rectangle on a stubby pole end, so the hatch and the pole as sole support read weakly from below.",
+        "Pole ends on top of the saddle and the horse looks perched on a stub, with a flat red saddle slab that barely reads."
+      ]
+    },
+    "r06": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [3, 3],
+      "flaws": [
+        "The footing and post are shrunk to 0.37 m deep and offset, so the model is off-centre and the lamp is small and under the arm.",
+        "Lamp is tucked under the arm pivot and the arm sits off the post, so the lamp position and arm side read poorly."
+      ]
+    },
+    "r07": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The cart is squat and muddled, with the steaming pot nearly hidden under the awning.",
+        "Noodle cart is cluttered with an oversized wheel and the pot is hidden under the awning."
+      ]
+    },
+    "r08": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The packet is narrow with a vague folded top, and the gardener's body is slim.",
+        "Packet is thin and small at play size and the tomato icon is tiny."
+      ]
+    },
+    "r09": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "Cancel sits close beside snooze, so the gap between the two controls is only a little above the minimum.",
+        "The red-outlined Cancel is loud for a control meant to avoid accidental taps, and the snooze outline is only slightly quieter."
+      ]
+    },
+    "r10": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Big empty gaps and a bare text snooze make the layout loose and the controls feel unanchored.",
+        "The alarm status is tucked into a small card at the bottom and a large dead zone sits above the route chip, though Cancel stays a quiet, separated control."
+      ]
+    },
+    "r11": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [0, 1],
+      "flaws": [
+        "The lamp is partly hidden behind the arm and overlaps the pivot boss.",
+        "Arm points left and the lamp is a small disc mostly hidden behind the arm boss."
+      ]
+    },
+    "r12": {
+      "brief": "model-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The hatch is filled faded red with a brass frame rather than a charcoal rectangle on the plate, and the pole pokes out below the belly.",
+        "The belly hatch is drawn as a red panel with a brass frame, which is busy but still legible."
+      ]
+    },
+    "r13": {
+      "brief": "ui-1",
+      "arm": "A",
+      "positions": [2, 3],
+      "flaws": [
+        "Grey Held-until text on grey background likely misses 7:1 and half the screen is empty.",
+        "The grey 'Held until' text sits loose on the grey background at low contrast, the item divider runs flush to the card edge, and a large empty gap sits mid-screen."
+      ]
+    },
+    "r14": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [3, 3],
+      "flaws": [
+        "The hat and head lack a strong dark outline, so the gardener is weak against the mint wall.",
+        "Gardener and packet lack a full dark outline, so they read weakly against the pale wall."
+      ]
+    },
+    "r15": {
+      "brief": "ui-1",
+      "arm": "A",
+      "positions": [3, 2],
+      "flaws": [
+        "Medication line runs to the card edge and the order number has odd gaps around the hyphen.",
+        "The grey 'Held until' line and 'Order number' label look under 7:1 against the grey background, and there is an adjacent unused gap above the button."
+      ]
+    },
+    "r16": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [2, 2],
+      "flaws": [
+        "The brown apron barely reads and the red watering can looks like a teapot.",
+        "Green shirt hides the brown apron and the watering can is red, so the gardener's apron is hard to read."
+      ]
+    },
+    "r17": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The cobble tile is a little noisy and its mortar is low contrast when repeated.",
+        "Cobble tile is busy and noisy, with weak mortar definition."
+      ]
+    },
+    "r18": {
+      "brief": "model-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The tail is ivory and blends into the body, so the swept tail wedge is weak.",
+        "Pole only pokes through the belly as a short stub and the tail is ivory rather than a bold dark wedge."
+      ]
+    },
+    "r19": {
+      "brief": "ui-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "Held-until label is lighter grey and the layout leaves a large dead gap above the button.",
+        "The medication names wrap awkwardly onto two lines and the layout is a little tight, with no status bar shown."
+      ]
+    },
+    "r20": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [2, 0],
+      "flaws": [
+        "The lamp housing sits behind the post and is almost hidden from the front, so its position is hard to read.",
+        "Lamp housing is oversized and sticks out sideways from the post, with a flat thin arm that is hard to see edge-on."
+      ]
+    },
+    "r21": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [2, 2],
+      "flaws": [
+        "The cat has no outline and a vague tail, and the lantern is busy with stripes.",
+        "Cat has no outline and almost no visible curled tail, so it blends into the dark ground."
+      ]
+    },
+    "r22": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [3, 2],
+      "flaws": [
+        "Stop timeline is unevenly spaced and the snooze button is a filled box close to cancel.",
+        "The route timeline has awkward large gaps and an alert pill floating inside it, and the cancel button is more prominent than snooze."
+      ]
+    },
+    "r23": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [3, 3],
+      "flaws": [
+        "The cart is malformed, with a dangling wheel and a cramped awning and pot.",
+        "Cat tail is missing and the cart is a confusing blob with one wheel and an unclear pot."
+      ]
+    },
+    "r24": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [1, 2],
+      "flaws": [
+        "The lamp hangs below and in front of the pivot rather than just behind it.",
+        "Lamp is partly hidden under the arm and the footing is a low flat slab, making it look less solid."
+      ]
+    }
+  }
+}

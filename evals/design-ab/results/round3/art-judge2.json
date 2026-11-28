@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Noodle cart is cluttered with an oversized wheel and the pot is hidden under the awning."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Cat has no outline and almost no visible curled tail, so it blends into the dark ground."
+        },
+        "R": {
+          "fulfils": 2,
+          "reads": 3,
+          "craft": 2,
+          "ready": 2,
+          "flaw": "Cat tail is missing and the cart is a confusing blob with one wheel and an unclear pot."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cobble tile is busy and noisy, with weak mortar definition."
+        }
+      },
+      "ranking": ["S", "P", "Q", "R"],
+      "why_top": "S delivers every asset as briefed: a cat with white chest and curled right tail, a clear lantern, and a readable cart with awning and steaming pot."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Gardener's watering can and body are slightly stiff and the packet's folded top is only a flat band."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Gardener and packet lack a full dark outline, so they read weakly against the pale wall."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Green shirt hides the brown apron and the watering can is red, so the gardener's apron is hard to read."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Packet is thin and small at play size and the tomato icon is tiny."
+        }
+      },
+      "ranking": ["P", "S", "R", "Q"],
+      "why_top": "P meets every brief point with clean dark outlines, a clearly brown apron and straw hat, six readable seedlings, a seamless brick tile and a legible packet."
+    }
+  }
+}

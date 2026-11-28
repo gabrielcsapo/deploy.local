@@ -53,6 +53,35 @@ Caveats: 8 pairs a kind is small, and the two UI judges disagreed often on ui-1 
 Several arm-B designers could not get a screenshot from /tmp/chromium and checked by arithmetic,
 while arm A's check drew its pictures for it; round 1 had the same environment notes.
 
+## Round 3 (2026-11-28, Opus designers, pipeline/all at 0568d3c2)
+
+Same method as round 2 on six fresh briefs (`briefs-round3.json`), but every designer was Opus.
+Judges stayed Sonnet so the rounds compare. Two changes to the renders, applied to both arms:
+the model sheet adds the view from underneath (one brief hangs overhead), and a phone brief can
+name its colour scheme (`render.scheme`; ui-2 asks for a dark theme). Results in `results/round3/`.
+
+| kind  | pipeline won | lost | split | mean "ready" A / B | round 2 (Sonnet) won / lost |
+| ----- | -----------: | ---: | ----: | -----------------: | --------------------------: |
+| art   |            4 |    4 |     0 |        3.50 / 3.12 |                       4 / 3 |
+| model |            0 |    6 |     2 |        3.12 / 3.88 |                       0 / 5 |
+| ui    |            1 |    6 |     1 |        3.00 / 3.62 |                       4 / 0 |
+
+What the judges and pictures show:
+
+- UI: both pipeline screens for ui-1 kept the kit's grey grouped background and near-black button;
+  both Opus screens without it used the brand's green and bolder type and won every pair. With
+  Sonnet the kit lifted weak screens; with Opus it pulls strong ones back to the kit's look.
+- Models: both pipeline carousel horses ended the pole on the saddle instead of running it
+  through the body, the one thing the brief needed read from below. The semaphores were close.
+- Art: even; the one pipeline set that drew no outline (its darkest colour matched the ground)
+  ranked third, and the other ranked first on art-1.
+- Opus runs without the pipeline also met the briefs' hard limits and checked their own work with
+  scripts, so the check again caught nothing they missed.
+
+Caveats as before: 8 pairs a kind, and the briefs differ from round 2, so the absolute scores do
+not compare cleanly between rounds. Several designers in both arms said /tmp/chromium hung for
+them.
+
 ## Rerun
 
     BRIEFS=briefs-round2.json python3 setup.py /tmp/ab ~/.ab-key.json   # BRIEFS picks a briefs file for setup, render and make_blind

@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The grey 'Held until' line and 'Order number' label look under 7:1 against the grey background, and there is an adjacent unused gap above the button."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The grey 'Held until' text sits loose on the grey background at low contrast, the item divider runs flush to the card edge, and a large empty gap sits mid-screen."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The medication names wrap awkwardly onto two lines and the layout is a little tight, with no status bar shown."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "'$12.40 copay' is split across two lines in a tile and the Window 2 icon is a confusing laptop glyph."
+        }
+      },
+      "ranking": ["R", "S", "P", "Q"],
+      "why_top": "R uses dark green on white for strong contrast throughout, a big boxed order number, a full-width tall button and a clear single-column order for a 72-year-old at the counter."
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The route timeline has awkward large gaps and an alert pill floating inside it, and the cancel button is more prominent than snooze."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The alarm status is tucked into a small card at the bottom and a large dead zone sits above the route chip, though Cancel stays a quiet, separated control."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The red-outlined Cancel is loud for a control meant to avoid accidental taps, and the snooze outline is only slightly quieter."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "A large empty band above the route chip and the Alert detail buried in a bottom card weaken the hierarchy."
+        }
+      },
+      "ranking": ["R", "Q", "P", "S"],
+      "why_top": "R has the clearest hierarchy, with an amber 7 min dominant figure, alert status directly beneath it, a tidy trip card and well-separated, differentiated cancel and snooze controls."
+    }
+  }
+}

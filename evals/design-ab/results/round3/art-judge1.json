@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The cart is malformed, with a dangling wheel and a cramped awning and pot."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The cart is squat and muddled, with the steaming pot nearly hidden under the awning."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The cat has no outline and a vague tail, and the lantern is busy with stripes."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cobble tile is a little noisy and its mortar is low contrast when repeated."
+        }
+      },
+      "ranking": ["S", "Q", "R", "P"],
+      "why_top": "S has a clean dark outline, a clearly curled tail, a readable cart with pot and steam, and a seamless tile."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The gardener's apron is small and the watering can is a flat blue block."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The hat and head lack a strong dark outline, so the gardener is weak against the mint wall."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The brown apron barely reads and the red watering can looks like a teapot."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The packet is narrow with a vague folded top, and the gardener's body is slim."
+        }
+      },
+      "ranking": ["P", "S", "R", "Q"],
+      "why_top": "P has a strong dark outline on all four assets, a clear gardener, a six-seedling tray and a tidy packet, plus an aligned running-bond tile."
+    }
+  }
+}

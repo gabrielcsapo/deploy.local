@@ -6,6 +6,7 @@ import { join } from 'node:path';
 const [keyFile, out] = process.argv.slice(2);
 const key = JSON.parse(readFileSync(keyFile, 'utf8'));
 // A brief may say how its art is shown in play: { roles: [[role, regex source]], ground: css, dark }.
+// A phone brief may name the colour scheme its screen is shown in: { scheme: 'dark' }.
 const briefs = Object.fromEntries(
   JSON.parse(
     readFileSync(process.env.BRIEFS || new URL('./briefs.json', import.meta.url), 'utf8'),
@@ -121,7 +122,7 @@ for (const [rid, r] of Object.entries(key).sort()) {
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 2,
-      colorScheme: 'light',
+      colorScheme: briefs[r.brief]?.render?.scheme ?? 'light',
     });
     await page.goto(`file://${uiFile(r)}`);
     await page.waitForTimeout(500);

@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Belly hatch is a plain brass rectangle on a stubby pole end, so the hatch and the pole as sole support read weakly from below."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The hatch is filled faded red with a brass frame rather than a charcoal rectangle on the plate, and the pole pokes out below the belly."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The tail is ivory and blends into the body, so the swept tail wedge is weak."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The head is thin and the legs are spindly with a very small pole stub, so the horse looks less chunky and the pole barely reads from below."
+        }
+      },
+      "ranking": ["Q", "R", "P", "S"],
+      "why_top": "Q meets all limits and has the clearest belly hatch with a visible brass frame, a continuous pole and a readable forward-facing head."
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The lamp hangs below and in front of the pivot rather than just behind it."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The lamp is partly hidden behind the arm and overlaps the pivot boss."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The footing and post are shrunk to 0.37 m deep and offset, so the model is off-centre and the lamp is small and under the arm."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The lamp housing sits behind the post and is almost hidden from the front, so its position is hard to read."
+        }
+      },
+      "ranking": ["Q", "P", "S", "R"],
+      "why_top": "Q shows the 45 degree raised arm, the pivot boss, the lamp and the counterweight clearly from the front within the size and triangle limits."
+    }
+  }
+}

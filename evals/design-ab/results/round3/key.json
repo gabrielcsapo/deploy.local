@@ -1,0 +1,170 @@
+{
+  "r01": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r01/pharmacy"
+  },
+  "r02": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r02/overhead"
+  },
+  "r03": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r03/greenhouse"
+  },
+  "r04": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r04/night"
+  },
+  "r05": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r05/overhead"
+  },
+  "r06": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r06/railway"
+  },
+  "r07": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r07/night"
+  },
+  "r08": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r08/greenhouse"
+  },
+  "r09": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r09/night"
+  },
+  "r10": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r10/night"
+  },
+  "r11": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r11/railway"
+  },
+  "r12": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r12/overhead"
+  },
+  "r13": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r13/pharmacy"
+  },
+  "r14": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r14/greenhouse"
+  },
+  "r15": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r15/pharmacy"
+  },
+  "r16": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r16/greenhouse"
+  },
+  "r17": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r17/night"
+  },
+  "r18": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r18/overhead"
+  },
+  "r19": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r19/pharmacy"
+  },
+  "r20": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r20/railway"
+  },
+  "r21": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r21/night"
+  },
+  "r22": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r22/night"
+  },
+  "r23": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab3/runs/r23/night"
+  },
+  "r24": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab3/runs/r24/railway"
+  }
+}
