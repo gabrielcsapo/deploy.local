@@ -74,6 +74,7 @@ import {
   screenFamily,
   sourceNotes,
   spacingNotes,
+  settleFindings,
   type Finding,
 } from '../../design/board-quality.ts';
 import { reviewWidths, screenName } from '../../../shared/v2/design-review.ts';
@@ -571,14 +572,21 @@ export async function checkDesign(
   const dsPaths = dsFolder ? designSystemPaths(dsFolder) : null;
   // The schemes the project says every board draws (canvas.json "schemes"); each platform has
   // its own default otherwise: light and dark, light for a slide or a printed piece.
+  // An open canvas (no design system) draws light unless the project or the board asks for more.
+  const openCanvas = !dsFolder;
   const canvasSchemes: Scheme[] | null = Array.isArray(canvas?.schemes)
     ? canvas.schemes.filter((scheme: unknown) => scheme === 'light' || scheme === 'dark')
-    : null;
+    : openCanvas
+      ? ['light']
+      : null;
   const placedWidth = (file: string, at: 'branch' | 'main' = 'branch') =>
     Number((at === 'branch' ? canvas : mainCanvas)?.boards?.[file]?.w) || undefined;
   /** The schemes a board of this text draws unless its head says: its platform's. */
   const requiredSchemes = (html: string | null, file: string, at: 'branch' | 'main' = 'branch') =>
-    platformSchemes(boardPlatform(parseBoardMeta(html), placedWidth(file, at)), null);
+    platformSchemes(
+      boardPlatform(parseBoardMeta(html), placedWidth(file, at)),
+      openCanvas ? canvasSchemes : null,
+    );
   const systemFile = async (candidates: string[] | undefined) =>
     candidates
       ? ((
@@ -1189,7 +1197,8 @@ export async function checkDesign(
     const mainHas = (await onMain(file)) !== null;
     const name = file.replace(/\.html$/, '');
     const title = screenName(file);
-    const schemes: Scheme[] = meta.schemes ?? platformSchemes(platform, null);
+    const schemes: Scheme[] =
+      meta.schemes ?? platformSchemes(platform, openCanvas ? canvasSchemes : null);
     const shots: CheckResult['pictures'] = [];
     const found = { problems: [] as Finding[], notes: [] as Finding[] };
     // A logo's pictures, whose pixels say whether the mark shows at 16 px.
@@ -1632,6 +1641,15 @@ export async function checkDesign(
   const widths = [...new Set(drawn.flatMap((file) => drawnWidths.get(file) ?? []))].sort(
     (a, b) => b - a,
   );
+  // What stops the check on an open canvas: breakage and the limits a board states, not taste.
+  const heads = new Map<string, ReturnType<typeof parseBoardMeta>>();
+  for (const file of own) heads.set(file, parseBoardMeta(await after(file)));
+  const settled = settleFindings(problems, notes, {
+    system: !openCanvas,
+    stated: (file, key) => Boolean(file && heads.get(file)?.other[key]),
+  });
+  problems.splice(0, problems.length, ...settled.problems);
+  notes.splice(0, notes.length, ...settled.notes);
   for (const board of boards)
     board.problems = problems.filter((problem) => problem.file === board.file).map((p) => p.short);
   return {

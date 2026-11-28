@@ -18,6 +18,8 @@ import {
   boardQuestions,
   boardSimilarity,
   checkCodes,
+  onlyWithSystem,
+  stopsOnOpenCanvas,
   readTokens,
   screenBase,
   screenFamily,
@@ -627,8 +629,19 @@ export function guideLines({ top, designSystem, all = false }) {
     if (lines.length) lines.push('');
     lines.push(title);
   };
-  section('Design system');
-  if (design.ds) {
+  // An open canvas (no design system): the look is the project's own, in look.css.
+  const open = !design.ds;
+  if (open) {
+    section('Look');
+    lines.push(
+      existsSync(join(top, 'design', 'look.css'))
+        ? "  design/look.css holds this project's shared look; boards link ../look.css and add to it."
+        : '  Boards carry their own <style>; put what several boards share in design/look.css.',
+    );
+  } else section('Design system');
+  if (open) {
+    // Nothing more: no tokens, type scale or components to keep to.
+  } else if (design.ds) {
     const files = Object.values(design.paths)
       .flat()
       .filter(
@@ -709,10 +722,16 @@ export function guideLines({ top, designSystem, all = false }) {
       "  full-screen game. An app's phone boards are not held to it (they are the app's content, without the device's chrome). Its type is the game scale",
       "  (--text-game-*), never the phone's; every other platform is held to its own kit's scale too.",
     );
-  lines.push(
-    '  Style lives in the design system, not the board: no style="…" with a colour, size, space or font, and no <style> block for html, body or a design-system class (inline_style). A kit’s own custom property in style, like a bar’s --v or a print face’s --print-w, is how the kit is driven, and is fine.',
-    "  Put it in the kind's css (design/ds/<system>/<kind>.css) as a class. Anything that must scroll sideways says so (overflow-x: auto or data-scroll-x); the rest ends inside its edge (cut_off_side).",
-  );
+  if (open)
+    lines.push(
+      '  Limits from the brief go in the head too, and the check holds the board to them: size= and tris= (model), tile= and play= (art), contrast=aa (low contrast stops the check).',
+      '  Anything that must scroll sideways says so (overflow-x: auto or data-scroll-x); the rest ends inside its edge (cut_off_side).',
+    );
+  else
+    lines.push(
+      '  Style lives in the design system, not the board: no style="…" with a colour, size, space or font, and no <style> block for html, body or a design-system class (inline_style). A kit’s own custom property in style, like a bar’s --v or a print face’s --print-w, is how the kit is driven, and is fine.',
+      "  Put it in the kind's css (design/ds/<system>/<kind>.css) as a class. Anything that must scroll sideways says so (overflow-x: auto or data-scroll-x); the rest ends inside its edge (cut_off_side).",
+    );
   lines.push(
     '  Also schemes=light dark, title=…, replaces=<Old>.html, copied_from=<Board>.html (commas between keys; semicolons work too).',
   );
@@ -782,6 +801,35 @@ export function guideLines({ top, designSystem, all = false }) {
   if (fixtures) {
     section('Fixtures (use these names, never invented ones)');
     lines.push(`  ${fixtures.trim().replace(/\.$/, '')}`);
+  }
+  if (open) {
+    section('Content');
+    lines.push(
+      '  Draw sample content real and specific, never "Item one" or "Lorem". A product fact the brief does not give (a price, hours,',
+      '  a policy) is left out, or drawn as finished copy with data-question="Is this the real price?" on its layer.',
+    );
+    section('Check codes (problems stop the check; advice is yours to weigh)');
+    const kindPlatforms = designKinds[design.kind].platforms;
+    const shown = checkCodes.filter((entry) => {
+      if (onlyWithSystem(entry.code)) return false;
+      if (!trimmed) return true;
+      if (appOnlyCodes.has(entry.code)) return false;
+      const named = /^(print|doc|logo|game|art|model)\b/.exec(entry.means)?.[1];
+      return !named || kindPlatforms.includes(named);
+    });
+    const width = Math.max(...shown.map((entry) => entry.code.length)) + 2;
+    for (const entry of shown)
+      lines.push(
+        `  ${entry.code.padEnd(width)}${stopsOnOpenCanvas(entry.code, entry.problem) ? 'problem' : 'advice '}  ${entry.means}`,
+      );
+    section('The loop');
+    lines.push(
+      '  1. edit design/boards/<Board>.html    link ../look.css; keep data-layer IDs',
+      '  2. deploy design look <Board>        see it (--width, --scheme dark, --angle for a model)',
+      '  3. deploy design check --fix        beside main; fix every problem, weigh the advice',
+      '  4. deploy design export             the files to hand on',
+    );
+    return lines;
   }
   section('Sample content, product facts and questions');
   lines.push(

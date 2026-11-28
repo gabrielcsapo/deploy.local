@@ -1653,6 +1653,74 @@ export function screenFamily(
   return kept.filter((other) => under(screenBase(other), mine));
 }
 
+// ── What stops the check ─────────────────────────────────────────────────────────────────────────
+//
+// The canvas is open: a board's look is the designer's. The check stops only on what is broken
+// whatever the taste (a board that will not draw or build, text cut off or overflowing, a broken
+// link, boards on top of each other, a layer another agent relies on gone) and on limits the
+// board itself states from the brief (a model's size= and tris=, a sprite's tile= and palette,
+// contrast=). Everything else is advice, and nothing is judged against anyone's tokens. A project
+// that keeps its own design system in design/ds (init --kit) is held to it as before.
+
+/** Problems that are advice unless the board's head states the limit (key=). */
+const adviceUnlessStated: Record<string, string> = { low_contrast: 'contrast' };
+
+/** Problems that are advice on every canvas: matters of taste and flow, not of breakage. */
+const adviceOnly = new Set([
+  'source_action_missing',
+  'second_primary',
+  'layer_name_says_nothing',
+  'scheme_dropped',
+  'scheme_pinned_page',
+  'part_carried',
+]);
+
+/** Findings that only mean something against a design system the project keeps. */
+const systemOnly = new Set([
+  'not_a_token',
+  'edited_inside_component',
+  'local_copy_of_component',
+  'inline_style',
+  'specimen_text',
+  'type_off_scale',
+  'spacing_off_scale',
+  'no_status_bar',
+  'box_in_card',
+  'differs_from_source',
+]);
+
+/**
+ * Sorts findings by what stops the check: advice moves to the notes, and with no design system
+ * the findings against one go. `stated(file, key)` says whether a board's head states a limit.
+ */
+export function settleFindings<T extends { code?: string; file: string | null }>(
+  problems: T[],
+  notes: T[],
+  input: { system: boolean; stated: (file: string | null, key: string) => boolean },
+) {
+  // A project that keeps its own design system asked to be held to it: its checks stand as they are.
+  if (input.system) return { problems, notes };
+  const kept: T[] = [];
+  const advice: T[] = [];
+  const relevant = (finding: T) => !systemOnly.has(finding.code ?? '');
+  for (const problem of problems) {
+    if (!relevant(problem)) continue;
+    const code = problem.code ?? '';
+    const key = adviceUnlessStated[code];
+    if (adviceOnly.has(code) || (key && !input.stated(problem.file, key))) advice.push(problem);
+    else kept.push(problem);
+  }
+  for (const note of notes) if (relevant(note)) advice.push(note);
+  return { problems: kept, notes: advice };
+}
+
+/** Whether a code stops the check on an open canvas (no design system), for what guide prints. */
+export const stopsOnOpenCanvas = (code: string, problem: boolean) =>
+  problem && !adviceOnly.has(code) && !(code in adviceUnlessStated) && !systemOnly.has(code);
+
+/** Whether a code is only reported for a project that keeps its own design system. */
+export const onlyWithSystem = (code: string) => systemOnly.has(code);
+
 /** Every code the check reports, whether it blocks, and what it means: what guide prints. */
 export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   {

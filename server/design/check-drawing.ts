@@ -97,11 +97,12 @@ export async function buildBoardPage(html: string, sources: BoardSources) {
     const library = await sources.library();
     if (library) page = syncInstances(page, library);
   }
-  // A design system stylesheet beside the board, however the tag is written (a formatter
-  // writes <link … />).
+  // A stylesheet of the project's under design/ (look.css, or a design system's in ds/),
+  // however the tag is written (a formatter writes <link … />).
   for (const match of page.matchAll(
-    /<link\b(?=[^>]*\srel="stylesheet")[^>]*\shref="\.\.\/(ds\/[^"]+\.css)"[^>]*>/g,
+    /<link\b(?=[^>]*\srel="stylesheet")[^>]*\shref="\.\.\/([A-Za-z0-9_][\w./-]*\.css)"[^>]*>/g,
   )) {
+    if (match[1].split('/').includes('..')) continue;
     const css = await sources.css(match[1]);
     page = page.replace(match[0], () => `<style>${css?.toString() ?? ''}</style>`);
   }

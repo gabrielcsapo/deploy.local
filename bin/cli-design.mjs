@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -35,46 +36,44 @@ import {
 } from '../shared/v2/design-board-meta.ts';
 import { boardFrame, designKinds, exportPage } from '../shared/v2/design-platforms.ts';
 import { exportOrder, mergePdfs, numberSlides } from './design-export.mjs';
+import { openCanvasFiles, openReadme } from './design-open.mjs';
+
+/** The box a new board takes on the canvas, from its head. */
+const openBox = (html) => {
+  const meta = parseBoardMeta(html);
+  const frame = boardFrame(boardPlatform(meta), meta);
+  return { w: frame.width, h: frame.height ?? 1000 };
+};
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const LABEL = 33;
 
 /** `deploy design --help`, `deploy design -h` and `deploy help design`. */
-export const DESIGN_HELP = `deploy design — change what people see, on the same branch as the code
+export const DESIGN_HELP = `deploy design — draw what people will see, and check it, on an open canvas
 
 Usage  deploy design <command> [flags]
 
-  init [<name>] [--kind k] Start design/ here, with a starter design system
+  init [<name>] [--kind k] Start design/: a README, look.css and one blank board
                            (kinds: app, doc, slides, print, mac, game, logo, art, model)
-  export [<Board>…]        One PDF of the boards, in canvas order, at their own sizes
-  guide                    How to work on this project's design
-  status [<Board>…]        Where to start a board: its source, siblings, questions
-  check                    Draw what you changed beside main and check it, here
-  sync [<Board>…]          Draw component instances again from their data-props
+  look <Board>             Draw one board into output/design/look/
+                           --width 700  --scheme dark  --angle 30,20 (a model: round, up)
+  check [--fix]            Draw what changed beside main; problems stop, advice is yours
+  export [<Board>…]        PDF of the boards; logo marks and sprites as SVG; models as .glb
+  status [<Board>…]        A board's source, siblings and open questions
+  guide                    Platforms, sizes and check codes
   review                   A brief for a second agent to review what you changed
   dev                      Open the Design page on this folder, as you save
-
-Legacy review flow
-  start "<title>"          Start a design change on a branch from main
-  propose                  Check it, push it and ask for review
-  feedback                 Read the answer and the notes
-  resolve <n> "<reply>"    Answer a note when it is done
+  kit <kind>               An old starter kit, copied to output/design/kit/ to read
 
 Flags
-  --fix                    check: write what has one answer (heights, places)
+  --kit                    init: start from the starter design system instead
   --json                   Print the result as JSON
-  --project <name>         The project, when origin is elsewhere
-  --wait                   feedback: stay until there is an answer
-  --title, --summary, --look-at
-                           propose: answer its questions up front
   --drop-instances         check: put carried boards back as on main
-  --kind <kind>            init: what this project makes (default app)
   --all                    guide: the full guide, not only this project's kind
-  --pdf                    export: the PDF (the default, and only, format)
-  --marks                  export: print boards get a 5 mm slug with crop marks round trim + bleed
+  --marks                  export: print boards get crop marks round trim + bleed
 
-Check exits 0 clean, 1 with problems, 2 on wrong usage, 4 when deploy.local
-is needed (no browser here) and out of reach.
+Check exits 0 clean, 1 with problems, 2 on wrong usage, 4 with no browser here.
+Legacy review flow: start, propose, feedback, resolve (see design/README.md).
 
 How a canvas and a board are written:  design/README.md`;
 
@@ -122,8 +121,8 @@ only; change nothing.
 The boards it changed or added:
 ${list}
 
-1. Read design/README.md (especially "What agents get wrong"), the design system's README in
-   design/ds/*/README.md, and the brief or task the change answers.
+1. Read design/README.md, design/look.css (or design/ds/*/README.md when the project keeps a
+   design system), and the brief or task the change answers.
 2. Run \`deploy design check\` in ${top} and read its problems, notes and review sheet.
 3. Open every pair it lists in output/design/pairs for these boards: every width, both schemes.
 4. Read the boards' HTML, and the product's code where a board claims what the product does.
@@ -150,10 +149,9 @@ it). For each: the board, width and scheme, the layer, what is wrong, and the fi
 - The brief first: every hard limit met, and what matters most to the person in the brief's
   situation is what they see first. A screen, sprite or prop that could belong to any product,
   every fact laid out alike, is a [judgement] finding even when it is on the system.
-- The design system's tokens and components, changed in ds/ where the brief needs more than they
-  give; one primary action; consistency across boards and between web and iPhone; every width
-  and scheme readable, nothing cut off, words true to the render; layer IDs kept and named; a
-  sensible canvas.
+- One look across the boards (look.css or the project's design system), extended where the brief
+  needs more; one primary action; consistency across boards; every width and scheme readable,
+  nothing cut off, words true to the render; layer IDs kept and named; a sensible canvas.
 
 Skip praise. If nothing needs fixing, say so in one line.
 
@@ -596,7 +594,7 @@ export const reviewQuestions = [
   'In the situation the brief describes (the hand, the light, the ground, the distance), what does a person see first? Is it what matters most to them?',
   "Is it this product's own, or could it be any app, game or prop? Name what in it comes from the brief.",
   'Are the words, data and actions true to the brief or the code, and is every guess asked with data-question?',
-  'Where the brief needs more than the design system gives (a bigger target, more contrast, its own colours), did you change the system instead of settling for its default?',
+  "Do the boards share one look (look.css, or the project's design system) where they should, so another agent's next board would match?",
   'Is every width and scheme readable, nothing cut off, and do the scheme words match the render? If the board names a scheme or size, is it true in every render?',
   "Does it match its siblings' structure, sizes and chrome, where it has siblings?",
   'Is every old layer ID kept, and every new one named for what it is?',
@@ -1429,6 +1427,48 @@ export async function runDesign(sub, args, options, deps) {
           'deploy design init --kind doc',
           2,
         );
+      if (!options.kit) {
+        // The open canvas: a short README, the project's own look.css and one blank board.
+        const open = openCanvasFiles(name, kind, displayName(name));
+        const write = (path, text) => {
+          mkdirSync(dirname(join(top, path)), { recursive: true });
+          writeFileSync(join(top, path), text);
+        };
+        const canvas = {
+          title: name,
+          ...(kind === 'app' ? {} : { kind }),
+          schemes: ['light'],
+          boards: {
+            [open.file]: {
+              x: 0,
+              y: 0,
+              ...openBox(open.files[`design/boards/${open.file}`]),
+              title: open.title,
+            },
+          },
+          order: [open.file],
+          notes: {},
+          startingBoard: open.file,
+        };
+        write('design/canvas.json', `${JSON.stringify(canvas, null, 2)}\n`);
+        write('design/README.md', openReadme(kind));
+        for (const [path, text] of Object.entries(open.files)) write(path, text);
+        const ignore = join(top, '.gitignore');
+        const ignored = existsSync(ignore) ? readFileSync(ignore, 'utf8') : '';
+        if (!/^\/?output\/?$/m.test(ignored))
+          writeFileSync(
+            ignore,
+            `${ignored}${ignored && !ignored.endsWith('\n') ? '\n' : ''}output/\n`,
+          );
+        const written = ['design/canvas.json', 'design/README.md', ...Object.keys(open.files)];
+        for (const path of written) step('✓', 'Made', path);
+        out();
+        out(`Next: read design/README.md, then draw design/boards/${open.file}`);
+        return {
+          exitCode: 0,
+          json: { ok: true, code: 'initialized', name, kind, written, next: 'design/README.md' },
+        };
+      }
       const starter = deps.starter?.() ?? {};
       const written = initDesign(top, name, starter, kind);
       const hasKind =
@@ -1622,6 +1662,129 @@ export async function runDesign(sub, args, options, deps) {
           ...(modelFiles.length ? { models: modelFiles } : {}),
         },
       };
+    }
+
+    case 'kit': {
+      // An old starter kit, to read for ideas: copied into output/, linked by nothing.
+      const top = root();
+      const kind = args[0] ?? 'app';
+      if (args.length > 1 || !designKinds[kind])
+        throw cliError(
+          `Name one kind: ${Object.keys(designKinds).join(', ')}.`,
+          'deploy design kit art',
+          2,
+        );
+      const scratch = mkdtempSync(join(tmpdir(), 'deploy-kit-'));
+      const folder = join(top, 'output', 'design', 'kit', kind);
+      try {
+        initDesign(scratch, 'kit', deps.starter?.() ?? {}, kind);
+        rmSync(folder, { recursive: true, force: true });
+        mkdirSync(dirname(folder), { recursive: true });
+        renameSync(join(scratch, 'design'), folder);
+      } finally {
+        rmSync(scratch, { recursive: true, force: true });
+      }
+      step(
+        '✓',
+        'Copied',
+        `output/design/kit/${kind}/ · a reference to read; boards link nothing in it`,
+      );
+      return {
+        exitCode: 0,
+        json: { ok: true, code: 'kit', kind, folder: `output/design/kit/${kind}` },
+      };
+    }
+
+    case 'look': {
+      // One board drawn as asked: any width, either scheme, a model from any angle. Nothing checked.
+      const top = needsDesign(root());
+      if (args.length !== 1) throw cliError('Name one board.', 'deploy design look Home', 2);
+      const design = readDesign(top, deps.designSystem);
+      const file = boardFileName(args[0]);
+      const board = design.boards.get(file);
+      if (!board) throw cliError(`No board named ${file}.`, 'deploy design status', 2);
+      const scheme = options.scheme === undefined ? 'light' : String(options.scheme);
+      if (scheme !== 'light' && scheme !== 'dark')
+        throw cliError(
+          '--scheme is light or dark.',
+          `deploy design look ${args[0]} --scheme dark`,
+          2,
+        );
+      const width = options.width === undefined ? board.width : Number(options.width);
+      if (!(width >= 120 && width <= 4096))
+        throw cliError(
+          '--width is 120 to 4096 px.',
+          `deploy design look ${args[0]} --width 700`,
+          2,
+        );
+      const angle = options.angle === undefined ? null : String(options.angle);
+      const turn =
+        angle && /^-?\d+(\.\d+)?(,-?\d+(\.\d+)?)?$/.test(angle) ? angle.split(',') : null;
+      if (angle && (!turn || board.platform !== 'model'))
+        throw cliError(
+          '--angle is for a model board: degrees round it, and up (30 or 30,20).',
+          'deploy design look Model --angle 30,20',
+          2,
+        );
+      const stem = file.replace(/\.html$/, '');
+      const folder = join(top, 'output', 'design', 'look');
+      mkdirSync(folder, { recursive: true });
+      const written = [];
+      const opened = deps.openLocalDrawing
+        ? await deps.openLocalDrawing(top)
+        : { reason: 'this terminal has no browser' };
+      if (!opened.drawing)
+        throw cliError(
+          `No browser to draw with here (${opened.reason}).`,
+          'deploy browser install',
+          4,
+        );
+      try {
+        const tall = board.meta.height === null;
+        const drawn = await opened.drawing.shoot({
+          commit: WORKTREE,
+          file,
+          width,
+          height: board.height,
+          scheme,
+          measure: false,
+          fullPage: tall,
+          model: board.platform === 'model',
+        });
+        if (!drawn) throw cliError(`${file} could not be drawn.`, 'deploy design check', 1);
+        const picture = `${stem}-${width}-${scheme}.png`;
+        writeFileSync(join(folder, picture), drawn.png);
+        written.push(`output/design/look/${picture}`);
+        const sheet = drawn.model;
+        if (turn && sheet?.name) {
+          const found = await modelSource(sheet.name, (path) => designFile(top, WORKTREE, path));
+          const view = `turn:${turn[0]}:${turn[1] ?? 20}`;
+          const built = found
+            ? await buildModel({
+                name: sheet.name,
+                ...found,
+                palette: sheet.palette,
+                box: sheet.box ?? [1, 1, 1],
+                views: [view],
+                cacheDir: join(top, 'output', 'design', '.models'),
+              })
+            : null;
+          const png = built?.views?.[view];
+          if (!png)
+            throw cliError(
+              `${sheet.name} was not drawn: ${built?.unbuilt ?? built?.stats?.error ?? sheet.missing ?? 'no picture'}.`,
+              'deploy design check',
+              1,
+            );
+          const turned = `${stem}-turn-${turn[0]}-${turn[1] ?? 20}.png`;
+          writeFileSync(join(folder, turned), png);
+          written.push(`output/design/look/${turned}`);
+        }
+      } finally {
+        await opened.close?.();
+      }
+      for (const path of written) step('✓', 'Drew', path);
+      return { exitCode: 0, json: { ok: true, code: 'look', board: file, pictures: written } };
     }
 
     case 'review': {

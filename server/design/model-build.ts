@@ -155,6 +155,8 @@ export function buildModel(input: {
   palette: Record<string, string>;
   box: [number, number, number];
   size?: number;
+  /** Views other than the five, as "turn:<yaw>:<elevation>" in degrees. */
+  views?: string[];
   cacheDir?: string;
   blender?: Blender;
   timeoutMs?: number;
@@ -178,6 +180,7 @@ export function buildModel(input: {
     JSON.stringify(input.palette),
     input.box.join('x'),
     String(size),
+    (input.views ?? []).join(','),
   ).slice(0, 24);
   const out = join(cacheDir, key);
   const done = readBuild(out);
@@ -203,6 +206,7 @@ export function buildModel(input: {
         JSON.stringify(input.palette),
         '--size',
         String(size),
+        ...(input.views?.length ? ['--views', input.views.join(',')] : []),
       ];
       const failed = await new Promise<string | null>((resolve) =>
         execFile(
@@ -250,8 +254,12 @@ function readBuild(out: string): ModelBuild | null {
   }
   const views: ModelBuild['views'] = {};
   const files = new Set(readdirSync(out));
-  for (const view of modelViews)
-    if (files.has(`${view}.png`)) views[view] = readFileSync(join(out, `${view}.png`));
+  const drawn = new Set<string>([...modelViews, ...Object.keys(stats.views ?? {})]);
+  for (const view of drawn) {
+    const picture = `${view.replace(/:/g, '_')}.png`;
+    if (files.has(picture))
+      (views as Record<string, Buffer>)[view] = readFileSync(join(out, picture));
+  }
   const glb = files.has('model.glb') ? readFileSync(join(out, 'model.glb')) : null;
   return { stats, views, glb };
 }

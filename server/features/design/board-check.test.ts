@@ -369,7 +369,10 @@ test('a working copy is checked against main: named, drawn, and its problems fou
   try {
     repo.write(
       'design/canvas.json',
-      JSON.stringify({ boards: { 'Projects.html': { x: 0, y: 0, w: 1440, h: 900 } } }),
+      JSON.stringify({
+        designSystem: 'ds/kit',
+        boards: { 'Projects.html': { x: 0, y: 0, w: 1440, h: 900 } },
+      }),
     );
     repo.write(
       'design/boards/Projects.html',
@@ -387,6 +390,7 @@ test('a working copy is checked against main: named, drawn, and its problems fou
     repo.write(
       'design/canvas.json',
       JSON.stringify({
+        designSystem: 'ds/kit',
         boards: {
           'Projects.html': { x: 0, y: 0, w: 1440, h: 900 },
           'Trade.html': { x: 1600, y: 0, w: 1440, h: 900 },
@@ -451,7 +455,7 @@ test('a working copy is checked against main: named, drawn, and its problems fou
 test('many boards are drawn at once, reported as they finish, and listed in order', async () => {
   const repo = repository();
   try {
-    repo.write('design/canvas.json', JSON.stringify({ boards: {} }));
+    repo.write('design/canvas.json', JSON.stringify({ designSystem: 'ds/kit', boards: {} }));
     repo.run(['add', '.']);
     repo.run(['commit', '-qm', 'Main']);
     const main = repo.run(['rev-parse', 'HEAD']);
@@ -461,6 +465,7 @@ test('many boards are drawn at once, reported as they finish, and listed in orde
     repo.write(
       'design/canvas.json',
       JSON.stringify({
+        designSystem: 'ds/kit',
         boards: Object.fromEntries(files.map((file) => [file, { x: 0, y: 0, w: 390, h: 800 }])),
       }),
     );
@@ -1696,7 +1701,10 @@ test('two primaries, meaningless names the board was written with, and cut-off t
   try {
     repo.write(
       'design/canvas.json',
-      JSON.stringify({ boards: { 'P.html': { x: 0, y: 0, w: 390, h: 844 } } }),
+      JSON.stringify({
+        designSystem: 'ds/kit',
+        boards: { 'P.html': { x: 0, y: 0, w: 390, h: 844 } },
+      }),
     );
     repo.write(
       'design/boards/P.html',
@@ -1822,6 +1830,7 @@ test('a string the product code says is not specimen text', async () => {
     repo.write(
       'design/canvas.json',
       JSON.stringify({
+        designSystem: 'ds/kit',
         boards: {
           'Run.html': { x: 0, y: 0, w: 1440, h: 900 },
           'DesignSystemRows.html': { x: 0, y: 2000, w: 1440, h: 900 },
@@ -2026,6 +2035,7 @@ test('a board drawn in fewer schemes than its source or siblings, or a page pinn
     repo.write(
       'design/canvas.json',
       JSON.stringify({
+        designSystem: 'ds/kit',
         boards: {
           'DesignCanvas.html': { x: 0, y: 0, w: 1440, h: 900 },
           'DesignBoard.html': { x: 1600, y: 0, w: 1440, h: 900 },
@@ -2046,6 +2056,7 @@ test('a board drawn in fewer schemes than its source or siblings, or a page pinn
     repo.write(
       'design/canvas.json',
       JSON.stringify({
+        designSystem: 'ds/kit',
         // This project opts out of dark; its Design boards still draw both, and so must a new one.
         schemes: ['light'],
         boards: {

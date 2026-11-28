@@ -3699,6 +3699,10 @@ try {
       pdf: { type: 'boolean', default: false },
       marks: { type: 'boolean', default: false },
       fix: { type: 'boolean', default: false },
+      kit: { type: 'boolean', default: false },
+      width: { type: 'string' },
+      scheme: { type: 'string' },
+      angle: { type: 'string' },
     },
     strict: false,
   }));

@@ -343,13 +343,10 @@ test('the README start writes says how a canvas and a board are written, as the 
       'Web boards are 1440 wide and are checked at 700 too. Phone boards',
     ].join('\n'),
   );
-  assert.match(
-    DESIGN_HELP,
-    /^deploy design — change what people see, on the same branch as the code\n/,
-  );
-  assert.match(DESIGN_HELP, /\n {2}guide {20}How to work on this project's design\n/);
-  assert.match(DESIGN_HELP, /\n {2}status \[<Board>…\] {8}Where to start a board/);
-  assert.match(DESIGN_HELP, /\nLegacy review flow\n {2}start /);
+  assert.match(DESIGN_HELP, /^deploy design — draw what people will see, and check it/);
+  assert.match(DESIGN_HELP, /\n {2}look <Board> {13}Draw one board/);
+  assert.match(DESIGN_HELP, /\n {2}status \[<Board>…\] {8}A board's source/);
+  assert.match(DESIGN_HELP, /\nLegacy review flow: start, propose/);
   assert.match(DESIGN_HELP, /\n {2}dev {22}Open the Design page on this folder, as you save\n/);
   assert.doesNotMatch(DESIGN_HELP, /capture/);
 });
@@ -1127,6 +1124,7 @@ test('check runs on this computer on any branch, writes nothing in .git, and --f
       join(repo.clone, 'design/canvas.json'),
       JSON.stringify({
         title: 'Site',
+        designSystem: 'ds/site',
         boards: {
           'Sidebar.html': { x: 0, y: 0, w: 1440, h: 900 },
           'Kept.html': { x: 2000, y: 0, w: 1440, h: 900 },
@@ -1638,6 +1636,15 @@ test('check --fix places a new board beside the one it came from', async () => {
 test('a clean check ends with the pairs to open and the questions a reviewer asks', async () => {
   const repo = repository();
   try {
+    // A project that draws both schemes.
+    writeFileSync(
+      join(repo.clone, 'design/canvas.json'),
+      JSON.stringify({
+        title: 'Site',
+        schemes: ['light', 'dark'],
+        boards: { 'Sidebar.html': { x: 0, y: 0, w: 1440, h: 900 } },
+      }),
+    );
     writeFileSync(
       join(repo.clone, 'design/boards/Sidebar.html'),
       '<p data-layer="name">Name, changed</p>',
@@ -1780,7 +1787,7 @@ test('init starts design/ in an empty repository with the starter, here, and the
         (error) => error.next === 'deploy design init' && error.exitCode === 1,
       );
     const made = run();
-    const result = await runDesign('init', [], {}, made.deps);
+    const result = await runDesign('init', [], { kit: true }, made.deps);
     assert.equal(result.exitCode, 0);
     assert.equal(result.json.name, 'larder');
     assert.match(
@@ -1808,7 +1815,7 @@ test('init starts design/ in an empty repository with the starter, here, and the
     // Nothing on a branch, no worktree, nothing sent.
     assert.equal(git(['branch', '--show-current'], folder), 'main');
     // Again: refused politely.
-    await assert.rejects(runDesign('init', [], {}, run().deps), /already has design/);
+    await assert.rejects(runDesign('init', [], { kit: true }, run().deps), /already has design/);
 
     // The guide reads Larder's own system, never deploy.local's.
     const guide = run({ designSystem: () => Buffer.from('deploy.local tokens') });
@@ -1845,16 +1852,17 @@ test('init starts design/ in an empty repository with the starter, here, and the
   }
 });
 
-test('guide in a project with design/ but no design system says so and points at init', async () => {
+test('guide on an open canvas (no design system) is short: the look, limits, codes and the loop', async () => {
   const repo = repository();
   try {
     const run = terminal(repo.clone, coordinator().api, { designSystem: () => Buffer.from('{}') });
     await runDesign('guide', [], {}, run.deps);
-    assert.match(
-      run.text(),
-      /^Design system\n {2}This project has no design system yet\.\n {2}deploy design init/,
-    );
-    assert.doesNotMatch(run.text(), /deploy-local/);
+    const text = run.text();
+    assert.match(text, /^Look\n {2}Boards carry their own <style>/);
+    assert.match(text, /\n {2}low_contrast +advice /);
+    assert.match(text, /\n {2}text_cut_off +problem /);
+    assert.doesNotMatch(text, /not_a_token|inline_style|Components on a board|deploy-local/);
+    assert.match(text, /deploy design look <Board>/);
   } finally {
     repo.cleanup();
   }
@@ -1870,7 +1878,7 @@ test("init copies the real starter, with its examples pointing at this project's
     const result = await runDesign(
       'init',
       ['Larder'],
-      { json: true },
+      { json: true, kit: true },
       terminal(root, coordinator().api, { starter: () => starter }).deps,
     );
     assert.equal(result.json.name, 'larder');
@@ -1924,7 +1932,7 @@ test('init --kind copies the base, then the kind over it: css, rules, components
       'kinds/doc/doc.css': Buffer.from(':root{--text-doc-body:11pt}\n'),
     };
     const made = terminal(root, coordinator().api, { starter: () => starter });
-    const result = await runDesign('init', ['cards'], { kind: 'print' }, made.deps);
+    const result = await runDesign('init', ['cards'], { kind: 'print', kit: true }, made.deps);
     assert.equal(result.json.kind, 'print');
     const ds = (path) => readFileSync(join(root, 'design/ds/cards', path), 'utf8');
     assert.match(ds('README.md'), /^# Base rules\n\n## Print\nKeep type 4 mm inside the trim\.\n$/);
@@ -1996,7 +2004,7 @@ test('init --kind with no starter for it says so; an unknown kind is wrong usage
       (error) => error.exitCode === 2 && /No kind "poster"/.test(error.message),
     );
     const made = terminal(root, coordinator().api, { starter: () => starter });
-    const result = await runDesign('init', [], { kind: 'slides' }, made.deps);
+    const result = await runDesign('init', [], { kind: 'slides', kit: true }, made.deps);
     assert.equal(result.exitCode, 0);
     assert.match(made.text(), /No starter for slides/);
     const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
@@ -2173,7 +2181,7 @@ test('init --kind with the real starter: only the kind, a starting board with tr
       await runDesign(
         'init',
         ['proj'],
-        { kind },
+        { kind, kit: true },
         terminal(root, coordinator().api, { starter: () => starter }).deps,
       );
       const ds = join(root, 'design/ds/proj');
@@ -2408,6 +2416,63 @@ test('review lists only the boards changed since the branch left main, not main�
       ),
     );
     assert.doesNotMatch(result.json.brief, /MainOnly/);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('init starts an open canvas: a short README, look.css and one blank board per kind, no kit', async () => {
+  for (const kind of ['app', 'doc', 'slides', 'print', 'mac', 'game', 'logo', 'art', 'model']) {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), `cli-design-open-${kind}-`)));
+    try {
+      git(['init', '-q', '--initial-branch=main'], root);
+      const made = terminal(root, coordinator().api, { starter: () => ({ 'tokens.css': 'x' }) });
+      const result = await runDesign('init', ['Larder'], { kind }, made.deps);
+      assert.equal(result.exitCode, 0);
+      assert.equal(existsSync(join(root, 'design/ds')), false, `${kind}: no kit`);
+      const canvas = JSON.parse(readFileSync(join(root, 'design/canvas.json'), 'utf8'));
+      assert.equal(canvas.designSystem, undefined);
+      assert.deepEqual(canvas.schemes, ['light']);
+      const [file] = canvas.order;
+      const board = readFileSync(join(root, 'design/boards', file), 'utf8');
+      assert.match(board, /<link rel="stylesheet" href="..\/look.css" \/>/);
+      assert.match(board, /<meta name="design-board" content="[^"]+" \/>/);
+      assert.ok(canvas.boards[file].w > 0, `${kind}: placed`);
+      assert.ok(existsSync(join(root, 'design/look.css')));
+      assert.ok(readFileSync(join(root, 'design/README.md'), 'utf8').split('\n').length < 60);
+      if (kind === 'model') assert.ok(existsSync(join(root, 'design/models/Prop.py')));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('look draws one board as asked and says what it takes', async () => {
+  const repo = repository();
+  try {
+    const shot = [];
+    const openLocalDrawing = async () => ({
+      drawing: {
+        shoot: async (asked) => {
+          shot.push(asked);
+          return { png: Buffer.from('png'), measured: null, inspected: null };
+        },
+      },
+      close: async () => {},
+    });
+    const run = terminal(repo.clone, coordinator().api, { openLocalDrawing });
+    const result = await runDesign('look', ['Sidebar'], { width: '700', scheme: 'dark' }, run.deps);
+    assert.deepEqual(result.json.pictures, ['output/design/look/Sidebar-700-dark.png']);
+    assert.equal(shot[0].width, 700);
+    assert.equal(shot[0].scheme, 'dark');
+    assert.ok(existsSync(join(repo.clone, 'output/design/look/Sidebar-700-dark.png')));
+    for (const [args, options] of [
+      [[], {}],
+      [['Sidebar'], { scheme: 'sepia' }],
+      [['Sidebar'], { width: '20' }],
+      [['Sidebar'], { angle: '30' }],
+    ])
+      await assert.rejects(runDesign('look', args, options, run.deps), (e) => e.exitCode === 2);
   } finally {
     repo.cleanup();
   }

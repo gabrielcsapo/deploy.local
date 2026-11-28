@@ -347,6 +347,14 @@ def box_corners(box):
 
 def view_direction(view):
     """From where each camera looks at the box (Blender is z-up; the front faces -y)."""
+    if view.startswith('turn:'):
+        # turn:<yaw>:<elevation> in degrees: yaw 0 is the front, 90 the right side.
+        _, yaw, elevation = (view.split(':') + ['0', '20'])[:3]
+        yaw = math.radians(float(yaw))
+        elevation = math.radians(max(-80.0, min(80.0, float(elevation))))
+        return Vector(
+            (math.sin(yaw) * math.cos(elevation), -math.cos(yaw) * math.cos(elevation), math.sin(elevation))
+        ).normalized()
     return {
         'front': Vector((0, -1, 0)),
         'side': Vector((1, 0, 0)),
@@ -498,11 +506,12 @@ def main():
     edges = [(a, b) for a in range(8) for b in range(a + 1, 8) if bin(a ^ b).count('1') == 1]
     key = bpy.data.objects['key']
     above = key.rotation_euler.copy()
-    for view in VIEWS:
+    views = [view for view in args.get('views', '').split(',') if view] or VIEWS
+    for view in views:
         # Underneath is lit from below, the same way the other views are lit from above.
         key.rotation_euler = (math.radians(180) - above.x, above.y, above.z) if view == 'bottom' else above
         aim(camera, view, box, stats.get('bounds'))
-        path = os.path.join(out, f'{view}.png')
+        path = os.path.join(out, f"{view.replace(':', '_')}.png")
         scene.render.filepath = path
         bpy.ops.render.render(write_still=True)
         picture = read_picture(path)
