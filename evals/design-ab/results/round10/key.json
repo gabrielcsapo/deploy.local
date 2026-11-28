@@ -1,0 +1,128 @@
+{
+  "c01": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab11a/runs/c01/greenhouse"
+  },
+  "c02": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 3,
+    "proj": "/tmp/ab11a/runs/c02/night"
+  },
+  "c03": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "A",
+    "n": 3,
+    "proj": "/tmp/ab11a/runs/c03/tide"
+  },
+  "c04": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab11a/runs/c04/greenhouse"
+  },
+  "c05": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab11a/runs/c05/tide"
+  },
+  "c06": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab11a/runs/c06/night"
+  },
+  "c07": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 3,
+    "proj": "/tmp/ab11a/runs/c07/greenhouse"
+  },
+  "c08": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab11a/runs/c08/night"
+  },
+  "c09": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab11a/runs/c09/tide"
+  },
+  "b01": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab10b/runs/b01/greenhouse"
+  },
+  "b02": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 3,
+    "proj": "/tmp/ab10b/runs/b02/night"
+  },
+  "b03": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 3,
+    "proj": "/tmp/ab10b/runs/b03/tide"
+  },
+  "b04": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab10b/runs/b04/greenhouse"
+  },
+  "b05": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab10b/runs/b05/tide"
+  },
+  "b06": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab10b/runs/b06/night"
+  },
+  "b07": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 3,
+    "proj": "/tmp/ab10b/runs/b07/greenhouse"
+  },
+  "b08": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab10b/runs/b08/night"
+  },
+  "b09": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab10b/runs/b09/tide"
+  }
+}

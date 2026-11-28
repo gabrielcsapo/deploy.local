@@ -1,0 +1,100 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The cart's pale steam looks faint and possibly semi-transparent in the close-up."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The cat's tail is a stiff block at its side rather than curled to the right."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The cobble tile is a rigid grid of square stones that reads more like paving slabs, and the cart is thin and sparse."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The noodle cart is cluttered and muddy, with the domed awning and pot hard to read at play size."
+        },
+        "T": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The lantern is banded heavily in gold so it no longer reads as a round red paper lantern, and the tile is brick rows rather than cobbles."
+        },
+        "U": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "No outlines and the steam is drawn over the awning, so the cart and cat lose definition against the dark plum ground."
+        }
+      },
+      "ranking": ["P", "S", "Q", "R", "T", "U"],
+      "why_top": "P has the clearest, most charming cat with a properly curled tail, a glowing round lantern, an organic seamless cobble tile and a well-read cart, all consistent in style."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The packet's top is a flat band that only loosely suggests a fold."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The seed tray is an overcrowded tangle that does not read as six seedlings in two rows, and the packet top is crimped rather than folded."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Brick highlights sit on the top-left, contradicting the required top-right light."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The tile's light cream mortar on the top and left edges implies light from the top left, and the seedling count is ambiguous."
+        },
+        "T": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The packet has a crimped zig-zag top rather than a folded one."
+        },
+        "U": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The tray is a deep dark box rather than a shallow tray, so the seedlings read weakly."
+        }
+      },
+      "ranking": ["P", "T", "S", "R", "U", "Q"],
+      "why_top": "P delivers every asset cleanly with strong outlines on the mint wall, a crisp seamless running-bond tile lit from the top right, and a tidy six-seedling tray."
+    }
+  }
+}

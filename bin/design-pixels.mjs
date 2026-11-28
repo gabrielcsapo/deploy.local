@@ -111,7 +111,8 @@ export function drawPixels(html, sprites) {
   for (const sprite of sprites) {
     const inner = pixelRects(sprite);
     let found = false;
-    out = out.replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/g, (element) => {
+    // Innermost svgs only, so a copy placed inside a scene's svg is found too.
+    out = out.replace(/<svg\b[^>]*>(?:(?!<svg\b)[\s\S])*?<\/svg>/g, (element) => {
       const tag = /^<svg\b[^>]*>/.exec(element)[0];
       if (attr(tag, 'data-layer') !== sprite.name && attr(tag, 'data-pixels') !== sprite.name)
         return element;

@@ -1,0 +1,52 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Empty gap between the badge and buttons and a slightly heavy pool illustration split from the sheet."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The card covers most of the finished pool and the tight stacked buttons feel slightly cramped."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Shells have no caption and the 'moves'/'target' labels are small next to the large numerals."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Level 12 and the pool art are fine but the status bar overlaps the sand texture and the Replay outline is a bit faint."
+        },
+        "T": {
+          "fulfils": 2,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Only two shell slots are shown, so the three-shell rating is broken, and Replay sits above the main action."
+        },
+        "U": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The card crowds the top and the pool is mostly hidden, with the pool frame awkwardly cut at the screen edges."
+        }
+      },
+      "ranking": ["P", "S", "R", "Q", "U", "T"],
+      "why_top": "P meets every requirement with a clear hierarchy, large legible text, a calm sea and sand palette and a dominant Next pool button in thumb reach."
+    }
+  }
+}

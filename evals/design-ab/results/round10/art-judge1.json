@@ -1,0 +1,100 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Tile is a regular brick-like grid with a visible repeating horizontal banding, and the cat is blocky with a muddy tail."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cat sits slightly shapeless with tail as a striped block rather than a clear curl."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Cat and cart lack outlines and look thin and faint on the dark ground; the cart's pole and wheel are scrappy."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cobble tile shows a faint seam-like column pattern at the repeat and the cart's lower half is cramped."
+        },
+        "T": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cat is a bit stiff and the tile has stray single-pixel dots that read as noise."
+        },
+        "U": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Cart is cluttered and muddy, with the awning, pot and body blending into a dark blob."
+        }
+      },
+      "ranking": ["S", "Q", "T", "P", "U", "R"],
+      "why_top": "S has the clearest, best-formed cat with a curled tail, a lit lantern, a clean seamless cobble tile, and a readable cart with awning and steaming pot."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Gardener's watering can is a big green blob and the tile has a cream border at its edges that may break seamless mortar alignment."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Gardener is cramped and hard to read, with the watering can swallowing the body and the packet looking like a jar."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 5,
+          "flaw": "Packet is plain brown with a thin folded top, but otherwise there are no real faults."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Gardener's face and arm are muddled, the tile has a cream edge strip that could break the mortar lines, and the packet is an oversized sack."
+        },
+        "T": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Tray is cramped with seedlings lost in dark soil, and the packet's fold top reads as a blob."
+        },
+        "U": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Gardener wears a cream shirt with no clear brown apron and the seedlings are tiny and hard to count."
+        }
+      },
+      "ranking": ["R", "P", "T", "U", "S", "Q"],
+      "why_top": "R has a clear gardener with hat, apron and can, a tray with six distinct seedlings, a seamless brick tile and a clear packet, all with consistent dark outlines and top-right lighting."
+    }
+  }
+}

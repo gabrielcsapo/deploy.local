@@ -1,0 +1,52 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "A large empty gap between the badge and the buttons makes the lower half feel unbalanced, and the crab in the pool is tiny."
+        },
+        "Q": {
+          "fulfils": 2,
+          "reads": 4,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Only two shells are shown, so the three-shell rating with one unearned is missing."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The card covers most of the pool, and the pool rim and a rock are awkwardly clipped at the left edge."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The heavy dark ledge under Next pool reads slightly arcade, and the unearned shell's dotted fill is less clearly 'empty'."
+        },
+        "T": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Rocks peek out at the screen edges behind the card, and the pool below the card turns murky, which looks unintended."
+        },
+        "U": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The status bar icons are unevenly spaced, a small polish slip on an otherwise clean screen."
+        }
+      },
+      "ranking": ["U", "P", "S", "R", "T", "Q"],
+      "why_top": "U meets every requirement in a calm, well-balanced layout: the pool is clearly shown, the shell rating and stats read well, and both actions are well placed for a thumb."
+    }
+  }
+}

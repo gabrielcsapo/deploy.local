@@ -177,3 +177,25 @@ art-1. Against three draws, art-1 and game-1 no longer lose; the round 4 to 8 lo
 Working tokens a run (less about 125k fixed): art-1 A 86k, B 77k; art-2 A 76k, B 57k; game-1 A 41k,
 B 32k. Minutes: A 4 to 11, B 8 to 19 (every B run lost time to a Chromium that hung).
 Results: results/round9.
+
+## Round 10 (2026-11-28, pixel grids, tile seams, tap and reach)
+
+What changed first (commit 2b7011bd and the next): `design/pixels/<Name>.txt` writes a sprite as a
+legend and rows, a character a pixel, and `look`, `check --fix` and `deploy design pixels` draw it into
+the art board; a sprite with class `tile` gets a seam note; `tap=` and `reach=` in the head make small
+or out-of-reach controls stop the check; the art starter no longer sets `play=48`, and a board with no
+`play=` gets a note asking for one.
+
+Runs: the round 9 briefs, 3 new flow runs (A) a brief against round 9's 3 plain runs (B), so 9 pairs a
+brief. Judges: Sonnet (judge1) and Opus (judge2).
+
+| Brief  | Won | Lost | Split | Note                                                                               |
+| ------ | --- | ---- | ----- | ---------------------------------------------------------------------------------- |
+| art-1  | 4   | 4    | 1     | one A run first with both judges; another, which dropped outlines, last with both  |
+| art-2  | 2   | 2    | 5     | one A run first and second; two A runs lit the brick tile from the wrong side      |
+| game-1 | 3   | 6    | 0     | A runs 3rd to 5th of 6; their card covers the finished pool, which judges disliked |
+
+Mean "ready": art A 3.42, B 3.17 (round 9: A 3.25, B 3.50); game A 3.50, B 3.33. All six art runs
+drew from pixel grids, and none wrote its own drawing script. Working tokens a run (less about 125k
+fixed): art about 70k (round 9 A 81k, B 67k), game about 32k (round 9 A 41k, B 32k). Minutes: art A 7
+to 10, game A 3 to 4.4. Results: results/round10.

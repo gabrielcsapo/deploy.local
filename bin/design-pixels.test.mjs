@@ -55,6 +55,11 @@ test('drawing replaces the sprite and its copies, and adds a set for a sprite th
   );
   assert.ok(out.indexOf('Coin-set') < out.indexOf('</body>'));
   assert.equal(drawPixels(out, [slime, coin]).html, out, 'drawing again changes nothing');
+  const scene = `<svg viewBox="0 0 100 50"><rect width="100" height="50" /><svg data-pixels="Slime" x="10" y="10" width="16" height="12"></svg></svg>`;
+  assert.match(
+    drawPixels(scene, [slime]).html,
+    /viewBox="0 0 4 3" data-pixels="Slime"[^>]*>(<rect[^>]*>){7}<\/svg><\/svg>$/,
+  );
 });
 
 test('syncPixels draws every grid into the one art board and leaves others alone', () => {

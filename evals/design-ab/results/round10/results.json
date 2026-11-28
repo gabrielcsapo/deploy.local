@@ -1,0 +1,221 @@
+{
+  "kinds": {
+    "art": {
+      "by_judge": {
+        "judge1": [8, 10],
+        "judge2": [10, 8]
+      },
+      "pipeline_wins": 6,
+      "pipeline_losses": 6,
+      "split": 6,
+      "per_brief": {
+        "art-1": [4, 4, 1],
+        "art-2": [2, 2, 5]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.75,
+          "reads": 3.83,
+          "craft": 3.75,
+          "ready": 3.42
+        },
+        "B": {
+          "fulfils": 3.42,
+          "reads": 3.92,
+          "craft": 3.58,
+          "ready": 3.17
+        }
+      }
+    },
+    "game": {
+      "by_judge": {
+        "judge1": [3, 6],
+        "judge2": [3, 6]
+      },
+      "pipeline_wins": 3,
+      "pipeline_losses": 6,
+      "split": 0,
+      "per_brief": {
+        "game-1": [3, 6, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.0,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 4.5,
+          "craft": 3.83,
+          "ready": 3.33
+        }
+      }
+    }
+  },
+  "runs": {
+    "b01": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [3, 0],
+      "flaws": [
+        "Gardener wears a cream shirt with no clear brown apron and the seedlings are tiny and hard to count.",
+        "The packet's top is a flat band that only loosely suggests a fold."
+      ]
+    },
+    "b02": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [3, 4],
+      "flaws": [
+        "Tile is a regular brick-like grid with a visible repeating horizontal banding, and the cat is blocky with a muddy tail.",
+        "The lantern is banded heavily in gold so it no longer reads as a round red paper lantern, and the tile is brick rows rather than cobbles."
+      ]
+    },
+    "b03": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [5, 5],
+      "flaws": [
+        "Only two shell slots are shown, so the three-shell rating is broken, and Replay sits above the main action.",
+        "Only two shells are shown, so the three-shell rating with one unearned is missing."
+      ]
+    },
+    "b04": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [2, 4],
+      "flaws": [
+        "Tray is cramped with seedlings lost in dark soil, and the packet's fold top reads as a blob.",
+        "The tray is a deep dark box rather than a shallow tray, so the seedlings read weakly."
+      ]
+    },
+    "b05": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [0, 1],
+      "flaws": [
+        "Empty gap between the badge and buttons and a slightly heavy pool illustration split from the sheet.",
+        "A large empty gap between the badge and the buttons makes the lower half feel unbalanced, and the crab in the pool is tiny."
+      ]
+    },
+    "b06": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [4, 1],
+      "flaws": [
+        "Cart is cluttered and muddy, with the awning, pot and body blending into a dark blob.",
+        "The noodle cart is cluttered and muddy, with the domed awning and pot hard to read at play size."
+      ]
+    },
+    "b07": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [1, 5],
+      "flaws": [
+        "Gardener's watering can is a big green blob and the tile has a cream border at its edges that may break seamless mortar alignment.",
+        "The seed tray is an overcrowded tangle that does not read as six seedlings in two rows, and the packet top is crimped rather than folded."
+      ]
+    },
+    "b08": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [1, 2],
+      "flaws": [
+        "Cat sits slightly shapeless with tail as a striped block rather than a clear curl.",
+        "The cat's tail is a stiff block at its side rather than curled to the right."
+      ]
+    },
+    "b09": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [1, 0],
+      "flaws": [
+        "Level 12 and the pool art are fine but the status bar overlaps the sand texture and the Replay outline is a bit faint.",
+        "The status bar icons are unevenly spaced, a small polish slip on an otherwise clean screen."
+      ]
+    },
+    "c01": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "Packet is plain brown with a thin folded top, but otherwise there are no real faults.",
+        "The packet has a crimped zig-zag top rather than a folded one."
+      ]
+    },
+    "c02": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [5, 5],
+      "flaws": [
+        "Cat and cart lack outlines and look thin and faint on the dark ground; the cart's pole and wheel are scrappy.",
+        "No outlines and the steam is drawn over the awning, so the cart and cat lose definition against the dark plum ground."
+      ]
+    },
+    "c03": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [4, 3],
+      "flaws": [
+        "The card crowds the top and the pool is mostly hidden, with the pool frame awkwardly cut at the screen edges.",
+        "The card covers most of the pool, and the pool rim and a rock are awkwardly clipped at the left edge."
+      ]
+    },
+    "c04": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [4, 2],
+      "flaws": [
+        "Gardener's face and arm are muddled, the tile has a cream edge strip that could break the mortar lines, and the packet is an oversized sack.",
+        "The tile's light cream mortar on the top and left edges implies light from the top left, and the seedling count is ambiguous."
+      ]
+    },
+    "c05": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [3, 4],
+      "flaws": [
+        "The card covers most of the finished pool and the tight stacked buttons feel slightly cramped.",
+        "Rocks peek out at the screen edges behind the card, and the pool below the card turns murky, which looks unintended."
+      ]
+    },
+    "c06": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "Cobble tile shows a faint seam-like column pattern at the repeat and the cart's lower half is cramped.",
+        "The cart's pale steam looks faint and possibly semi-transparent in the close-up."
+      ]
+    },
+    "c07": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [5, 3],
+      "flaws": [
+        "Gardener is cramped and hard to read, with the watering can swallowing the body and the packet looking like a jar.",
+        "Brick highlights sit on the top-left, contradicting the required top-right light."
+      ]
+    },
+    "c08": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [2, 3],
+      "flaws": [
+        "Cat is a bit stiff and the tile has stray single-pixel dots that read as noise.",
+        "The cobble tile is a rigid grid of square stones that reads more like paving slabs, and the cart is thin and sparse."
+      ]
+    },
+    "c09": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [2, 2],
+      "flaws": [
+        "Shells have no caption and the 'moves'/'target' labels are small next to the large numerals.",
+        "The heavy dark ledge under Next pool reads slightly arcade, and the unearned shell's dotted fill is less clearly 'empty'."
+      ]
+    }
+  }
+}
