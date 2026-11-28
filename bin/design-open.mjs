@@ -86,7 +86,8 @@ const kinds = {
     meta: 'platform=art,width=1280,height=960,tile=16',
     body: () => `<!-- Each sprite is an svg.art-sprite whose viewBox is its size in pixels, drawn however the
          art wants; a thing's frames sit together in a .art-set with an h2. Colours named
-         --pal-* and grounds --stage-* on :root in look.css are its palette. A pixel sprite can
+         --pal-* and grounds --stage-* on :root in look.css are its palette; what the sprites
+         are played on is an element with class art-ground. A pixel sprite can
          be written as a grid in design/pixels/<Name>.txt instead (see design/README.md). -->
     <section class="art-set" data-layer="first-set">
       <h2>First sprite</h2>
@@ -155,7 +156,7 @@ const kindTips = {
     'One board per slide, all linking look.css; `export` puts them in canvas order as one PDF.',
   print:
     'A face is trim plus bleed; text and marks stay inside the safe margin. `export --marks` adds crop marks.',
-  art: `Set \`tile=\` from the brief (pixels a tile) and \`play=\` (the px it is drawn at in play) when the brief gives one; when it doesn't, choose and put \`data-question="What size is a tile drawn at in play?"\` on the board. A sprite that repeats gets class \`tile\` (or "tile" in its name), and the check looks at its seams. \`export\` writes each sprite once, as an SVG named for its data-layer.
+  art: `Set \`tile=\` from the brief (pixels a tile) and \`play=\` (the px it is drawn at in play) when the brief gives one; when it doesn't, choose and put \`data-question="What size is a tile drawn at in play?"\` on the board. A sprite that repeats gets class \`tile\` (or "tile" in its name), and the check looks at its seams. Put class \`art-ground\` on each ground the brief plays the sprites on (its colour, grid lines and all), so the check and \`look\` show them there. \`deploy design look <Sprite>\` draws one sprite as it is judged: close up, at play size on each ground, and a tile 3×3; look at it there rather than writing a preview of your own. \`export\` writes each sprite once, as an SVG named for its data-layer.
 
 Pixel sprites can be written as text: design/pixels/<Name>.txt is a legend (\`K = ink\` for --pal-ink, \`. \` is see-through), then rows of equal width, a character a pixel, and \`tile\` on a line of its own for a tile. \`look\` and \`check --fix\` (or \`deploy design pixels\`) draw each grid into the art board as its svg.art-sprite, so the grid is what you edit:
 
@@ -184,7 +185,7 @@ agent has it too (the figures it gives are never asked about).
 ## The loop
 1. Draw \`design/boards/<Board>.html\`. Start from the board init placed (rename it with plain
    \`mv\` and its key in \`canvas.json\`). Link \`../look.css\` and put the shared look there.
-2. \`deploy design look <Board>\` to see it (\`--zoom 3\` closer, \`--zoom 0.25\` from afar, \`--scheme dark\`, \`--angle 30\` for a model).
+2. \`deploy design look <Board>\` (or \`look <Sprite>\`) to see it (\`--zoom 3\` closer, \`--zoom 0.25\` from afar, \`--scheme dark\`, \`--angle 30\` for a model).
    Use it instead of starting a browser yourself.
 3. \`deploy design check --fix\`: draws what changed beside main into \`output/design/pairs\`,
    places new boards, and lists problems (fix them) and advice (weigh it).

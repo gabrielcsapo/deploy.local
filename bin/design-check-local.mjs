@@ -197,6 +197,7 @@ export async function openLocalDrawing({
     async shoot({
       commit,
       file,
+      html: given,
       width,
       height,
       scheme,
@@ -210,7 +211,8 @@ export async function openLocalDrawing({
       art,
       model,
     }) {
-      const html = read(commit, `boards/${file}`);
+      // A page made here (a sprite's look) is drawn as if it sat beside the boards.
+      const html = given ?? read(commit, `boards/${file}`);
       if (!html) return null;
       const built = await page(commit, html.toString());
       const tab = await browser.newTab({ width, height, scheme, scale, media });

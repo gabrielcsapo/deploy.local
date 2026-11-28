@@ -1663,7 +1663,7 @@ test('a clean check ends with the pairs to open and the questions a reviewer ask
     );
     assert.deepEqual(result.json.review, { pairs, questions: reviewQuestions });
     assert.deepEqual(result.json.pairs, pairs);
-    assert.equal(reviewQuestions.length, 8);
+    assert.equal(reviewQuestions.length, 9);
     const text = run.text();
     assert.match(
       text,

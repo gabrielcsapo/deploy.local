@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Copy the renders into blind folders: per judge and brief, candidates under shuffled letters.
-Usage: make_blind.py <key.json> <render dir> <blind dir> <secret map out> [judges=2]"""
+Usage: make_blind.py <key.json> <render dir> <blind dir> <secret map out> [judges=3]"""
 import json, os, random, shutil, sys
 key = json.load(open(sys.argv[1])); RENDER, BLIND, SECRET = sys.argv[2:5]
-JUDGES = int(sys.argv[5]) if len(sys.argv) > 5 else 2
+JUDGES = int(sys.argv[5]) if len(sys.argv) > 5 else 3
 if os.path.exists(BLIND): shutil.rmtree(BLIND)
 rng = random.Random(4417); secret = {}
 briefs = sorted({r['brief'] for r in key.values()})

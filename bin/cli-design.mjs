@@ -44,6 +44,7 @@ import {
 import { exportOrder, mergePdfs, numberSlides } from './design-export.mjs';
 import { openCanvasFiles, openReadme } from './design-open.mjs';
 import { syncPixels } from './design-pixels.mjs';
+import { spriteLookPage, spriteNames } from './design-sprite-look.mjs';
 
 /** The box a new board takes on the canvas, from its head. */
 const openBox = (html) => {
@@ -64,6 +65,7 @@ Usage  deploy design <command> [flags]
                            (kinds: app, doc, slides, print, mac, game, logo, art, model)
                            --scheme light|dark|both  which schemes boards draw in
   look <Board>             Draw one board into output/design/look/
+  look <Sprite>            A sprite as it is judged: close up, at play size on its ground, tiled
                            --width 700 (the page)  --zoom 3 (closer, 0.25 afar)  --scheme dark
                            --angle 30,20 (a model: degrees round from the front, and up)
   check [--fix]            Draw what changed beside main; problems stop, advice is yours
@@ -648,6 +650,7 @@ export const reviewQuestions = [
   'Is every width and scheme readable, nothing cut off, and do the scheme words match the render? If the board names a scheme or size, is it true in every render?',
   "Does it match its siblings' structure, sizes and chrome, where it has siblings?",
   'Is every old layer ID kept, and every new one named for what it is?',
+  'What one flaw would a reviewer name first, looking at it as it is met (`deploy design look <Sprite>` for each sprite)? A muddled or stiff shape, a thing lost on its ground, something that reads as another object, a seam or banding, light from the wrong side, something covering what matters. Fix it, or say in one line why it stays.',
 ];
 
 /** One step: a mark, what happened, and a quieter detail in its own column. */
@@ -1825,7 +1828,74 @@ export async function runDesign(sub, args, options, deps) {
       const design = readDesign(top, deps.designSystem);
       const file = boardFileName(args[0]);
       const board = design.boards.get(file);
-      if (!board) throw cliError(`No board named ${file}.`, 'deploy design status', 2);
+      if (!board) {
+        // Not a board: a sprite on an art board, drawn as it is met and judged.
+        const sheets = [...design.boards.entries()].filter(([, b]) => b.platform === 'art');
+        const css = existsSync(join(top, 'design', 'look.css'))
+          ? readFileSync(join(top, 'design', 'look.css'), 'utf8')
+          : '';
+        const name = args[0].replace(/\.(html|txt|svg)$/, '');
+        for (const [sheet] of sheets) {
+          const made = spriteLookPage({
+            board: readFileSync(join(top, 'design', 'boards', sheet), 'utf8'),
+            css,
+            name,
+          });
+          if (!made) continue;
+          const folder = join(top, 'output', 'design', 'look');
+          mkdirSync(folder, { recursive: true });
+          const opened = deps.openLocalDrawing
+            ? await deps.openLocalDrawing(top)
+            : { reason: 'this terminal has no browser' };
+          if (!opened.drawing)
+            throw cliError(
+              `No browser to draw with here (${opened.reason}).`,
+              'deploy browser install',
+              4,
+            );
+          let drawn;
+          try {
+            drawn = await opened.drawing.shoot({
+              commit: WORKTREE,
+              file: `${name}.sprite.html`,
+              html: made.html,
+              width: made.width,
+              height: 600,
+              scheme: 'light',
+              measure: false,
+              fullPage: true,
+            });
+          } finally {
+            await opened.close?.();
+          }
+          if (!drawn) throw cliError(`${name} could not be drawn.`, 'deploy design check', 1);
+          const picture = `sprite-${name}.png`;
+          writeFileSync(join(folder, picture), drawn.png);
+          step('✓', 'Drew', `output/design/look/${picture}`);
+          if (made.guessed)
+            step('!', 'No ground named', 'put class="art-ground" on what the sheet plays it on');
+          return {
+            exitCode: 0,
+            json: {
+              ok: true,
+              code: 'look',
+              sprite: name,
+              board: sheet,
+              pictures: [`output/design/look/${picture}`],
+            },
+          };
+        }
+        const names = sheets.flatMap(([sheet]) =>
+          spriteNames(readFileSync(join(top, 'design', 'boards', sheet), 'utf8')),
+        );
+        throw cliError(
+          `No board or sprite named ${args[0]}.`,
+          names.length
+            ? `deploy design look ${names[0]}  (sprites: ${names.slice(0, 8).join(', ')})`
+            : 'deploy design status',
+          2,
+        );
+      }
       const scheme =
         options.scheme === undefined
           ? platformSchemes(board.platform, board.meta.schemes ?? design.canvas?.schemes)[0]
