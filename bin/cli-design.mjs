@@ -30,11 +30,17 @@ import { buildModel, modelPreviewPage, modelSource } from '../server/design/mode
 import { checkDesign, parseLibrary } from '../server/features/design/board-check.ts';
 import {
   boardPlatform,
+  decodeHtmlText,
   parseBoardMeta,
   platformWidths,
   setBoardMetaHeight,
 } from '../shared/v2/design-board-meta.ts';
-import { boardFrame, designKinds, exportPage } from '../shared/v2/design-platforms.ts';
+import {
+  boardFrame,
+  designKinds,
+  exportPage,
+  platformSchemes,
+} from '../shared/v2/design-platforms.ts';
 import { exportOrder, mergePdfs, numberSlides } from './design-export.mjs';
 import { openCanvasFiles, openReadme } from './design-open.mjs';
 
@@ -49,15 +55,6 @@ const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', 
 const LABEL = 33;
 
 /** `deploy design --help`, `deploy design -h` and `deploy help design`. */
-/** A title as written in HTML, as plain text for canvas.json (Spoke &amp; Mend is Spoke & Mend). */
-const decodeEntities = (text) =>
-  text.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (whole, name) => {
-    const lower = name.toLowerCase();
-    if (lower.startsWith('#x')) return String.fromCodePoint(parseInt(lower.slice(2), 16));
-    if (lower.startsWith('#')) return String.fromCodePoint(Number(lower.slice(1)));
-    return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' }[lower] ?? whole;
-  });
-
 export const DESIGN_HELP = `deploy design — draw what people will see, and check it, on an open canvas
 
 Usage  deploy design <command> [flags]
@@ -798,7 +795,7 @@ export async function runDesign(sub, args, options, deps) {
         canvas.boards ??= {};
         for (const [file, place] of places) {
           const html = readFileSync(join(top, 'design', 'boards', file), 'utf8');
-          const title = decodeEntities(
+          const title = decodeHtmlText(
             parseBoardMeta(html).title ??
               /<title>([^<]*)<\/title>/.exec(html)?.[1] ??
               screenName(file),
@@ -1731,7 +1728,10 @@ export async function runDesign(sub, args, options, deps) {
       const file = boardFileName(args[0]);
       const board = design.boards.get(file);
       if (!board) throw cliError(`No board named ${file}.`, 'deploy design status', 2);
-      const scheme = options.scheme === undefined ? 'light' : String(options.scheme);
+      const scheme =
+        options.scheme === undefined
+          ? platformSchemes(board.platform, board.meta.schemes ?? design.canvas?.schemes)[0]
+          : String(options.scheme);
       if (scheme !== 'light' && scheme !== 'dark')
         throw cliError(
           '--scheme is light or dark.',

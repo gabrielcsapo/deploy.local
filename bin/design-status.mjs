@@ -465,7 +465,7 @@ export function designStatus({
       sizes: stepWidths(drawSteps(board.platform, board.meta, board.placed ?? {})),
       drawnAt: drawnAt(board.platform, board.meta, board.placed ?? {}),
       height: board.height,
-      schemes: board.meta.schemes ?? platformSchemes(board.platform, null),
+      schemes: board.meta.schemes ?? platformSchemes(board.platform, design.canvas?.schemes),
       current: current(file),
       replacedBy: current(file) ? null : currentOf(file, design.replacedBy),
       replaces: board.meta.replaces,

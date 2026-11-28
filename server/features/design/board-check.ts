@@ -25,7 +25,11 @@ import {
   type Library,
 } from '../../design/board-html.ts';
 import { layerLabel } from '../../../shared/v2/design.ts';
-import { boardPlatform, parseBoardMeta } from '../../../shared/v2/design-board-meta.ts';
+import {
+  boardPlatform,
+  decodeHtmlText,
+  parseBoardMeta,
+} from '../../../shared/v2/design-board-meta.ts';
 import type { Inspection } from '../../../shared/v2/design-inspect.ts';
 import { layerFates } from '../../design/board-layers.ts';
 import {
@@ -904,11 +908,13 @@ export async function checkDesign(
         fix: `link to a board that exists, or add ${to}`,
       });
     for (const src of text
-      ? await missingBoardImages(
-          text,
-          async (path) =>
-            (await git.read(['cat-file', '-e', `${commit}:${folder}/${path}`])) !== null,
-        )
+      ? await missingBoardImages(text, async (path) => {
+          // Listed in its folder: works on a commit and on the working copy alike.
+          const at = path.lastIndexOf('/');
+          const dir = at < 0 ? folder : `${folder}/${path.slice(0, at)}`;
+          const names = await git.read(['ls-tree', '--name-only', `${commit}:${dir}`]);
+          return (names ?? '').split('\n').includes(path.slice(at + 1));
+        })
       : [])
       problems.push({
         code: 'image_missing',
@@ -1190,7 +1196,9 @@ export async function checkDesign(
     const entry = canvas?.boards?.[file];
     const text = await after(file);
     if (!entry || text === null) continue;
-    const said = parseBoardMeta(text).title ?? /<title>([^<]*)<\/title>/i.exec(text)?.[1]?.trim();
+    const written =
+      parseBoardMeta(text).title ?? /<title>([^<]*)<\/title>/i.exec(text)?.[1]?.trim();
+    const said = written ? decodeHtmlText(written) : written;
     if (said && entry.title !== said) titles[file] = said;
   }
 

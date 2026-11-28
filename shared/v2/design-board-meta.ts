@@ -166,3 +166,21 @@ export function setBoardMetaHeight(
     : `${content}${separator}${separator === ';' ? ' ' : ''}height=${height}`;
   return html.replace(match[0], match[0].replace(`content="${content}"`, `content="${replaced}"`));
 }
+
+/** Text as written in HTML, as plain text (Spoke &amp; Mend is Spoke & Mend), for canvas.json titles. */
+export function decodeHtmlText(text: string) {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (whole, name: string) => {
+    const lower = name.toLowerCase();
+    if (lower.startsWith('#x')) return String.fromCodePoint(parseInt(lower.slice(2), 16));
+    if (lower.startsWith('#')) return String.fromCodePoint(Number(lower.slice(1)));
+    const named: Record<string, string> = {
+      amp: '&',
+      lt: '<',
+      gt: '>',
+      quot: '"',
+      apos: "'",
+      nbsp: '\u00a0',
+    };
+    return named[lower] ?? whole;
+  });
+}

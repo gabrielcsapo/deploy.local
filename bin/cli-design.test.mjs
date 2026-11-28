@@ -2489,6 +2489,13 @@ test('look draws one board as asked and says what it takes', async () => {
     const closer = await runDesign('look', ['Sidebar'], { zoom: '3' }, run.deps);
     assert.equal(shot[1].scale, 3);
     assert.match(closer.json.pictures[0], /-x3\.png$/);
+    assert.equal(shot[1].scheme, 'light');
+    // With no --scheme, the first scheme the canvas draws in.
+    const canvasPath = join(repo.clone, 'design/canvas.json');
+    const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
+    writeFileSync(canvasPath, JSON.stringify({ ...canvas, schemes: ['dark'] }));
+    await runDesign('look', ['Sidebar'], {}, run.deps);
+    assert.equal(shot[2].scheme, 'dark');
     for (const [args, options] of [
       [[], {}],
       [['Sidebar'], { scheme: 'sepia' }],
