@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The floating card with no status bar or home indicator shown looks unfinished, and the pool art has a hard sand edge and an awkwardly cropped crab."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 5,
+          "flaw": "The bottom sheet is slightly dense and the pool art a bit muted."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q is a complete iOS-native screen with status bar and home indicator, a clear bottom sheet and thumb-reach actions."
+    }
+  }
+}

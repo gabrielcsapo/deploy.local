@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "doc-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Body text on the Who to ask and Your plot year cards is small and looks under 11 pt, and the cover is plainer than Q's."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cover illustration's tree is cut off at the page edge, and the rule descriptions and card text are small."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P's Site rules page is large, uncluttered and works on its own when pinned in a shed."
+    }
+  }
+}

@@ -2439,6 +2439,11 @@ test('init starts an open canvas: a short README, look.css and one blank board p
       assert.ok(existsSync(join(root, 'design/look.css')));
       assert.ok(readFileSync(join(root, 'design/README.md'), 'utf8').split('\n').length < 60);
       if (kind === 'model') assert.ok(existsSync(join(root, 'design/models/Prop.py')));
+      // A phone game starts inside the phone's own status bar and home indicator.
+      if (kind === 'game') {
+        assert.match(board, /data-statusbar/);
+        assert.match(board, /data-layer="home-indicator"/);
+      }
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

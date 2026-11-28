@@ -1,0 +1,182 @@
+{
+  "kinds": {
+    "art": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "art-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.5,
+          "reads": 3.5,
+          "craft": 3.0,
+          "ready": 2.5
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 3.5
+        }
+      }
+    },
+    "doc": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 0,
+      "split": 1,
+      "per_brief": {
+        "doc-1": [0, 0, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.5,
+          "craft": 4.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 4.5,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    },
+    "game": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "game-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 5.0,
+          "craft": 4.5,
+          "ready": 4.5
+        }
+      }
+    },
+    "ui": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [1, 0]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 0,
+      "split": 0,
+      "per_brief": {
+        "ui-2": [1, 0, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 3.5,
+          "reads": 3.5,
+          "craft": 4.0,
+          "ready": 3.0
+        }
+      }
+    }
+  },
+  "runs": {
+    "r06": {
+      "brief": "doc-1",
+      "arm": "B",
+      "positions": [1, 0],
+      "flaws": [
+        "The cover illustration's tree is cut off at the page edge, and the rule descriptions and card text are small.",
+        "Page 4 is crowded and its footer sits lower than on the other pages, and the cover illustration bleeds to the page edge."
+      ]
+    },
+    "r10": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The bottom sheet is slightly dense and the pool art a bit muted.",
+        "The crab is small and lost in the pool, and the personal-best icon is a muddy little glyph."
+      ]
+    },
+    "r17": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The cobble tile is a bit busy and low-contrast in its mortar, and the cart's steam is faint pale pixels.",
+        "The cart's steam is very pale and may be semi-transparent, and the awning only covers half the cart."
+      ]
+    },
+    "r18": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "Cancel and Snooze sit side by side at the top with a small gap, and Snooze is a small borderless text link that may fall below 56 pt.",
+        "Snooze sits right beside Cancel as borderless text, so the 24 pt gap and its 56 pt target can't be confirmed."
+      ]
+    },
+    "u01": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "Cancel is a plain tap with no hold or confirm, and it sits beside the time.",
+        "The cream-on-black arrival figure is bright for a dim bus, and Cancel at the top-left is a long reach for a right thumb."
+      ]
+    },
+    "u02": {
+      "brief": "doc-1",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "Body text on the Who to ask and Your plot year cards is small and looks under 11 pt, and the cover is plainer than Q's.",
+        "Page 4 packs two sections into small, dense type that looks close to or under the 11 pt body minimum."
+      ]
+    },
+    "u03": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The noodle cart is cluttered and its steaming pot is hard to make out, and the lantern is narrow with a muddy dark-red body.",
+        "The noodle cart is a flat front view with dithered-looking wheels and steam trapped under the awning."
+      ]
+    },
+    "u04": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The floating card with no status bar or home indicator shown looks unfinished, and the pool art has a hard sand edge and an awkwardly cropped crab.",
+        "The floating card and the pool art feel loosely tied together: rocks crop hard at the edges, and the dashed empty shell's base looks broken."
+      ]
+    }
+  }
+}

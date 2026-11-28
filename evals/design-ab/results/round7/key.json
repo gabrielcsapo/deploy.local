@@ -1,0 +1,58 @@
+{
+  "u01": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab8/runs/u01/night"
+  },
+  "u02": {
+    "brief": "doc-1",
+    "kind": "doc",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab8/runs/u02/allotment"
+  },
+  "u03": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab8/runs/u03/night"
+  },
+  "u04": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab8/runs/u04/tide"
+  },
+  "r06": {
+    "brief": "doc-1",
+    "kind": "doc",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r06/allotment"
+  },
+  "r10": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r10/tide"
+  },
+  "r17": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r17/night"
+  },
+  "r18": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r18/night"
+  }
+}

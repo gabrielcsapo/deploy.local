@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The noodle cart is cluttered and its steaming pot is hard to make out, and the lantern is narrow with a muddy dark-red body."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cobble tile is a bit busy and low-contrast in its mortar, and the cart's steam is faint pale pixels."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's sprites read clearly against the plum ground and its tile wraps cleanly."
+    }
+  }
+}

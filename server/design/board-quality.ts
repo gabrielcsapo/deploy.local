@@ -1684,7 +1684,6 @@ const systemOnly = new Set([
   'specimen_text',
   'type_off_scale',
   'spacing_off_scale',
-  'no_status_bar',
   'box_in_card',
   'differs_from_source',
   // The same question again as open_question says it: once is enough on an open canvas.

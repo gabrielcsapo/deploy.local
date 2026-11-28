@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Cancel and Snooze sit side by side at the top with a small gap, and Snooze is a small borderless text link that may fall below 56 pt."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cancel is a plain tap with no hold or confirm, and it sits beside the time."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q puts Cancel at the top-left and Snooze in a separate outlined button at the bottom, so the gap and target limits are clearly met."
+    }
+  }
+}

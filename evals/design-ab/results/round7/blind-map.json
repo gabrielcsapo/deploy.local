@@ -1,0 +1,18 @@
+{
+  "art-judge1/art-1/P": "u03",
+  "art-judge1/art-1/Q": "r17",
+  "doc-judge1/doc-1/P": "u02",
+  "doc-judge1/doc-1/Q": "r06",
+  "game-judge1/game-1/P": "u04",
+  "game-judge1/game-1/Q": "r10",
+  "ui-judge1/ui-2/P": "r18",
+  "ui-judge1/ui-2/Q": "u01",
+  "art-judge2/art-1/P": "r17",
+  "art-judge2/art-1/Q": "u03",
+  "doc-judge2/doc-1/P": "u02",
+  "doc-judge2/doc-1/Q": "r06",
+  "game-judge2/game-1/P": "u04",
+  "game-judge2/game-1/Q": "r10",
+  "ui-judge2/ui-2/P": "u01",
+  "ui-judge2/ui-2/Q": "r18"
+}

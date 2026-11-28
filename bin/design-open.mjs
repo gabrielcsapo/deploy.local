@@ -53,10 +53,20 @@ const kinds = {
     meta: 'platform=game,device=phone,width=390,height=844',
     body: (
       name,
-    ) => `<!-- Keep play and text out of the top 54 px and bottom 34 px (status bar, home indicator),
-         or put immersive=true in the head for a full-bleed screen. -->
-    <main data-layer="screen" style="padding: 64px 24px 44px">
+    ) => `<!-- The phone draws its status bar and home indicator over the game: restyle them to fit,
+         keep play and text out of the top 54 px and bottom 34 px, or delete both and put
+         immersive=true in the head for a full-bleed screen. -->
+    <main data-layer="screen" style="position: relative; box-sizing: border-box; min-height: 844px; padding: 64px 24px 44px">
+      <div data-statusbar data-layer="status-bar" style="position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px 0 36px; font-weight: 600">
+        <span>9:41</span>
+        <svg viewBox="0 0 68 14" width="68" height="14" fill="currentColor" aria-label="Signal, Wi-Fi, battery">
+          <rect x="0" y="9" width="3" height="5" rx="1" /><rect x="5" y="6" width="3" height="8" rx="1" /><rect x="10" y="3" width="3" height="11" rx="1" /><rect x="15" y="0" width="3" height="14" rx="1" />
+          <path d="M31 13.5 27 9.3a6 6 0 0 1 8 0Zm-6.6-6.9-2-2a12.3 12.3 0 0 1 17.2 0l-2 2a9.4 9.4 0 0 0-13.2 0Z" />
+          <rect x="44" y="1" width="21" height="12" rx="3.5" fill="none" stroke="currentColor" stroke-opacity=".4" /><rect x="46" y="3" width="17" height="8" rx="2" /><rect x="66" y="5" width="2" height="4" rx="1" fill-opacity=".4" />
+        </svg>
+      </div>
       <h1 data-layer="title">${name}</h1>
+      <div data-layer="home-indicator" aria-hidden="true" style="position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: currentColor"></div>
     </main>`,
   },
   logo: {

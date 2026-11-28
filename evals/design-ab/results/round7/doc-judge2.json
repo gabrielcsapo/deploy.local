@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "doc-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Page 4 packs two sections into small, dense type that looks close to or under the 11 pt body minimum."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Page 4 is crowded and its footer sits lower than on the other pages, and the cover illustration bleeds to the page edge."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's Site rules page adds a pin-this-page tag, plain reasons and visual aids, and the handbook feels warmer and more finished."
+    }
+  }
+}

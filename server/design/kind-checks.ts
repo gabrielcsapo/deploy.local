@@ -574,7 +574,7 @@ export function statusBarNote(input: {
     label: `${input.title} draws no status bar`,
     detail: `an iPhone screen has the time and signal in its top ${phoneSafe.top} px`,
     short: 'no status bar',
-    fix: "draw the status bar in the top 54 px (the base kit's .ds-statusbar, or data-statusbar on your own markup), or put immersive=true in the board head if it is full-screen on purpose",
+    fix: 'draw the time and signal in the top 54 px with data-statusbar on that markup (a new game board starts with one), or put immersive=true in the board head if it is full-screen on purpose',
   };
 }
 

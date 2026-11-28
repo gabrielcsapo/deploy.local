@@ -1373,6 +1373,17 @@ export async function checkDesign(
               pageHeight: step.layout.pageHeight,
             });
             if (short) found.notes.push(short);
+            // Words that run on past their sheet and print over the next one: the pages are laid
+            // out for print here, so this is the only place that sees it.
+            found.problems.push(
+              ...textCollisionProblems({
+                file,
+                title,
+                width,
+                after: { ...afterShot.inspected, spills: [] },
+                before: beforeShot?.inspected ? { ...beforeShot.inspected, spills: [] } : null,
+              }),
+            );
             // A page count the brief states, written in the head as pages=4.
             const limit = Number(meta.other.pages);
             if (limit > 0 && afterShot.pages.length > limit)

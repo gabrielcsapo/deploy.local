@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The floating card and the pool art feel loosely tied together: rocks crop hard at the edges, and the dashed empty shell's base looks broken."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The crab is small and lost in the pool, and the personal-best icon is a muddy little glyph."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q shows the status bar and home indicator safely cleared, frames the pool as a vignette, and has more consistent shells."
+    }
+  }
+}

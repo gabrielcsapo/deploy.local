@@ -1,0 +1,38 @@
+[
+  {
+    "id": "art-1",
+    "kind": "art",
+    "title": "Night Market Lantern Alley: Street Vendor Sprites",
+    "brief": "Game: 'Paper Moon Alley', a top-down 2D cosy-stealth game where the player is a stray cat slipping between stalls in a crowded night market; camera is a fixed top-down view with a 3/4 tilt. All sprites are 24x24 pixels, drawn with a single shared palette of at most 14 colours across all four assets, no anti-aliasing, no gradients, no dithering, 1px outline allowed only in the darkest palette colour, and no semi-transparent pixels (hard alpha, on or off). Exactly 4 named assets: (1) StrayCatIdle, a ginger cat with a white chest sitting and facing the camera, tail curled to the right; (2) PaperLantern, a round red paper lantern with a gold cap and a short tassel, lit, hanging pose; (3) CobbleTile, a seamlessly repeating ground tile of pale grey-beige cobblestones with darker mortar gaps, edges must wrap on all four sides with no visible seam when tiled 4x4; (4) NoodleCart, a small wooden handcart with a green awning and a steaming pot on top. Sprites are played on a flat dark charcoal-plum (#1c1620) ground background with a faint 1px square grid line every 24 pixels in a slightly lighter plum, so the sprites must stay readable against it and no asset may use that plum as its main fill.",
+    "render": {
+      "roles": [
+        ["cat", "cat|stray|idle"],
+        ["lantern", "lantern|paper"],
+        ["tile", "cobble|tile|ground"],
+        ["cart", "cart|noodle"]
+      ],
+      "ground": "background-color:#1c1620;background-image:linear-gradient(#2a2230 {z}px,transparent {z}px),linear-gradient(90deg,#2a2230 {z}px,transparent {z}px);background-size:calc({z}px*24) calc({z}px*24)",
+      "dark": true,
+      "width": 1100
+    }
+  },
+  {
+    "id": "ui-2",
+    "kind": "ui",
+    "title": "Night Bus Stop Alarm: Wake Me Before My Stop",
+    "brief": "App: 'Stopwake', a transit app that alerts riders before their stop. Design one screen, the Active Trip screen, for a 390 x 844 point phone. User: Tomasz, a nurse finishing a night shift, riding Route 61 home at 2:10 am, half asleep, dim bus, phone held in his right hand at low brightness. The screen must show exactly this data: route chip '61 Harbour Loop'; destination 'Alder Street Stop'; 'Arriving in 7 min' as the dominant figure; '4 stops away'; next stop 'Kiln Road'; alarm status 'Alert 2 stops before'; current time '2:10 am'. Main action: a single 'Cancel alarm' control, placed so a sleeping thumb cannot hit it by accident, while a secondary 'Snooze 5 min' is allowed but must be visually quieter. Hard constraints: dark theme with no pure white (#ffffff) anywhere and text contrast at least 7:1 against its background; the arrival figure must be at least 56 pt; every tappable control must be at least 56 x 56 pt, and the cancel control must sit at least 24 pt away from any other tappable control.",
+    "render": { "scheme": "dark" }
+  },
+  {
+    "id": "doc-1",
+    "kind": "doc",
+    "title": "Allotment Society Plot Holder Handbook",
+    "brief": "Organisation: 'Riverside Allotment Society', a volunteer-run allotment site of 64 plots beside a canal. Document: the Plot Holder Handbook, printed on A4 and handed to new plot holders at the gate, also emailed as a PDF. Readers are new members of all ages, many reading it once at the kitchen table and then pinning one page in their shed. It must contain, in this order: a cover with the society name and the title; a one-page 'Your first month' checklist of 6 items; a section 'Site rules' with exactly these rules: gates locked at dusk, no bonfires between April and September, hosepipes only before 9 am and after 6 pm, keep paths 1 metre clear, dogs on leads; a section 'Who to ask' with three roles (Site secretary, Water steward, Shed key holder) and how to reach each by the noticeboard by the main gate; and a section 'Your plot year' showing what to do in each season. Hard constraints: A4 portrait, 2 to 4 pages, body text at least 11 pt, every page numbered, the 'Site rules' page must work on its own when pinned in a shed, and nothing may state a fee, phone number or email address because the society has not decided them."
+  },
+  {
+    "id": "game-1",
+    "kind": "game",
+    "title": "Tide Pool Puzzle Game Level Complete Screen",
+    "brief": "Game: 'Rockpool', a calm puzzle game on iPhone where the player guides a hermit crab through tide pools; held in portrait, one thumb. Design one screen: the Level Complete screen for level 12, 'Kelp Corner', shown over the finished pool. It must show the level name, three shells as the star rating with two earned, the moves used '18' against the target '20', a new personal best badge, and two actions: 'Next pool' (main) and 'Replay'. Hard constraints: 390 x 844 points, content clear of the status bar and home indicator, both actions in the bottom third within thumb reach and at least 56 pt tall, text at least 17 pt, and a palette of sea and sand colours that reads as calm, not arcade."
+  }
+]

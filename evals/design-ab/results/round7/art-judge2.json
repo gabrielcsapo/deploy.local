@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The cart's steam is very pale and may be semi-transparent, and the awning only covers half the cart."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The noodle cart is a flat front view with dithered-looking wheels and steam trapped under the awning."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P's four sprites all read clearly on the plum ground, with a round lit lantern and a readable cart."
+    }
+  }
+}

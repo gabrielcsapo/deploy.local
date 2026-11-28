@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cream-on-black arrival figure is bright for a dim bus, and Cancel at the top-left is a long reach for a right thumb."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Snooze sits right beside Cancel as borderless text, so the 24 pt gap and its 56 pt target can't be confirmed."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P clearly meets the separation and target-size limits with Cancel at the top and an outlined 56 pt Snooze at the bottom."
+    }
+  }
+}
