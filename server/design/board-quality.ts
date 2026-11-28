@@ -1809,7 +1809,8 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   {
     code: 'text_spills',
     problem: true,
-    means: 'a label running past the side of the button or bordered box that holds it',
+    means:
+      'a label running past, or pressed against, the side of the button or bordered box that holds it',
   },
   { code: 'not_on_canvas', problem: true, means: 'a board file canvas.json does not place' },
   { code: 'canvas_only', problem: true, means: 'canvas.json places a board with no file' },
@@ -2151,9 +2152,15 @@ export function textCollisionProblems(input: {
       code: 'text_spills',
       ...at,
       ...(entry.layer ? { layer: entry.layer } : {}),
-      label: `${input.title} ${name(entry.layer, entry.text)} runs past ${entry.box && entry.box !== entry.layer ? entry.box : 'its border'}`,
-      detail: `"${entry.text}" ends ${entry.amount} px outside its border`,
-      short: 'text past its box',
+      label:
+        entry.edge === 'padding'
+          ? `${input.title} ${name(entry.layer, entry.text)} is pressed against ${entry.box && entry.box !== entry.layer ? `the edge of ${entry.box}` : 'its border'}`
+          : `${input.title} ${name(entry.layer, entry.text)} runs past ${entry.box && entry.box !== entry.layer ? entry.box : 'its border'}`,
+      detail:
+        entry.edge === 'padding'
+          ? `"${entry.text}" leaves ${Math.max(0, entry.amount)} px to the border, less than half the padding it was given`
+          : `"${entry.text}" ends ${entry.amount} px outside its border`,
+      short: entry.edge === 'padding' ? 'text against its edge' : 'text past its box',
       fix: 'make the box wider or the words shorter, or let the label wrap',
     }));
   return [...overlaps, ...spills];

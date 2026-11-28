@@ -1,0 +1,38 @@
+{
+  "judge1_sonnet": {
+    "tests": {
+      "screens": {
+        "scores": {
+          "P": { "consistent": 5, "fulfils": 5, "craft": 4, "ready": 4 },
+          "Q": { "consistent": 4, "fulfils": 5, "craft": 4, "ready": 4 }
+        },
+        "ranking": ["P", "Q"]
+      },
+      "deck": {
+        "scores": {
+          "P": { "consistent": 4, "fulfils": 4, "craft": 3, "ready": 2 },
+          "Q": { "consistent": 4, "fulfils": 5, "craft": 4, "ready": 4 }
+        },
+        "ranking": ["Q", "P"]
+      }
+    }
+  },
+  "judge2_opus": {
+    "tests": {
+      "screens": {
+        "scores": {
+          "P": { "consistent": 5, "fulfils": 4, "craft": 4, "ready": 4 },
+          "Q": { "consistent": 5, "fulfils": 5, "craft": 4, "ready": 4 }
+        },
+        "ranking": ["Q", "P"]
+      },
+      "deck": {
+        "scores": {
+          "P": { "consistent": 5, "fulfils": 4, "craft": 4, "ready": 4 },
+          "Q": { "consistent": 5, "fulfils": 4, "craft": 3, "ready": 3 }
+        },
+        "ranking": ["P", "Q"]
+      }
+    }
+  }
+}

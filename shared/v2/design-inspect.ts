@@ -72,7 +72,14 @@ export type Inspection = {
   /** Lines of text drawn over lines of another element's text. */
   overlaps?: { a: string; b: string; layerA: string | null; layerB: string | null }[];
   /** Text running past the border of the control or bordered box that holds it, in px. */
-  spills?: { layer: string | null; text: string; box: string | null; amount: number }[];
+  spills?: {
+    layer: string | null;
+    text: string;
+    box: string | null;
+    amount: number;
+    /** border: the text ends outside the box; padding: inside it, but over the padding meant to frame it. */
+    edge?: 'border' | 'padding';
+  }[];
   /**
    * What the board needs to show all its content, even where a frame the size of the window
    * (a Mac window at 100% of a 100 px page) clips it: the measure --fix writes a height from.
@@ -702,10 +709,20 @@ export function inspectBoard(doc: Document = document): Inspection {
       left: box.left + Number.parseFloat(style.borderLeftWidth),
       right: box.right - Number.parseFloat(style.borderRightWidth),
     };
+    const padLeft = Number.parseFloat(style.paddingLeft) || 0;
+    const padRight = Number.parseFloat(style.paddingRight) || 0;
+    // Sideways only: a glyph's box is taller than a tight line, so up and down would cry wolf.
     const past = Math.max(
+      ...entry.lines.map((line) => Math.max(inner.left - line.left, line.right - inner.right)),
+    );
+    // A label that fills its own padding: the button is narrower than its words, so they sit
+    // against the border. Only where the padding is real (at least 6 px) and half of it is gone.
+    const crowd = Math.max(
       ...entry.lines.map((line) =>
-        // Sideways only: a glyph's box is taller than a tight line, so up and down would cry wolf.
-        Math.max(inner.left - line.left, line.right - inner.right),
+        Math.max(
+          padLeft >= 6 ? inner.left + padLeft - line.left - padLeft / 2 : 0,
+          padRight >= 6 ? line.right - (inner.right - padRight) - padRight / 2 : 0,
+        ),
       ),
     );
     if (past > 1)
@@ -714,6 +731,20 @@ export function inspectBoard(doc: Document = document): Inspection {
         text: entry.text,
         box: layerOf(holder),
         amount: Math.round(past),
+        edge: 'border',
+      });
+    else if (crowd > 1)
+      spills.push({
+        layer: entry.layer,
+        text: entry.text,
+        box: layerOf(holder),
+        amount: Math.round(
+          Math.min(
+            inner.right - Math.max(...entry.lines.map((l) => l.right)),
+            Math.min(...entry.lines.map((l) => l.left)) - inner.left,
+          ),
+        ),
+        edge: 'padding',
       });
   }
 

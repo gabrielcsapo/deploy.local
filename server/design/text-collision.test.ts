@@ -36,3 +36,19 @@ test('text over text and a label past its button stop the check, unless main did
     [],
   );
 });
+
+test('a label pressed into its own padding is named as such', () => {
+  const after = inspection({
+    spills: [{ layer: 'cancel', text: 'Cancel alarm', box: 'cancel', amount: 1, edge: 'padding' }],
+  }) as any;
+  const [problem] = textCollisionProblems({
+    file: 'A.html',
+    title: 'A',
+    width: 390,
+    after,
+    before: null,
+  });
+  assert.equal(problem.code, 'text_spills');
+  assert.equal(problem.label, 'A cancel is pressed against its border');
+  assert.match(problem.detail ?? '', /leaves 1 px to the border/);
+});

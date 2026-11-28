@@ -1,0 +1,10 @@
+{
+  "judge1/screens/P": "A",
+  "judge1/screens/Q": "B",
+  "judge1/deck/P": "B",
+  "judge1/deck/Q": "A",
+  "judge2/screens/P": "B",
+  "judge2/screens/Q": "A",
+  "judge2/deck/P": "A",
+  "judge2/deck/Q": "B"
+}
