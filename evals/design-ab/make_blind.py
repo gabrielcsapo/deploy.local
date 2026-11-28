@@ -12,7 +12,7 @@ for j in range(1, JUDGES + 1):
         rids = sorted(k for k, r in key.items() if r['brief'] == b); rng.shuffle(rids)
         kind = key[rids[0]]['kind']
         d = os.path.join(BLIND, f'{kind}-judge{j}', b); os.makedirs(d)
-        for letter, rid in zip('PQRS', rids):
+        for letter, rid in zip('PQRSTUVW', rids):
             shutil.copy(os.path.join(RENDER, b, f'{rid}.png'), os.path.join(d, f'{letter}.png'))
             secret[f'{kind}-judge{j}/{b}/{letter}'] = rid
 json.dump(secret, open(SECRET, 'w'), indent=1)
@@ -38,6 +38,6 @@ for folder in sorted(os.listdir(BLIND)):
     for b in sorted(os.listdir(os.path.join(BLIND, folder))):
         d = os.path.join(BLIND, folder, b)
         if not os.path.isdir(d): continue
-        parts.append(f"Brief {b}: {all_briefs[b]['brief']}\nCandidates: " + ', '.join(f'{d}/{x}.png' for x in 'PQRS' if os.path.exists(f'{d}/{x}.png')))
+        parts.append(f"Brief {b}: {all_briefs[b]['brief']}\nCandidates: " + ', '.join(f'{d}/{x}.png' for x in 'PQRSTUVW' if os.path.exists(f'{d}/{x}.png')))
     text = template.replace('{{KIND_NOTE}}', notes[kind]).replace('{{BRIEFS}}', '\n\n'.join(parts))
     open(os.path.join(BLIND, folder, 'prompt.txt'), 'w').write(text)

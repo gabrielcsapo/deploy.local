@@ -1,0 +1,194 @@
+{
+  "kinds": {
+    "art": {
+      "by_judge": {
+        "judge1": [3, 9],
+        "judge2": [8, 4]
+      },
+      "pipeline_wins": 2,
+      "pipeline_losses": 3,
+      "split": 7,
+      "per_brief": {
+        "art-1": [0, 0, 6],
+        "art-2": [2, 3, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.75,
+          "reads": 3.88,
+          "craft": 3.62,
+          "ready": 3.25
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 3.92,
+          "craft": 3.75,
+          "ready": 3.5
+        }
+      }
+    },
+    "game": {
+      "by_judge": {
+        "judge1": [4, 2],
+        "judge2": [3, 3]
+      },
+      "pipeline_wins": 3,
+      "pipeline_losses": 2,
+      "split": 1,
+      "per_brief": {
+        "game-1": [3, 2, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.25,
+          "craft": 4.0,
+          "ready": 3.75
+        },
+        "B": {
+          "fulfils": 3.83,
+          "reads": 4.0,
+          "craft": 3.5,
+          "ready": 2.83
+        }
+      }
+    }
+  },
+  "runs": {
+    "a01": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [4, 4],
+      "flaws": [
+        "Tray lacks an outline and the seedlings are thin and not in clear rows, and the packet is a blue box with no folded top.",
+        "The seedlings stand in one tall row rather than two rows of three, and the teal packet barely reads as folded paper."
+      ]
+    },
+    "a02": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [4, 1],
+      "flaws": [
+        "Cart is a front-view stall where the pot is lost and the lantern is small, and the tile has speckle noise and a bright seam row at the bottom.",
+        "The steam runs up through the cart's awning, and the cart has a single lopsided wheel."
+      ]
+    },
+    "a03": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [2, 3],
+      "flaws": [
+        "It says 'Pool 12 complete' rather than 'Level 12', and the empty band above the buttons leaves the layout loose.",
+        "The results sit below the pool as a header band rather than over it, and the shells and pale best badge (with an unclear icon) are undersized."
+      ]
+    },
+    "a04": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The badge sits between the shells and the stats panel, which splits the rating from its numbers, and the crab is small in the scene.",
+        "The empty shell's dotted outline is a little ragged at its base compared with the clean earned shells."
+      ]
+    },
+    "a05": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [3, 0],
+      "flaws": [
+        "Cobble tile has a dark irregular crack network that reads as flagstone, with a bright stripe at the bottom edge, and the lantern is small.",
+        "The cart's awning is a flat green block on the box, not a canopy."
+      ]
+    },
+    "a06": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "Gardener's apron and pose are slightly stiff, and the tile has a pale edge border that may show at joins.",
+        "The tray's orange rim slats cut across the seedlings and muddy the two rows, and the tile's highlights don't clearly come from the top right."
+      ]
+    },
+    "b01": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [2, 0],
+      "flaws": [
+        "Gardener's cream apron and flat face are unclear, and the green watering can blob lacks form.",
+        "The gardener's cream shirt blends a little with the pale wall around the torso."
+      ]
+    },
+    "b02": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [0, 2],
+      "flaws": [
+        "Cart is cluttered and the awning reads as a blob, with the pot and steam small and ambiguous.",
+        "The cobble tile reads as regular brick rows, and the awning floats on thin posts."
+      ]
+    },
+    "b03": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [4, 4],
+      "flaws": [
+        "It shows only two shells (one earned, one empty), so the three-shell rating with two earned is wrong.",
+        "Only two shells are shown, one earned and one empty, so the three-shell rating with two earned is wrong."
+      ]
+    },
+    "b04": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [1, 2],
+      "flaws": [
+        "Gardener has a green shirt and a muddled small face, and the packet shape is plain.",
+        "The seed tray is a deep crate rather than a shallow tray, and its seedlings bunch together."
+      ]
+    },
+    "b05": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [3, 2],
+      "flaws": [
+        "The shell icons have odd flat triangular bases and uneven sizes, so earned and unearned shells look inconsistent.",
+        "The shells sit on odd triangular pedestal bases and the earned ones are different sizes, so the rating looks unfinished."
+      ]
+    },
+    "b06": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [2, 3],
+      "flaws": [
+        "Cart is crowded with a dark interior and a face-like look, so the pot barely reads.",
+        "The noodle cart is cluttered and muddy at play size, with a red sign and food details competing."
+      ]
+    },
+    "b07": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [3, 3],
+      "flaws": [
+        "Tray soil and seedlings are muddy and the tile has a pale cream border that shows as faint lines when tiled.",
+        "The seedlings blur into one leafy clump, so six in two rows can't be counted."
+      ]
+    },
+    "b08": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [1, 4],
+      "flaws": [
+        "Cat is boxy with a stubby tail that is not clearly curled, and the tile is busy with a bright bottom edge.",
+        "The cat's tail is a stiff striped block, not curled to the right, and the steam looks dithered."
+      ]
+    },
+    "b09": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The 'Replay' button is visibly weaker than 'Next pool' and the badge-to-button spacing is slightly crowded.",
+        "The target number is in a grey that reads slightly weaker than the moves figure, and the status bar icons are a touch uneven."
+      ]
+    }
+  }
+}

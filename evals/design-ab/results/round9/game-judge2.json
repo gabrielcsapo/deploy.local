@@ -1,0 +1,45 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The shells sit on odd triangular pedestal bases and the earned ones are different sizes, so the rating looks unfinished."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The empty shell's dotted outline is a little ragged at its base compared with the clean earned shells."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The results sit below the pool as a header band rather than over it, and the shells and pale best badge (with an unclear icon) are undersized."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The target number is in a grey that reads slightly weaker than the moves figure, and the status bar icons are a touch uneven."
+        },
+        "T": {
+          "fulfils": 2,
+          "reads": 4,
+          "craft": 3,
+          "ready": 1,
+          "flaw": "Only two shells are shown, one earned and one empty, so the three-shell rating with two earned is wrong."
+        }
+      },
+      "ranking": ["S", "Q", "P", "R", "T"],
+      "why_top": "S meets every requirement with the most polished, consistent shells, a clear '2 of 3' label, compact stats, and a calm sea-and-sand card over the pool, with both large actions in thumb reach."
+    }
+  }
+}

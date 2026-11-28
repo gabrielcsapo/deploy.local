@@ -196,3 +196,14 @@ test('sprites of different sets with one silhouette are a note, once per two set
     null,
   );
 });
+
+test('palette= in the head caps how many colours the sprites use', () => {
+  const sprites = [
+    sprite('hero', { colours: ['rgb(1, 1, 1)', 'rgb(2, 2, 2)'] }),
+    sprite('slime', { colours: ['rgb(3, 3, 3)', 'rgb(1, 1, 1)'] }),
+  ];
+  assert.deepEqual(artPaletteProblems({ ...board, art: { palette: [], sprites }, most: 3 }), []);
+  const [problem] = artPaletteProblems({ ...board, art: { palette: [], sprites }, most: 2 });
+  assert.equal(problem.code, 'art_off_palette');
+  assert.match(problem.label, /3 colours, more than its palette=2/);
+});

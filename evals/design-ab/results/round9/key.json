@@ -1,0 +1,107 @@
+{
+  "a01": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab10a/runs/a01/greenhouse"
+  },
+  "a02": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab10a/runs/a02/night"
+  },
+  "a03": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab10a/runs/a03/tide"
+  },
+  "a04": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab10a/runs/a04/tide"
+  },
+  "a05": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab10a/runs/a05/night"
+  },
+  "a06": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab10a/runs/a06/greenhouse"
+  },
+  "b01": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab10b/runs/b01/greenhouse"
+  },
+  "b02": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 3,
+    "proj": "/tmp/ab10b/runs/b02/night"
+  },
+  "b03": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 3,
+    "proj": "/tmp/ab10b/runs/b03/tide"
+  },
+  "b04": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab10b/runs/b04/greenhouse"
+  },
+  "b05": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab10b/runs/b05/tide"
+  },
+  "b06": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab10b/runs/b06/night"
+  },
+  "b07": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 3,
+    "proj": "/tmp/ab10b/runs/b07/greenhouse"
+  },
+  "b08": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab10b/runs/b08/night"
+  },
+  "b09": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab10b/runs/b09/tide"
+  }
+}

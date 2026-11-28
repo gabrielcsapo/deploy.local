@@ -1,4 +1,4 @@
-You are judging design work for a studio lead. For each brief below there are several candidate results (P, Q, and R and S where listed), made independently by different designers. Judge only what you see in the pictures against the brief. Look at every picture with the Read tool; read only the files named here.
+You are judging design work for a studio lead. For each brief below there are several candidate results (P, Q, R and more where listed), made independently by different designers. Judge only what you see in the pictures against the brief. Look at every picture with the Read tool; read only the files named here.
 
 {{KIND_NOTE}}
 

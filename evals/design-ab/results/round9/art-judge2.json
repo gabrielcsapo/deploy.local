@@ -1,0 +1,86 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cart's awning is a flat green block on the box, not a canopy."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The steam runs up through the cart's awning, and the cart has a single lopsided wheel."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The noodle cart is cluttered and muddy at play size, with a red sign and food details competing."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The cobble tile reads as regular brick rows, and the awning floats on thin posts."
+        },
+        "T": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The cat's tail is a stiff striped block, not curled to the right, and the steam looks dithered."
+        }
+      },
+      "ranking": ["P", "Q", "S", "R", "T"],
+      "why_top": "P meets every item cleanly: an organic, seamless cobble tile, a well-shaped cat with a curled tail, a lit round lantern, and a readable cart, all strong on the plum ground."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The tray's orange rim slats cut across the seedlings and muddy the two rows, and the tile's highlights don't clearly come from the top right."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The seedlings blur into one leafy clump, so six in two rows can't be counted."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The gardener's cream shirt blends a little with the pale wall around the torso."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The seedlings stand in one tall row rather than two rows of three, and the teal packet barely reads as folded paper."
+        },
+        "T": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The seed tray is a deep crate rather than a shallow tray, and its seedlings bunch together."
+        }
+      },
+      "ranking": ["R", "P", "T", "Q", "S"],
+      "why_top": "R is the clearest match: six countable seedlings in dark soil, a clean running-bond tile with aligned dark mortar and top-right highlights, and a well-outlined packet and gardener."
+    }
+  }
+}

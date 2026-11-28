@@ -187,8 +187,8 @@ A standalone page with no scripts and no remote images, sized in its head:
 
 Keys: width, height, platform, schemes (light, dark, or light dark), title, source, replaces, and
 the brief's limits: \`size=\` and \`tris=\` for a model, \`tile=\` and \`play=\` for sprites,
-\`palette=\` (every colour one of look.css's --pal-*, nothing see-through) and \`pixels=hard\`
-(whole pixels only) when the brief asks for them, \`pages=\` for a document, \`min-text=28\` (or \`11pt\`) for the smallest type the brief allows, \`contrast=aa\`
+\`palette=14\` (the most colours the brief allows; each must be one of look.css's --pal-*, and
+nothing see-through) and \`pixels=hard\` (whole pixels only) when the brief asks for them, \`pages=\` for a document, \`min-text=28\` (or \`11pt\`) for the smallest type the brief allows, \`contrast=aa\`
 to make low contrast stop the check. Name the parts others will
 point at with \`data-layer\` IDs and keep them when you rework a board. A fact you made up that
 the brief doesn't give (a price, an opening time) gets \`data-question="…"\` on its layer.

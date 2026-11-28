@@ -1,0 +1,45 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The 'Replay' button is visibly weaker than 'Next pool' and the badge-to-button spacing is slightly crowded."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "It says 'Pool 12 complete' rather than 'Level 12', and the empty band above the buttons leaves the layout loose."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The shell icons have odd flat triangular bases and uneven sizes, so earned and unearned shells look inconsistent."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The badge sits between the shells and the stats panel, which splits the rating from its numbers, and the crab is small in the scene."
+        },
+        "T": {
+          "fulfils": 2,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "It shows only two shells (one earned, one empty), so the three-shell rating with two earned is wrong."
+        }
+      },
+      "ranking": ["P", "S", "Q", "R", "T"],
+      "why_top": "P meets every requirement, including three shells with two earned, with a calm sea-and-sand palette, clear hierarchy, large thumb-reach buttons and no visible flaws."
+    }
+  }
+}

@@ -1506,7 +1506,12 @@ export async function checkDesign(
               const art = afterShot.art;
               found.problems.push(
                 ...artGridProblems({ file, title, art }),
-                ...artPaletteProblems({ file, title, art }),
+                ...artPaletteProblems({
+                  file,
+                  title,
+                  art,
+                  most: Number(meta.other.palette) || null,
+                }),
               );
               for (const note of [
                 artReadNote({ file, title, art }),

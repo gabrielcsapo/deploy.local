@@ -121,9 +121,34 @@ export function artPaletteProblems(input: {
   file: string;
   title: string;
   art: Pick<ArtSheet, 'palette'> & { sprites: ArtSprite[] };
+  /** The most colours the brief allows, as palette= in the head says. */
+  most?: number | null;
 }): Finding[] {
   const palette = input.art.palette.map((entry) => rgbOf(entry.colour)).filter(Boolean) as Rgb[];
-  if (!palette.length) return [];
+  const used = new Set(
+    input.art.sprites.flatMap((sprite) =>
+      sprite.colours
+        .map((colour) => rgbOf(colour))
+        .filter(Boolean)
+        .map((rgb) => hex(rgb as Rgb)),
+    ),
+  );
+  const over: Finding[] =
+    input.most && used.size > input.most
+      ? [
+          {
+            code: 'art_off_palette',
+            file: input.file,
+            board: input.title,
+            scheme: 'light',
+            label: `${input.title} paints with ${used.size} colours, more than its palette=${input.most}`,
+            detail: [...used].slice(0, 24).join(', '),
+            short: 'too many colours',
+            fix: `bring the sprites down to ${input.most} colours, or raise palette= if the brief allows more`,
+          },
+        ]
+      : [];
+  if (!palette.length) return over;
   const strays = new Map<string, string[]>();
   const seeThrough: string[] = [];
   for (const sprite of input.art.sprites) {
@@ -135,7 +160,7 @@ export function artPaletteProblems(input: {
       strays.set(key, [...(strays.get(key) ?? []), sprite.name]);
     }
   }
-  if (!strays.size && !seeThrough.length) return [];
+  if (!strays.size && !seeThrough.length) return over;
   const parts = [
     ...[...strays].map(
       ([colour, sprites]) => `${colour} in ${[...new Set(sprites)].slice(0, 3).join(', ')}`,
@@ -155,6 +180,7 @@ export function artPaletteProblems(input: {
       short: 'off the palette',
       fix: 'paint every shape with a --pal-* colour at full opacity; a colour the art needs goes into the palette first, as a --pal-*',
     },
+    ...over,
   ];
 }
 

@@ -152,3 +152,28 @@ writes every drawn copy of a sprite unless it is marked `art-copy`; slides are j
     python3 score.py ~/.ab-key.json ~/.ab-blind.json <judgements dir>
 
 `make_blind.py` also writes each judge's prompt.txt from `judge_prompt.md` and `briefs.json`.
+
+## Round 9 (2026-11-28, style left to the brief, three plain draws a brief)
+
+What changed first (commit 49294161 and the next): pixel grid and fixed palettes are advice unless the
+board head says `pixels=hard` or `palette=` (which also caps the colour count); one primary button,
+near alignment and row heights only hold for a project with a design system; the README drops its
+"simplify it until" rule and keeps the brief in `design/brief.md`, whose figures are never asked
+about; the art starter has no colours; a renamed board keeps its canvas place; a sprite drawn twice
+is exported once; `look` keeps only the newest picture of a board.
+
+Runs: art-1, art-2 and game-1 from round 4, Opus designers, 2 flow runs (A) and 3 plain runs (B) a
+brief, so each A is compared with three B draws. Judges: Sonnet (judge1) and Opus (judge2).
+
+| Brief  | Won | Lost | Split | Note                                                                                            |
+| ------ | --- | ---- | ----- | ----------------------------------------------------------------------------------------------- |
+| art-1  | 0   | 0    | 6     | the judges disagree on every pair: Sonnet put both A runs last, Opus put them first and second  |
+| art-2  | 2   | 3    | 1     | one A run first or second with both judges, the other last with both                            |
+| game-1 | 3   | 2    | 1     | A runs 2nd and 3rd/4th of 5; one B run first with both; one B run missed the three-shell rating |
+
+Mean "ready": art A 3.25, B 3.50; game A 3.75, B 2.83. Both art A runs switched on `palette=` and
+`pixels=hard` themselves, because both art briefs ask for pixel art: the art check was never what lost
+art-1. Against three draws, art-1 and game-1 no longer lose; the round 4 to 8 losses were one draw.
+Working tokens a run (less about 125k fixed): art-1 A 86k, B 77k; art-2 A 76k, B 57k; game-1 A 41k,
+B 32k. Minutes: A 4 to 11, B 8 to 19 (every B run lost time to a Chromium that hung).
+Results: results/round9.
