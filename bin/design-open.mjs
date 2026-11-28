@@ -84,13 +84,13 @@ const kinds = {
     file: 'Sprites',
     label: 'sprite sheet',
     meta: 'platform=art,width=1280,height=960,tile=16,play=48',
-    body: () => `<!-- Palette and grounds are --pal-* and --stage-* on :root in look.css. Each sprite is an
-         svg.art-sprite whose viewBox is its pixels, painted only with rects in var(--pal-*);
-         a thing's frames sit together in a .art-set with an h2. -->
+    body: () => `<!-- Each sprite is an svg.art-sprite whose viewBox is its size in pixels, drawn however the
+         art wants; a thing's frames sit together in a .art-set with an h2. Colours named
+         --pal-* and grounds --stage-* on :root in look.css are its palette. -->
     <section class="art-set" data-layer="first-set">
       <h2>First sprite</h2>
       <svg class="art-sprite" viewBox="0 0 16 16" width="128" height="128" data-layer="first">
-        <rect x="4" y="4" width="8" height="8" fill="var(--pal-ink)" />
+        <rect x="4" y="4" width="8" height="8" fill="currentColor" />
       </svg>
     </section>`,
   },
@@ -124,13 +124,12 @@ const lookCss = (kind) => `/* This project's look: its colours, type and the par
 :root {
 ${
   kind === 'art'
-    ? `  /* The palette: every colour a sprite may use, and the grounds it is played on. */
-  --pal-ink: #222;
-  --stage-ground: #ddd;`
+    ? `  /* The palette, from the brief: --pal-<name> for each colour, --stage-<name> for each
+     ground the sprites are played on. */`
     : kind === 'model'
       ? `  /* The palette: every colour a part may use, as pal('name') in the model script. */
   --pal-base: #888;`
-      : `  /* --ink, --ground, --accent, the type sizes ... */`
+      : `  /* The project's colours and type, as custom properties. */`
 }
 }
 html,
@@ -155,7 +154,7 @@ const kindTips = {
     'One board per slide, all linking look.css; `export` puts them in canvas order as one PDF.',
   print:
     'A face is trim plus bleed; text and marks stay inside the safe margin. `export --marks` adds crop marks.',
-  art: 'Set `tile=` and `play=` from the brief (pixels a tile, size shown in play). `export` writes each sprite as an SVG named for its data-layer.',
+  art: 'Set `tile=` and `play=` from the brief (pixels a tile, size shown in play). `export` writes each sprite once, as an SVG named for its data-layer.',
   model:
     'The model is design/models/<Name>.py; its front faces -Y (the front view looks at it), z is up, metres. `look Model --angle 30,20` turns it.',
   logo: 'The mark is the svg with data-layer="mark"; the check draws it alone down to 16 px. Set fill-rule on the path itself.',
@@ -167,7 +166,8 @@ export const openReadme = (kind) => `# Design
 
 An open canvas: boards are HTML pages, drawn and checked here before anything is built. The look
 is yours to make from the brief. Several agents may work on this canvas, so write the project's
-shared look into \`look.css\` and reuse it.
+shared look into \`look.css\` and reuse it, and keep the brief in \`design/brief.md\` so the next
+agent has it too (the figures it gives are never asked about).
 
 ## The loop
 1. Draw \`design/boards/<Board>.html\`. Start from the board init placed (rename it with plain
@@ -177,8 +177,7 @@ shared look into \`look.css\` and reuse it.
 3. \`deploy design check --fix\`: draws what changed beside main into \`output/design/pairs\`,
    places new boards, and lists problems (fix them) and advice (weigh it).
 4. Before you call it done, look at it as it will be met: the mark at 16 px, a sprite at play size,
-   a model from far off, a slide as from the back of the room (\`look --zoom 0.25\`). If a
-   stranger could not name each part at that size, simplify it until they could.
+   a model from far off, a slide as from the back of the room (\`look --zoom 0.25\`).
 5. \`deploy design export\` for the finished files (PDF, SVG marks and sprites, .glb models).
 
 ## A board
@@ -187,8 +186,9 @@ A standalone page with no scripts and no remote images, sized in its head:
     <meta name="design-board" content="${kinds[kind]?.meta ?? kinds.app.meta}">
 
 Keys: width, height, platform, schemes (light, dark, or light dark), title, source, replaces, and
-the brief's limits: \`size=\` and \`tris=\` for a model, \`tile=\` and \`play=\` for sprites, \`pages=\`
-for a document, \`min-text=28\` (or \`11pt\`) for the smallest type the brief allows, \`contrast=aa\`
+the brief's limits: \`size=\` and \`tris=\` for a model, \`tile=\` and \`play=\` for sprites,
+\`palette=\` (every colour one of look.css's --pal-*, nothing see-through) and \`pixels=hard\`
+(whole pixels only) when the brief asks for them, \`pages=\` for a document, \`min-text=28\` (or \`11pt\`) for the smallest type the brief allows, \`contrast=aa\`
 to make low contrast stop the check. Name the parts others will
 point at with \`data-layer\` IDs and keep them when you rework a board. A fact you made up that
 the brief doesn't give (a price, an opening time) gets \`data-question="…"\` on its layer.

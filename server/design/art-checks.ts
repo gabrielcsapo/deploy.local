@@ -108,7 +108,7 @@ export function artGridProblems(input: {
       label: `${input.title} has art off its ${tile} px pixel grid`,
       detail: listed(issues),
       short: 'off the pixel grid',
-      fix: `draw each sprite from whole pixels (rects, and paths of h and v runs on whole numbers, as the kit's art does), a whole number of ${tile} px tiles, with its width and height its viewBox times a whole zoom`,
+      fix: `draw each sprite from whole pixels (rects, and paths of h and v runs on whole numbers), a whole number of ${tile} px tiles, with its width and height its viewBox times a whole zoom`,
     },
   ];
 }
@@ -153,7 +153,7 @@ export function artPaletteProblems(input: {
       label: `${input.title} paints with ${strays.size ? `${strays.size} colour${strays.size === 1 ? '' : 's'} not in its palette` : 'see-through shapes'}`,
       detail: listed(parts),
       short: 'off the palette',
-      fix: 'paint every shape with a palette class (c-ink, c-blue…) at full opacity; a colour the art needs goes into the palette in art.css first, as a --pal-* and its class',
+      fix: 'paint every shape with a --pal-* colour at full opacity; a colour the art needs goes into the palette first, as a --pal-*',
     },
   ];
 }

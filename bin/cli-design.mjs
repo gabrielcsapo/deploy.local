@@ -158,7 +158,7 @@ it). For each: the board, width and scheme, the layer, what is wrong, and the fi
   situation is what they see first. A screen, sprite or prop that could belong to any product,
   every fact laid out alike, is a [judgement] finding even when it is on the system.
 - One look across the boards (look.css or the project's design system), extended where the brief
-  needs more; one primary action; consistency across boards; every width and scheme readable,
+  needs more; consistency across boards; every width and scheme readable,
   nothing cut off, words true to the render; layer IDs kept and named; a sensible canvas.
 
 Skip praise. If nothing needs fixing, say so in one line.
@@ -446,6 +446,38 @@ export function startingBoardState(top, canvas, file) {
     : 'own';
 }
 
+/**
+ * One board renamed by hand (its canvas entry names a file that is gone, and one board file has
+ * no entry): its entry moves to the new name, keeping its place, its slot in "order" and, if it
+ * was the starting board, that mark. Says what it did, or null.
+ */
+export function carryRenamedBoard(top) {
+  const canvasPath = join(top, 'design', 'canvas.json');
+  const dir = join(top, 'design', 'boards');
+  if (!existsSync(canvasPath) || !existsSync(dir)) return null;
+  const canvas = JSON.parse(readFileSync(canvasPath, 'utf8'));
+  const boards = canvas.boards ?? {};
+  const gone = Object.keys(boards).filter((file) => !existsSync(join(dir, file)));
+  const fresh = readdirSync(dir).filter((file) => file.endsWith('.html') && !boards[file]);
+  if (gone.length !== 1 || fresh.length !== 1) return null;
+  const [from] = gone;
+  const [to] = fresh;
+  const html = readFileSync(join(dir, to), 'utf8');
+  const title = decodeHtmlText(
+    parseBoardMeta(html).title ?? /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? screenName(to),
+  );
+  canvas.boards = Object.fromEntries(
+    Object.entries(boards).map(([file, entry]) =>
+      file === from ? [to, { ...entry, title }] : [file, entry],
+    ),
+  );
+  if (Array.isArray(canvas.order))
+    canvas.order = canvas.order.map((file) => (file === from ? to : file));
+  if (canvas.startingBoard === from) canvas.startingBoard = to;
+  writeFileSync(canvasPath, `${JSON.stringify(canvas, null, 2)}\n`);
+  return `${screenName(from)} is ${screenName(to)} now: its place and order in canvas.json carried over`;
+}
+
 /** The example each kind's init places in boards/ as the board to start from. */
 const startingBoards = {
   doc: 'DocHandbook',
@@ -714,6 +746,8 @@ export async function runDesign(sub, args, options, deps) {
   const check = async (top, { quiet = false, drop = false, fix = false } = {}) => {
     if (!existsSync(join(top, 'design')))
       throw cliError('This project has no design yet.', 'deploy design init', 1);
+    // A board renamed by hand keeps its place, its slot in "order" and its starting-board mark.
+    const carried = fix ? carryRenamedBoard(top) : null;
     const opened = deps.openLocalDrawing
       ? await deps.openLocalDrawing(top)
       : { reason: 'this terminal has no browser' };
@@ -726,7 +760,7 @@ export async function runDesign(sub, args, options, deps) {
       await opened.close?.();
     }
     const { result, sent, cleanup } = run;
-    const fixed = [];
+    const fixed = carried ? [carried] : [];
     const pairFiles = [];
     let questionsSeen = false;
     try {
@@ -1822,6 +1856,9 @@ export async function runDesign(sub, args, options, deps) {
         });
         if (!drawn) throw cliError(`${file} could not be drawn.`, 'deploy design check', 1);
         const picture = `${stem}-${width}-${scheme}${zoom !== 1 ? `-x${zoom}` : ''}.png`;
+        // Only the newest look at a board stays, so an older picture is never read for it.
+        for (const old of readdirSync(folder))
+          if (old.startsWith(`${stem}-`) && old.endsWith('.png')) rmSync(join(folder, old));
         writeFileSync(join(folder, picture), drawn.png);
         written.push(`output/design/look/${picture}`);
         const sheet = drawn.model;

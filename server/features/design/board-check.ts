@@ -647,8 +647,10 @@ export async function checkDesign(
           .map((name) => show(commit, `${examplesFolder}/${name}`)),
       )
     : [];
+  // The brief, kept in design/brief.md, gives its own figures: those are the product's, not made up.
+  const brief = await show(commit, `${folder}/brief.md`);
   const sampleValues = new Set(
-    [...exampleTexts, await systemFile(dsPaths?.library)].flatMap((text) =>
+    [...exampleTexts, await systemFile(dsPaths?.library), brief].flatMap((text) =>
       text ? statedClaims(text.replace(/<[^>]+>/g, ' ')) : [],
     ),
   );

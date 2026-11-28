@@ -734,7 +734,18 @@ export async function drawSprites(tab: DrawingTab): Promise<ArtSheet | null> {
   if (!read?.sprites?.length) return read ? { ...read, sprites: [] } : null;
   const zoom = read.play / read.tile;
   const sprites: ArtSheet['sprites'] = [];
-  for (const [index, sprite] of read.sprites.entries()) {
+  // A sprite drawn again (bigger to show its pixels, on a second ground, in a scene) is the same
+  // sprite: it is exported, read and compared once, as the first it was drawn.
+  const seen = new Set<string>();
+  const once = read.sprites.filter((sprite) => {
+    const shape = sprite.svg
+      .replace(/\s(?:data-layer|id|aria-label|class|data-question)="[^"]*"/g, '')
+      .replace(/\s+/g, ' ');
+    if (seen.has(shape)) return false;
+    seen.add(shape);
+    return true;
+  });
+  for (const [index, sprite] of once.entries()) {
     const renders: ArtSheet['sprites'][number]['renders'] = [];
     const width = Math.max(1, Math.round((sprite.width || read.tile) * zoom));
     const height = Math.max(1, Math.round((sprite.height || read.tile) * zoom));

@@ -1663,12 +1663,17 @@ export function screenFamily(
 // that keeps its own design system in design/ds (init --kit) is held to it as before.
 
 /** Problems that are advice unless the board's head states the limit (key=). */
-const adviceUnlessStated: Record<string, string> = { low_contrast: 'contrast' };
+const adviceUnlessStated: Record<string, string> = {
+  low_contrast: 'contrast',
+  // Pixel art and a fixed palette are a style, so they hold only when the brief asks for them.
+  art_off_palette: 'palette',
+  art_off_grid: 'pixels',
+  model_off_palette: 'palette',
+};
 
 /** Problems that are advice on every canvas: matters of taste and flow, not of breakage. */
 const adviceOnly = new Set([
   'source_action_missing',
-  'second_primary',
   'layer_name_says_nothing',
   'scheme_dropped',
   'scheme_pinned_page',
@@ -1688,6 +1693,10 @@ const systemOnly = new Set([
   'differs_from_source',
   // The same question again as open_question says it: once is enough on an open canvas.
   'question_sample_value',
+  // One house style (one primary button, edges and rows to the pixel) is a system's to ask for.
+  'second_primary',
+  'nearly_aligned',
+  'row_height_differs',
 ]);
 
 /**
@@ -1859,12 +1868,13 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
     code: 'art_off_grid',
     problem: true,
     means:
-      'art: a sprite not a whole number of tiles, a curve, stroke or fraction of a pixel, or drawn at a zoom that is not whole',
+      'art: a sprite not a whole number of tiles, a curve, stroke or fraction of a pixel, or drawn at a zoom that is not whole (stops the check with pixels=hard in the head)',
   },
   {
     code: 'art_off_palette',
     problem: true,
-    means: 'art: a sprite painted with a colour that is not a --pal-* or --stage-*, or see-through',
+    means:
+      'art: a sprite painted with a colour that is not a --pal-* or --stage-*, or see-through (stops the check with palette= in the head)',
   },
   {
     code: 'art_unreadable_at_play',
@@ -1901,7 +1911,8 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   {
     code: 'model_off_palette',
     problem: true,
-    means: 'model: a part painted a colour that is not a --pal-*, or with no material',
+    means:
+      'model: a part painted a colour that is not a --pal-*, or with no material (stops the check with palette= in the head)',
   },
   {
     code: 'model_framing',

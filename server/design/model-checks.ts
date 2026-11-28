@@ -179,7 +179,7 @@ export function modelFindings(input: { file: string; title: string; model: Model
           `${name} has colours that are not in the palette`,
           off.slice(0, 4).join('; ') + (off.length > 4 ? ` and ${off.length - 4} more` : ''),
           'off palette',
-          "paint every part with pal('<name>') from the kit's --pal-* colours",
+          "paint every part with pal('<name>'), adding a colour the model needs to the --pal-* colours first",
         ),
       );
   }

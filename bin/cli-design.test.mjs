@@ -16,6 +16,7 @@ import { readdirSync, statSync } from 'node:fs';
 import {
   DESIGN_HELP,
   DESIGN_README,
+  carryRenamedBoard,
   designSlug,
   projectFromRemote,
   reviewQuestions,
@@ -2532,5 +2533,44 @@ test('look draws one board as asked and says what it takes', async () => {
       await assert.rejects(runDesign('look', args, options, run.deps), (e) => e.exitCode === 2);
   } finally {
     repo.cleanup();
+  }
+});
+
+test('a board renamed by hand keeps its place, its order and its starting-board mark', () => {
+  const top = mkdtempSync(join(tmpdir(), 'design-rename-'));
+  try {
+    mkdirSync(join(top, 'design', 'boards'), { recursive: true });
+    const canvas = {
+      boards: {
+        'TitleScreen.html': { x: 40, y: 80, w: 390, h: 844, title: 'Old title' },
+        'Other.html': { x: 500, y: 0, w: 390, h: 844, title: 'Other' },
+      },
+      order: ['TitleScreen.html', 'Other.html'],
+      startingBoard: 'TitleScreen.html',
+    };
+    writeFileSync(join(top, 'design', 'canvas.json'), JSON.stringify(canvas));
+    writeFileSync(join(top, 'design', 'boards', 'Other.html'), '<title>Other</title>');
+    writeFileSync(
+      join(top, 'design', 'boards', 'LevelComplete.html'),
+      '<title>Level complete</title>',
+    );
+    assert.match(carryRenamedBoard(top), /TitleScreen is LevelComplete now/);
+    const after = JSON.parse(readFileSync(join(top, 'design', 'canvas.json'), 'utf8'));
+    assert.deepEqual(after.boards['LevelComplete.html'], {
+      x: 40,
+      y: 80,
+      w: 390,
+      h: 844,
+      title: 'Level complete',
+    });
+    assert.deepEqual(after.order, ['LevelComplete.html', 'Other.html']);
+    assert.equal(after.startingBoard, 'LevelComplete.html');
+    // Two new boards for one gone is not a rename anyone can read: nothing moves.
+    writeFileSync(join(top, 'design', 'boards', 'Third.html'), '<title>Third</title>');
+    rmSync(join(top, 'design', 'boards', 'Other.html'));
+    writeFileSync(join(top, 'design', 'boards', 'Fourth.html'), '<title>Fourth</title>');
+    assert.equal(carryRenamedBoard(top), null);
+  } finally {
+    rmSync(top, { recursive: true, force: true });
   }
 });
