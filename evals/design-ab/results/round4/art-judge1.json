@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The noodle cart is muddled, with one visible wheel and a steam plume that looks like a feather, and the busy cobble tile is noisy."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cart is small and a little cluttered at play size, and the steam is faint."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's cart clearly shows awning, pot, steam and two wheels, and its cat, lantern and calmer cobble tile read cleanly on the dark ground."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The yellow seed packet reads more like a jar than a paper packet with a folded top."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The gardener's arm and apron are a bit blocky and the hat is thinly outlined."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's tray and packet read more clearly as what the brief names, and the gardener visibly holds the watering can."
+    }
+  }
+}

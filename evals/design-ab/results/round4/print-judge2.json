@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "print-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The 'Free service' label sits on the hours baseline, so it reads as part of the footer more than as the tenth circle's label."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The thin-spoked mark with its broken rim reads more like a compass or ship's wheel than a bike wheel, and the heavy bottom band makes the back feel split."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P has the clearer spoke-and-spanner mark, larger and better-spaced stamp circles, and a more confident front layout, all well inside the safe margin."
+    }
+  }
+}

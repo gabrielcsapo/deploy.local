@@ -1791,6 +1791,11 @@ export const checkCodes: { code: string; problem: boolean; means: string }[] = [
   { code: 'broken_link', problem: true, means: 'a link to a board that does not exist' },
   { code: 'image_missing', problem: true, means: 'an img src under design/ with no file there' },
   {
+    code: 'text_too_small',
+    problem: true,
+    means: 'text drawn smaller than min-text= in its head (28, or 11pt)',
+  },
+  {
     code: 'over_page_limit',
     problem: true,
     means: 'a document prints on more pages than pages= in its head',

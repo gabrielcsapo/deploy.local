@@ -1,0 +1,105 @@
+[
+  {
+    "id": "art-1",
+    "kind": "art",
+    "title": "Night Market Lantern Alley: Street Vendor Sprites",
+    "brief": "Game: 'Paper Moon Alley', a top-down 2D cosy-stealth game where the player is a stray cat slipping between stalls in a crowded night market; camera is a fixed top-down view with a 3/4 tilt. All sprites are 24x24 pixels, drawn with a single shared palette of at most 14 colours across all four assets, no anti-aliasing, no gradients, no dithering, 1px outline allowed only in the darkest palette colour, and no semi-transparent pixels (hard alpha, on or off). Exactly 4 named assets: (1) StrayCatIdle, a ginger cat with a white chest sitting and facing the camera, tail curled to the right; (2) PaperLantern, a round red paper lantern with a gold cap and a short tassel, lit, hanging pose; (3) CobbleTile, a seamlessly repeating ground tile of pale grey-beige cobblestones with darker mortar gaps, edges must wrap on all four sides with no visible seam when tiled 4x4; (4) NoodleCart, a small wooden handcart with a green awning and a steaming pot on top. Sprites are played on a flat dark charcoal-plum (#1c1620) ground background with a faint 1px square grid line every 24 pixels in a slightly lighter plum, so the sprites must stay readable against it and no asset may use that plum as its main fill.",
+    "render": {
+      "roles": [
+        ["cat", "cat|stray|idle"],
+        ["lantern", "lantern|paper"],
+        ["tile", "cobble|tile|ground"],
+        ["cart", "cart|noodle"]
+      ],
+      "ground": "background-color:#1c1620;background-image:linear-gradient(#2a2230 {z}px,transparent {z}px),linear-gradient(90deg,#2a2230 {z}px,transparent {z}px);background-size:calc({z}px*24) calc({z}px*24)",
+      "dark": true,
+      "width": 1100
+    }
+  },
+  {
+    "id": "art-2",
+    "kind": "art",
+    "title": "Greenhouse Seed Bank: Botanical Lab Sprites",
+    "brief": "Game: 'Sprout & Ledger', a side-view 2D puzzle-platformer set in a bright glass-roofed seed bank, where the player is a small gardener moving seed trays between shelves; camera is side-on, one room per screen. All sprites are 32x32 pixels, drawn with one shared palette of at most 16 colours across all four assets, no anti-aliasing, no dithering, hard-edged pixels only, light from the top right on every asset, and no semi-transparent pixels. Exactly 4 named assets: (1) GardenerIdle, a gardener in a brown apron and wide straw hat holding a watering can, one standing frame facing left; (2) SeedTray, a shallow wooden tray of dark soil with six small green seedlings in two rows of three; (3) TerracottaTile, a seamlessly repeating floor tile of orange-brown terracotta bricks in a running bond, must tile horizontally and vertically with no visible seam and the mortar lines must line up across every join; (4) SeedPacket, an upright paper packet with a folded top, a cream label and a tiny red tomato icon. Sprites are played on a flat pale mint-white (#e4f1e6) back wall with a faint 1px vertical line every 16 pixels like glass-pane frames, so sprites need a dark outline to stay readable and no asset may use the wall colour as its main fill.",
+    "render": {
+      "roles": [
+        ["gardener", "gardener|player|hero"],
+        ["tray", "tray|seedling"],
+        ["tile", "terracotta|tile|brick|floor"],
+        ["packet", "packet|seed-packet|seedpacket"]
+      ],
+      "ground": "background-color:#e4f1e6;background-image:linear-gradient(90deg,#c9dccc {z}px,transparent {z}px);background-size:calc({z}px*16) 100%",
+      "dark": false,
+      "width": 1300
+    }
+  },
+  {
+    "id": "model-1",
+    "kind": "model",
+    "name": "CarouselHorse",
+    "box": "0.5x1.8x1.7",
+    "tris": 1100,
+    "title": "Overhead Carousel Horse Seen from Below",
+    "brief": "Game: 'Last Ride', a first-person ghost-story exploration game set in an abandoned fairground. Prop: CarouselHorse, a painted wooden carousel horse mounted on a brass pole, hanging from the rotating canopy above the player's head. Real size is 0.5 x 1.8 x 1.7 metres (width x depth x height; depth is nose to tail) and the triangle budget is 1100 triangles maximum. Flat colours only, no textures, from this list: ivory white, faded red, brass yellow and charcoal black. Build it from a barrel body with a thick arched neck, a head with a long muzzle and two upright cone ears, four legs with the front pair raised and bent, a swept tail wedge, a saddle slab in faded red with a small raised pommel, and a round brass pole (at least 8 segments) passing through the back, ending in a flat disc plate at the top. The underside matters: the belly must be closed with a flat charcoal black plate carrying one visible maintenance hatch rectangle. The player looks up at it from 3 to 5 metres away, directly below and slightly ahead, so from that angle they must be able to read that the head faces forward, that the pole is the only thing holding it up, and that the belly hatch is the part they can interact with. Keep the legs and ears chunky enough to stay visible at that range."
+  },
+  {
+    "id": "model-2",
+    "kind": "model",
+    "name": "TrainSemaphore",
+    "box": "0.6x0.5x3.2",
+    "tris": 800,
+    "title": "Railway Semaphore Signal Arm Post",
+    "brief": "Game: 'Branch Line', a third-person railway-management puzzler where the player flips signals to route a small steam train. Prop: TrainSemaphore, a trackside lattice-post signal with one movable arm. Real size is 0.6 x 0.5 x 3.2 metres and the triangle budget is 800 triangles maximum. Flat colours only, no textures, from this list: signal red, bone white, iron grey and lamp amber. Shape: a tall tapering square post in iron grey with three thin cross-braces, a rectangular arm in signal red with one bone white vertical stripe near the tip, pivoting on a round iron boss (at least 8 segments) about 2.6 metres up, a small round lamp housing in lamp amber just behind the arm pivot, a short counterweight lever below the pivot on the opposite side, and a square concrete footing. The arm is modelled raised 45 degrees (meaning clear; horizontal would mean stop), so the angle itself carries the meaning. The player sees it from 12 to 15 metres away from the cab, slightly below its top, so from that distance they must be able to read that the arm is raised and therefore clear, which side the arm points toward, and where the lamp sits. Keep the arm and lamp housing at least 0.25 metres thick or wide so they stay visible at that range."
+  },
+  {
+    "id": "ui-1",
+    "kind": "ui",
+    "title": "Pharmacy Pickup Ready: Counter Collection Screen",
+    "brief": "App: 'Leaf Pharmacy', a neighbourhood pharmacy app. Design one screen, the Pickup Ready screen, for a 390 x 844 point phone. User: Dolores, 72, standing at the pharmacy counter at 4:50 pm on a Tuesday, one hand holding a cane, reading glasses on, showing the phone to the pharmacist. The screen must show exactly this data: header 'Ready for pickup'; patient name 'Dolores Vance'; order number 'RX-48213' ; two items 'Metformin 500 mg, 60 tablets' and 'Lisinopril 10 mg, 30 tablets'; counter 'Window 2'; pay-at-pickup amount '$12.40 copay'; pickup deadline 'Held until Fri 5 Dec, 6:00 pm'. Main action: a single 'Show barcode' button that reveals the pickup barcode. Hard constraints: all body text must be at least 20 pt, the order number must be at least 40 pt, text and background contrast must be at least 7:1, and the button must be at least 64 pt tall and span the full width minus 16 pt side margins."
+  },
+  {
+    "id": "ui-2",
+    "kind": "ui",
+    "title": "Night Bus Stop Alarm: Wake Me Before My Stop",
+    "brief": "App: 'Stopwake', a transit app that alerts riders before their stop. Design one screen, the Active Trip screen, for a 390 x 844 point phone. User: Tomasz, a nurse finishing a night shift, riding Route 61 home at 2:10 am, half asleep, dim bus, phone held in his right hand at low brightness. The screen must show exactly this data: route chip '61 Harbour Loop'; destination 'Alder Street Stop'; 'Arriving in 7 min' as the dominant figure; '4 stops away'; next stop 'Kiln Road'; alarm status 'Alert 2 stops before'; current time '2:10 am'. Main action: a single 'Cancel alarm' control, placed so a sleeping thumb cannot hit it by accident, while a secondary 'Snooze 5 min' is allowed but must be visually quieter. Hard constraints: dark theme with no pure white (#ffffff) anywhere and text contrast at least 7:1 against its background; the arrival figure must be at least 56 pt; every tappable control must be at least 56 x 56 pt, and the cancel control must sit at least 24 pt away from any other tappable control.",
+    "render": {
+      "scheme": "dark"
+    }
+  },
+  {
+    "id": "doc-1",
+    "kind": "doc",
+    "title": "Allotment Society Plot Holder Handbook",
+    "brief": "Organisation: 'Riverside Allotment Society', a volunteer-run allotment site of 64 plots beside a canal. Document: the Plot Holder Handbook, printed on A4 and handed to new plot holders at the gate, also emailed as a PDF. Readers are new members of all ages, many reading it once at the kitchen table and then pinning one page in their shed. It must contain, in this order: a cover with the society name and the title; a one-page 'Your first month' checklist of 6 items; a section 'Site rules' with exactly these rules: gates locked at dusk, no bonfires between April and September, hosepipes only before 9 am and after 6 pm, keep paths 1 metre clear, dogs on leads; a section 'Who to ask' with three roles (Site secretary, Water steward, Shed key holder) and how to reach each by the noticeboard by the main gate; and a section 'Your plot year' showing what to do in each season. Hard constraints: A4 portrait, 2 to 4 pages, body text at least 11 pt, every page numbered, the 'Site rules' page must work on its own when pinned in a shed, and nothing may state a fee, phone number or email address because the society has not decided them."
+  },
+  {
+    "id": "slides-1",
+    "kind": "slides",
+    "title": "Library Opening Hours Change: Staff Briefing Deck",
+    "brief": "Organisation: 'Eastgate Public Library'. Deck: a 5-slide briefing shown on a projector in the staff room on Monday at 8:30 am, before the doors open, to 14 front-desk staff standing at the back of a long room. Purpose: explain that from Monday 2 March weekday opening moves from 9 am to 10 am and late opening on Thursday moves to 8 pm, so staff can answer patrons. Exactly 5 slides: (1) title 'Opening hours are changing' with the date the change starts; (2) the old hours against the new hours for every day Monday to Sunday, so a change is obvious at a glance (Saturday 10 am to 4 pm and Sunday closed do not change); (3) why: a single reason, 'to add a late Thursday for working families'; (4) what to say to a patron, as three short phrases staff can repeat; (5) who to ask: the branch manager, by name placeholder only. Hard constraints: 1920 x 1080 slides, no text smaller than 28 px, at most 30 words on any slide except slide 2, contrast at least 4.5:1, and every slide carries a footer with the slide number."
+  },
+  {
+    "id": "print-1",
+    "kind": "print",
+    "title": "Bike Repair Cafe Loyalty Card",
+    "brief": "Business: 'Spoke & Mend', a bike repair cafe run out of a railway arch. Piece: a double-sided loyalty card, 85 x 55 mm, 3 mm bleed and 4 mm safe margin, printed on matte card in two spot colours plus black. Front: the shop name, a small mark of your own design that suggests a spoke or a spanner, and the line 'Fix it with us'. Back: ten stamp circles in two rows of five, each at least 7 mm across, the tenth labelled 'Free service', a line 'Name' to write on, and the opening hours 'Tue to Sat, 8 am to 6 pm'. People carry it in a wallet and get it stamped with an ink stamp at the counter, so the circles must be blank and stampable and nothing important may sit near the edge. Hard constraints: no text smaller than 6 pt, everything except background colour inside the 4 mm safe margin, no address, phone number or website on the card because they are not decided."
+  },
+  {
+    "id": "mac-1",
+    "kind": "mac",
+    "title": "Recording Studio Session Log Window",
+    "brief": "App: 'Takebook', a macOS app for small recording studios that logs takes during a session. Design one window: the main session window, 1280 x 800 points, as an engineer sees it mid-session at 11 pm in a dim control room. It must show a sidebar with today's three sessions ('Marlow Quartet', 'Jun Park vocals', 'Dead Lantern demo'), the selected session 'Jun Park vocals' with its song 'Paper Boats' and a table of takes with columns Take, Time, Length, Rating (stars) and Note, holding exactly six takes (Take 1 to Take 6, lengths between 3:10 and 3:42, one starred as best), a large record button and the running clock '00:02:41' for the take in progress, Take 7. Hard constraints: it is a native macOS window (title bar with traffic lights, sidebar, toolbar), dark appearance only, body text at least 13 pt, the record button at least 44 pt, and the take in progress must be the most visible thing in the window."
+  },
+  {
+    "id": "game-1",
+    "kind": "game",
+    "title": "Tide Pool Puzzle Game Level Complete Screen",
+    "brief": "Game: 'Rockpool', a calm puzzle game on iPhone where the player guides a hermit crab through tide pools; held in portrait, one thumb. Design one screen: the Level Complete screen for level 12, 'Kelp Corner', shown over the finished pool. It must show the level name, three shells as the star rating with two earned, the moves used '18' against the target '20', a new personal best badge, and two actions: 'Next pool' (main) and 'Replay'. Hard constraints: 390 x 844 points, content clear of the status bar and home indicator, both actions in the bottom third within thumb reach and at least 56 pt tall, text at least 17 pt, and a palette of sea and sand colours that reads as calm, not arcade."
+  },
+  {
+    "id": "logo-1",
+    "kind": "logo",
+    "title": "Neighbourhood Tool Library Mark",
+    "brief": "Organisation: 'Toolshed Commons', a neighbourhood tool library where members borrow drills, ladders and saws like library books. Design the mark only (no wordmark needed): a single symbol used as the app icon, on the website header, as a favicon and stamped in one colour on the handles of tools. Hard constraints: it must read at 16 px as a favicon, work in one flat colour with no gradients, work on a light and a dark ground, contain no letters, and suggest both borrowing (a loop, a return, a shelf, a card) and tools. Deliver it as SVG."
+  }
+]

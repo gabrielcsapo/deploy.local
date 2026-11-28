@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "print-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The Free service label sits close to the right edge and the mark is a busy wheel-plus-spanner that is a bit cluttered."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The Free service label sits very close to the right edge and just under the tenth circle, and the shop name is repeated on the back footer."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's wheel-with-spanner mark is cleaner and more legible, and its back is tidier with a clear footer and well-spaced circles."
+    }
+  }
+}

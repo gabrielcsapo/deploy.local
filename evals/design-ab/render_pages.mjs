@@ -1,7 +1,8 @@
 // Render the art and UI runs the same way, with no names on them.
 // Usage: DEPLOY_CHROMIUM=/tmp/chromium node evals/design-ab/render_pages.mjs <key.json> <out dir>
 import { chromium } from 'playwright';
-import { readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 const [keyFile, out] = process.argv.slice(2);
 const key = JSON.parse(readFileSync(keyFile, 'utf8'));
@@ -91,10 +92,72 @@ function artPage(brief, list) {
 function uiFile(r) {
   if (r.arm === 'B') return join(r.proj, 'out', 'screen.html');
   const dir = join(r.proj, 'design', 'boards');
+  // The first board in the canvas's order, else the first file.
+  let first = null;
+  try {
+    first = JSON.parse(readFileSync(join(r.proj, 'design', 'canvas.json'), 'utf8')).order?.[0];
+  } catch {}
   return join(
     dir,
-    readdirSync(dir).find((f) => f.endsWith('.html')),
+    first && existsSync(join(dir, first))
+      ? first
+      : readdirSync(dir).find((f) => f.endsWith('.html')),
   );
+}
+// The PDF a document, deck or card run delivered: B's out/, A's export (the harness runs it).
+function pdfOf(r) {
+  if (r.arm === 'B') {
+    const names = { doc: 'doc.pdf', slides: 'slides.pdf', print: 'card.pdf' };
+    return join(r.proj, 'out', names[r.kind]);
+  }
+  const dir = join(r.proj, 'output', 'design', 'export');
+  return join(
+    dir,
+    readdirSync(dir).find((f) => f.endsWith('.pdf')),
+  );
+}
+function markOf(r) {
+  if (r.arm === 'B') return join(r.proj, 'out', 'mark.svg');
+  const dir = join(r.proj, 'output', 'design');
+  return join(
+    dir,
+    readdirSync(dir).find((f) => f.endsWith('-mark.svg')),
+  );
+}
+// Every page of a PDF as PNGs at a resolution, laid out in a page of its own.
+function pdfPage(r, work) {
+  // Slides by width, since a deck may be made at 1920 points or 1920 pixels; pages and cards by dpi.
+  const size =
+    r.kind === 'slides'
+      ? ['-scale-to-x', '640', '-scale-to-y', '-1']
+      : ['-r', String({ doc: 60, print: 300 }[r.kind])];
+  const prefix = join(work, 'page');
+  execFileSync('pdftoppm', [...size, '-png', pdfOf(r), prefix]);
+  const pages = readdirSync(work)
+    .filter((f) => f.startsWith('page') && f.endsWith('.png'))
+    .sort();
+  const columns = { doc: 4, slides: 3, print: 2 }[r.kind];
+  return `<!doctype html><html><head><style>body{margin:0;padding:16px;background:#8a8f96;font:13px sans-serif}
+  .grid{display:grid;grid-template-columns:repeat(${columns},max-content);gap:16px}
+  img{display:block;box-shadow:0 1px 4px rgba(0,0,0,.4);background:#fff}
+  p{color:#fff;margin:0 0 8px}</style></head><body><p>${pages.length} page${pages.length === 1 ? '' : 's'}</p>
+  <div class="grid">${pages.map((f) => `<img src="file://${join(work, f)}">`).join('')}</div></body></html>`;
+}
+function logoPage(r) {
+  const svg = readFileSync(markOf(r), 'utf8').replace(/<\?xml[^>]*>/, '');
+  const at = (size, ground, extra = '') =>
+    `<div class="cell" style="background:${ground};${extra}"><div style="width:${size}px;height:${size}px">${svg}</div></div>`;
+  return `<!doctype html><html><head><style>body{margin:0;padding:16px;background:#fff;font:13px sans-serif;width:1100px}
+  .row{display:flex;gap:16px;align-items:center;margin-bottom:16px}
+  .cell{padding:24px;display:flex;align-items:center;justify-content:center}
+  .cell svg{width:100%;height:100%;display:block}
+  .icon{width:180px;height:180px;border-radius:40px;padding:0;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  p{margin:4px 0 12px;color:#333}</style></head><body>
+  <p>Large, on a light and a dark ground</p><div class="row">${at(320, '#f4f2ee')}${at(320, '#1d1d20')}</div>
+  <p>App icon, and at 64, 32 and 16 px on light and dark</p><div class="row">${at(120, '#ffffff', 'width:180px;height:180px;padding:30px;box-sizing:border-box;border-radius:40px;box-shadow:0 1px 3px rgba(0,0,0,.3)')}
+  ${at(64, '#f4f2ee', 'padding:12px')}${at(32, '#f4f2ee', 'padding:12px')}${at(16, '#f4f2ee', 'padding:12px')}
+  ${at(64, '#1d1d20', 'padding:12px')}${at(32, '#1d1d20', 'padding:12px')}${at(16, '#1d1d20', 'padding:12px')}</div>
+  </body></html>`;
 }
 const browser = await chromium.launch({ executablePath: process.env.DEPLOY_CHROMIUM });
 for (const [rid, r] of Object.entries(key).sort()) {
@@ -118,10 +181,22 @@ for (const [rid, r] of Object.entries(key).sort()) {
         .join(' '),
     );
     await page.close();
+  } else if (['doc', 'slides', 'print', 'logo'].includes(r.kind)) {
+    const work = join(out, '.work', rid);
+    mkdirSync(work, { recursive: true });
+    const html = r.kind === 'logo' ? logoPage(r) : pdfPage(r, work);
+    writeFileSync(join(work, 'page.html'), html);
+    const page = await browser.newPage({ viewport: { width: 1100, height: 600 } });
+    await page.goto(`file://${join(work, 'page.html')}`);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: file, fullPage: true });
+    console.log(rid, r.kind === 'logo' ? markOf(r) : pdfOf(r));
+    await page.close();
   } else {
+    const mac = r.kind === 'mac';
     const page = await browser.newPage({
-      viewport: { width: 390, height: 844 },
-      deviceScaleFactor: 2,
+      viewport: mac ? { width: 1280, height: 800 } : { width: 390, height: 844 },
+      deviceScaleFactor: mac ? 1 : 2,
       colorScheme: briefs[r.brief]?.render?.scheme ?? 'light',
     });
     await page.goto(`file://${uiFile(r)}`);

@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "slides-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Slide 2 shows weekday closing times only as 'No change', so the full old and new hours are never stated and the small legend and column labels sit near the 28 px floor."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Kicker labels ('Staff briefing', 'Why'), the slide 2 overline, the 'No change' notes and footers are visibly below 28 px and would be unreadable from the back of a long room."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P keeps every label large with high-contrast navy and yellow highlights that make the changed hours jump out from across the room, while Q breaks the 28 px minimum with several tiny labels."
+    }
+  }
+}

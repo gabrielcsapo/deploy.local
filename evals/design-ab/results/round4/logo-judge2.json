@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "logo-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "At 16 px the wrench cut-out and detached tag ring collapse into a small blob, and dark green nearly vanishes on the dark ground."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The composition is lopsided and generic, a refresh arrow bolted to a wrench by a thin neck with a crude arrowhead, and it has weak contrast on dark."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P fuses a borrowing tag and a wrench into one balanced, well-crafted silhouette that says 'lending library of tools' more clearly than Q's generic return-arrow-plus-wrench."
+    }
+  }
+}

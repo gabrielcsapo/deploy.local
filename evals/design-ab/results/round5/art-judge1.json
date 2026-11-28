@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The cart is muddled, with a white blob on the awning and a pot and barrel that do not read clearly, and the tile looks like brickwork rather than cobbles."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cat's stripe noise is busy at 24px and the cart's black outline is heavy against the dark ground."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's cart, steam, lantern and organic cobble tile all read clearly at play size and the tile wraps cleanly."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The gardener's face and hands are small and the tile's top row has a stray beige mortar edge that looks slightly heavier than the other courses."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The seedlings blur into one messy row so the two rows of three are not clear, and the packet reads as a yellow jar."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P shows the six seedlings in two clear rows, an upright folded-top packet and a clean running-bond tile."
+    }
+  }
+}

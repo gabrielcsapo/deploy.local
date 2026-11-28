@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The pool illustration is flat and the crab is slightly cramped against the pool edge, with the status bar sitting on plain sand."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "White status bar icons sit on a light sandy strip with weak contrast, and the Replay button is faint with a bit of an awkward gap above Next pool."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P is cleaner and more legible, with strong contrast on the status bar, large clear stats, and well-sized prominent actions in a consistent calm sea-and-sand palette."
+    }
+  }
+}

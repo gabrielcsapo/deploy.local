@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "A large empty gap sits above the button, and the order number is set with odd spacing as 'RX - 48213', so the key data looks loose."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The white-on-dark header band and the three styles of detail row (plain, boxed, bold) are slightly inconsistent, though still clear."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q makes the order number, Window 2 and the copay stand out with strong contrast and clear grouping, so a 72-year-old at the counter can find what the pharmacist needs at once."
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Cancel and Snooze sit side by side at the top, and Snooze is a bare text link whose tap area is hard to judge."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Cancel is a large, easy-to-hit amber button with only a short gap above Snooze, and it needs no hold, so a sleepy thumb can trigger it by accident."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P guards Cancel with a visible press-and-hold and a clear gap from Snooze, and its large amber 7 stays dominant in a dim bus."
+    }
+  }
+}

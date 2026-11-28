@@ -1340,6 +1340,23 @@ export async function checkDesign(
             marks: afterShot.marks ?? null,
             grounds: afterShot.grounds ?? [],
           });
+        // A smallest type size the brief states, written in the head as min-text=28 or 11pt.
+        if (inspect && afterShot.inspected && scheme === stepSchemes[0]) {
+          const small = textUnderMinimum(meta.other['min-text'], afterShot.inspected.texts);
+          if (small)
+            found.problems.push({
+              code: 'text_too_small',
+              file,
+              board: title,
+              ...(small.layers.length === 1 && !small.layers[0].startsWith('"')
+                ? { layer: small.layers[0] }
+                : {}),
+              label: `${title} sets text at ${small.smallest} px`,
+              detail: `its head asks for at least ${small.minimum} px (min-text=${meta.other['min-text']}): ${small.layers.slice(0, 4).join(', ')}${small.layers.length > 4 ? ` and ${small.layers.length - 4} more` : ''}`,
+              short: `${small.smallest} px text`,
+              fix: 'make that text bigger, or cut it, or change min-text= if the brief allows smaller',
+            });
+        }
         if (inspect && afterShot.inspected && step.mode === 'pages') {
           // A last sheet of a few lines, from the sheets as printed.
           if (
@@ -1724,5 +1741,32 @@ export async function checkDesign(
     titles,
     renames,
     pictures,
+  };
+}
+
+/**
+ * Text drawn under a board's min-text= (px, or pt: 11pt is 14.67 px), each layer once. Null when
+ * the head sets none or nothing is under it. Half a pixel of rounding is allowed.
+ */
+export function textUnderMinimum(
+  value: string | undefined,
+  texts: { layer: string | null; text: string; size: number }[],
+): { minimum: number; smallest: number; layers: string[] } | null {
+  const match = /^\s*(\d+(?:\.\d+)?)\s*(px|pt)?\s*$/i.exec(value ?? '');
+  if (!match) return null;
+  const minimum =
+    Math.round(Number(match[1]) * (match[2]?.toLowerCase() === 'pt' ? 4 / 3 : 1) * 100) / 100;
+  if (!(minimum > 0)) return null;
+  const under = texts.filter((text) => text.size < minimum - 0.5);
+  if (!under.length) return null;
+  const layers: string[] = [];
+  for (const text of under) {
+    const where = text.layer ?? `"${text.text}"`;
+    if (!layers.includes(where)) layers.push(where);
+  }
+  return {
+    minimum,
+    smallest: Math.round(Math.min(...under.map((text) => text.size)) * 10) / 10,
+    layers,
   };
 }

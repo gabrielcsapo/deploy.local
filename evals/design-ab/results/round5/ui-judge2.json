@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 4,
+          "flaw": "A stray heavy black rule between items and logistics breaks the otherwise light divider system and looks like a mistake."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Grey secondary lines on the tinted green cards sit closest to the 7:1 contrast floor."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q groups the data into clear cards with a heavier order number and a bold deadline, so it reads faster across the counter and feels more consistent."
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The text-only snooze has no visible bounds, so its 56 pt tap area is not evident, and the small 'Press and hold' hint is faint."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The outlined snooze button is nearly as prominent as cancel, and the cancel button looks just under 56 pt tall."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P puts a press-and-hold cancel out of thumb reach, keeps snooze clearly quieter, and adds a readable stop-progress track, which best fits a half-asleep rider."
+    }
+  }
+}

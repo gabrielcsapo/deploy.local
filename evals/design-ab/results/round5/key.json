@@ -1,0 +1,170 @@
+{
+  "s01": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s01/night"
+  },
+  "s02": {
+    "brief": "mac-1",
+    "kind": "mac",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s02/recording"
+  },
+  "s03": {
+    "brief": "logo-1",
+    "kind": "logo",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s03/neighbourhood"
+  },
+  "s04": {
+    "brief": "print-1",
+    "kind": "print",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s04/bike"
+  },
+  "s05": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s05/pharmacy"
+  },
+  "s06": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s06/overhead"
+  },
+  "s07": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s07/railway"
+  },
+  "s08": {
+    "brief": "doc-1",
+    "kind": "doc",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s08/allotment"
+  },
+  "s09": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s09/night"
+  },
+  "s10": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s10/tide"
+  },
+  "s11": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s11/greenhouse"
+  },
+  "s12": {
+    "brief": "slides-1",
+    "kind": "slides",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab5/runs/s12/library"
+  },
+  "r02": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r02/pharmacy"
+  },
+  "r06": {
+    "brief": "doc-1",
+    "kind": "doc",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r06/allotment"
+  },
+  "r09": {
+    "brief": "logo-1",
+    "kind": "logo",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r09/neighbourhood"
+  },
+  "r10": {
+    "brief": "game-1",
+    "kind": "game",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r10/tide"
+  },
+  "r11": {
+    "brief": "slides-1",
+    "kind": "slides",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r11/library"
+  },
+  "r14": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r14/overhead"
+  },
+  "r15": {
+    "brief": "print-1",
+    "kind": "print",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r15/bike"
+  },
+  "r16": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r16/railway"
+  },
+  "r17": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r17/night"
+  },
+  "r18": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r18/night"
+  },
+  "r19": {
+    "brief": "mac-1",
+    "kind": "mac",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r19/recording"
+  },
+  "r23": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab4/runs/r23/greenhouse"
+  }
+}

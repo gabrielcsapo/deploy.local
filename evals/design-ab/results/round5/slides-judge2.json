@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "slides-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Table column headers, the legend and the footers look under 28 px, so the type minimum is likely broken."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Many small labels (kickers, table headers, 'No change' tags, footers) fall well below 28 px and won't read from the back of a long room, and the 5 pm closing times are invented."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P uses larger type and strong contrast that read across a room, makes each change obvious with highlighted cells and arrows, and breaks the 28 px floor less often than Q."
+    }
+  }
+}

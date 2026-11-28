@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The shell icons are blunt, oddly squared-off shapes and the earned ones aren't labelled, so the 2-of-3 rating reads less clearly."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The pool art at the top runs under the status bar, which makes the time and icons a little busy against the water."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q meets every requirement more explicitly (Level 12 label, '2 of 3 shells', 'Moves used'), keeps content clear of the status bar and home indicator, and has better-drawn scallop shells and a richer but still calm pool scene."
+    }
+  }
+}

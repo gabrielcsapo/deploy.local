@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "logo-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The loop arrow and wrench join at a thin stalk and the dark green sits low-contrast on the dark ground, with a muddy 16 px version."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 2,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "It reads as a generic shelf of bars with a wrench head, and the borrowing idea is weak and turns to mush at 16 px."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P fuses a return loop-arrow with a wrench into one distinctive symbol that carries both borrowing and tools, while Q is a generic shelf of bars that blurs at small sizes."
+    }
+  }
+}

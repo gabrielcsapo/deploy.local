@@ -63,7 +63,7 @@ Usage  deploy design <command> [flags]
                            (kinds: app, doc, slides, print, mac, game, logo, art, model)
                            --scheme light|dark|both  which schemes boards draw in
   look <Board>             Draw one board into output/design/look/
-                           --width 700 (the page)  --zoom 3 (closer)  --scheme dark
+                           --width 700 (the page)  --zoom 3 (closer, 0.25 afar)  --scheme dark
                            --angle 30,20 (a model: degrees round from the front, and up)
   check [--fix]            Draw what changed beside main; problems stop, advice is yours
   export [<Board>…]        PDF of the boards; logo marks and sprites as SVG; models as .glb
@@ -1746,8 +1746,12 @@ export async function runDesign(sub, args, options, deps) {
           2,
         );
       const zoom = options.zoom === undefined ? 1 : Number(options.zoom);
-      if (!(zoom >= 1 && zoom <= 4))
-        throw cliError('--zoom is 1 to 4.', `deploy design look ${args[0]} --zoom 3`, 2);
+      if (!(zoom >= 0.25 && zoom <= 4))
+        throw cliError(
+          '--zoom is 0.25 (as seen from afar) to 4 (close up).',
+          `deploy design look ${args[0]} --zoom 3`,
+          2,
+        );
       const angle = options.angle === undefined ? null : String(options.angle);
       const turn =
         angle && /^-?\d+(\.\d+)?(,-?\d+(\.\d+)?)?$/.test(angle) ? angle.split(',') : null;

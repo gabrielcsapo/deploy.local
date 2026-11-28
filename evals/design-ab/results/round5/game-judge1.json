@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The Replay button sits tight under Next pool and the pool art is slightly busy behind the sheet."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The three shells are oddly shaped and uneven in size, so they read less clearly as a star rating, and the pool art is thin and cropped."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P has a richer finished pool, clear fan-shaped shells with an explicit 2 of 3 label, and a more polished, consistent sheet."
+    }
+  }
+}

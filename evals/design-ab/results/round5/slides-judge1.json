@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "slides-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Text is small and sits in the top-left of mostly empty slides, and the tiny column labels and footer look under 28 px, so it will be hard to read from the back of a long room."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The table has an awkward 'Closes' column and a tiny 'Highlighted = changing' legend, and its small labels and footer look under 28 px."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q uses bolder type with strong dark and yellow contrast, and its arrows with highlighted changed cells make the old-to-new difference obvious at a glance from across the room."
+    }
+  }
+}

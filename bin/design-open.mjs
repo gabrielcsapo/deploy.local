@@ -162,11 +162,14 @@ shared look into \`look.css\` and reuse it.
 ## The loop
 1. Draw \`design/boards/<Board>.html\`. Start from the board init placed (rename it with plain
    \`mv\` and its key in \`canvas.json\`). Link \`../look.css\` and put the shared look there.
-2. \`deploy design look <Board>\` to see it (\`--zoom 3\` closer, \`--scheme dark\`, \`--angle 30\` for a model).
+2. \`deploy design look <Board>\` to see it (\`--zoom 3\` closer, \`--zoom 0.25\` from afar, \`--scheme dark\`, \`--angle 30\` for a model).
    Use it instead of starting a browser yourself.
 3. \`deploy design check --fix\`: draws what changed beside main into \`output/design/pairs\`,
    places new boards, and lists problems (fix them) and advice (weigh it).
-4. \`deploy design export\` for the finished files (PDF, SVG marks and sprites, .glb models).
+4. Before you call it done, look at it as it will be met: the mark at 16 px, a sprite at play size,
+   a model from far off, a slide as from the back of the room (\`look --zoom 0.25\`). If a
+   stranger could not name each part at that size, simplify it until they could.
+5. \`deploy design export\` for the finished files (PDF, SVG marks and sprites, .glb models).
 
 ## A board
 A standalone page with no scripts and no remote images, sized in its head:
@@ -175,7 +178,8 @@ A standalone page with no scripts and no remote images, sized in its head:
 
 Keys: width, height, platform, schemes (light, dark, or light dark), title, source, replaces, and
 the brief's limits: \`size=\` and \`tris=\` for a model, \`tile=\` and \`play=\` for sprites, \`pages=\`
-for a document, \`contrast=aa\` to make low contrast stop the check. Name the parts others will
+for a document, \`min-text=28\` (or \`11pt\`) for the smallest type the brief allows, \`contrast=aa\`
+to make low contrast stop the check. Name the parts others will
 point at with \`data-layer\` IDs and keep them when you rework a board. A fact you made up that
 the brief doesn't give (a price, an opening time) gets \`data-question="…"\` on its layer.
 ${kindTips[kind] ? `\n${kindTips[kind]}\n` : ''}

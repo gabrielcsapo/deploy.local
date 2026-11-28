@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "mac-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The dimmed '00:' in the hero clock slightly weakens the running time's legibility, and sidebar/meta text sits near the 13 pt floor."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The waveform's playhead sits short of 2:41 and the hero panel's right side feels thinner and less informative than the rest."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P pairs an equally dominant take-in-progress panel with a richer, more coherent session context (song header with key/BPM, markers, accent-ruled best take, status bar) and slightly tighter polish."
+    }
+  }
+}

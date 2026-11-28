@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "logo-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Only the shelf hints at borrowing, and the bare bars read as a bar chart or the letters 'lll' more than as tools, with weak contrast on the dark ground."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The dark green almost disappears on the dark ground, and at 16 px the loop and wrench merge into a squiggle."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q joins a return-arrow loop and a wrench in one clear, well-drawn symbol that says both borrowing and tools, while P's shelf of plain bars is generic and ambiguous."
+    }
+  }
+}

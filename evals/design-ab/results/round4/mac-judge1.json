@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "mac-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Much secondary text (meter labels, sidebar sublines, ruler ticks) looks near or under 13 pt and the dimmed '00:' weakens the clock's legibility."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The take table runs close to the bottom status bar and the panel is plainer, with no waveform or other mid-session context."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's huge, fully bright 00:02:41 clock and larger, cleaner table text make the take in progress unmistakably dominant and easy to read in a dim room."
+    }
+  }
+}

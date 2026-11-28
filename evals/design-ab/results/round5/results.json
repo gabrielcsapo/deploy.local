@@ -1,0 +1,459 @@
+{
+  "kinds": {
+    "art": {
+      "by_judge": {
+        "judge1": [1, 1],
+        "judge2": [1, 1]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "art-1": [0, 1, 0],
+        "art-2": [1, 0, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.75,
+          "reads": 3.5,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 3.75,
+          "reads": 3.75,
+          "craft": 3.5,
+          "ready": 3.5
+        }
+      }
+    },
+    "doc": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "doc-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.0,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    },
+    "game": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "game-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 5.0,
+          "craft": 4.5,
+          "ready": 4.0
+        }
+      }
+    },
+    "logo": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "logo-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.0,
+          "reads": 2.5,
+          "craft": 3.0,
+          "ready": 2.0
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 3.5,
+          "craft": 4.0,
+          "ready": 3.5
+        }
+      }
+    },
+    "mac": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 0,
+      "split": 1,
+      "per_brief": {
+        "mac-1": [0, 0, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 5.0,
+          "reads": 5.0,
+          "craft": 4.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 4.5,
+          "craft": 4.5,
+          "ready": 4.0
+        }
+      }
+    },
+    "model": {
+      "by_judge": {
+        "judge1": [1, 1],
+        "judge2": [1, 1]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "model-1": [1, 0, 0],
+        "model-2": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.25,
+          "reads": 3.25,
+          "craft": 3.5,
+          "ready": 3.25
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 3.75,
+          "craft": 3.75,
+          "ready": 3.75
+        }
+      }
+    },
+    "print": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [1, 0]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 0,
+      "split": 0,
+      "per_brief": {
+        "print-1": [1, 0, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.5,
+          "craft": 4.5,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 4.5,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    },
+    "slides": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "slides-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.5,
+          "reads": 3.0,
+          "craft": 4.0,
+          "ready": 3.0
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    },
+    "ui": {
+      "by_judge": {
+        "judge1": [1, 1],
+        "judge2": [1, 1]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "ui-1": [1, 0, 0],
+        "ui-2": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.25,
+          "reads": 4.25,
+          "craft": 4.0,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 4.75,
+          "reads": 4.0,
+          "craft": 3.5,
+          "ready": 3.75
+        }
+      }
+    }
+  },
+  "runs": {
+    "r02": {
+      "brief": "ui-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The order number is set as 'RX - 48213' with odd spacing around the hyphen, and a large empty gap sits above the button.",
+        "A stray heavy black rule between items and logistics breaks the otherwise light divider system and looks like a mistake."
+      ]
+    },
+    "r06": {
+      "brief": "doc-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "Page 4 text is small and dense, and the page number sits lower than on other pages.",
+        "Page 4 packs Who to ask and Your plot year so tightly that the seasonal text runs small and the footer sits lower than on the other pages."
+      ]
+    },
+    "r09": {
+      "brief": "logo-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The loop arrow and wrench join at a thin stalk and the dark green sits low-contrast on the dark ground, with a muddy 16 px version.",
+        "The dark green almost disappears on the dark ground, and at 16 px the loop and wrench merge into a squiggle."
+      ]
+    },
+    "r10": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The Replay button sits tight under Next pool and the pool art is slightly busy behind the sheet.",
+        "The pool art at the top runs under the status bar, which makes the time and icons a little busy against the water."
+      ]
+    },
+    "r11": {
+      "brief": "slides-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The table has an awkward 'Closes' column and a tiny 'Highlighted = changing' legend, and its small labels and footer look under 28 px.",
+        "Table column headers, the legend and the footers look under 28 px, so the type minimum is likely broken."
+      ]
+    },
+    "r14": {
+      "brief": "model-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "Brass pole is short with a bare underside stub and the saddle and pommel are small, so the pole-through-back reads weakly.",
+        "The belly plate and hatch are small and partly crowded by the leg ends, and the brass hatch blends with the pole disc when seen from below."
+      ]
+    },
+    "r15": {
+      "brief": "print-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The Free service label sits close to the right edge and the mark is a busy wheel-plus-spanner that is a bit cluttered.",
+        "The mark's spanner breaks the wheel rim awkwardly and the spokes look like loose dashes, so the mark feels less resolved than the rest of the card."
+      ]
+    },
+    "r16": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The arm is raised on the wrong visual side relative to the lamp and the footing is slightly oversized, but the lamp and arm are clearly readable.",
+        "The large lamp cylinder sits in front of the pivot and covers the iron boss in the front view."
+      ]
+    },
+    "r17": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The cat's stripe noise is busy at 24px and the cart's black outline is heavy against the dark ground.",
+        "The cart's steam wisps look faint and possibly semi-transparent in the close-up, which risks breaking the hard-alpha rule."
+      ]
+    },
+    "r18": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The 2:10 am clock is small and low in contrast at the top, and the cancel and snooze controls still sit close together in the same top row.",
+        "The text-only snooze has no visible bounds, so its 56 pt tap area is not evident, and the small 'Press and hold' hint is faint."
+      ]
+    },
+    "r19": {
+      "brief": "mac-1",
+      "arm": "B",
+      "positions": [1, 0],
+      "flaws": [
+        "The dimmed '00:' in the running clock weakens the most important element, and the secondary text is small and faint.",
+        "The dimmed '00:' in the hero clock slightly weakens the running time's legibility, and sidebar/meta text sits near the 13 pt floor."
+      ]
+    },
+    "r23": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The seedlings blur into one messy row so the two rows of three are not clear, and the packet reads as a yellow jar.",
+        "The seedlings in the tray overlap into a cluttered clump, so the two neat rows of three are hard to count."
+      ]
+    },
+    "s01": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Cancel alarm is a plain tap at the top with only a fixed 34 pt gap from a bordered Snooze that is not much quieter, so an accidental hit is still possible.",
+        "The outlined snooze button is nearly as prominent as cancel, and the cancel button looks just under 56 pt tall."
+      ]
+    },
+    "s02": {
+      "brief": "mac-1",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "The toolbar and waveform axis labels are small and low-contrast for a dim control room.",
+        "The waveform's playhead sits short of 2:41 and the hero panel's right side feels thinner and less informative than the rest."
+      ]
+    },
+    "s03": {
+      "brief": "logo-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "It reads as a generic shelf of bars with a wrench head, and the borrowing idea is weak and turns to mush at 16 px.",
+        "Only the shelf hints at borrowing, and the bare bars read as a bar chart or the letters 'lll' more than as tools, with weak contrast on the dark ground."
+      ]
+    },
+    "s04": {
+      "brief": "print-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The Free service label sits very close to the right edge and just under the tenth circle, and the shop name is repeated on the back footer.",
+        "The spanner in the mark is small and half hidden behind the wheel, so it reads mostly as a wheel."
+      ]
+    },
+    "s05": {
+      "brief": "ui-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The deadline is split into a lighter 'Held until' label and a bold date line, and the secondary text is a softer grey on the green tint.",
+        "Grey secondary lines on the tinted green cards sit closest to the 7:1 contrast floor."
+      ]
+    },
+    "s06": {
+      "brief": "model-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "Pole is hidden behind the saddle in places and the belly hatch is small and low contrast.",
+        "The pole sticks a long way out below the belly with a finial, which pulls attention from the hatch when seen from below."
+      ]
+    },
+    "s07": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The amber lamp is a blobby, partly hidden shape behind the arm and the arm is a thin sliver from the front, so it barely reads at distance.",
+        "The amber lamp is a lumpy, spiky blob hidden behind the arm, so it does not read as a round housing from the cab."
+      ]
+    },
+    "s08": {
+      "brief": "doc-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Page 4 is crowded with small text, and the cover illustration looks generic and plan-like.",
+        "The default-looking serif body text clashes with the sans headings, and the cover and checklist pages leave large empty areas, so it looks less finished."
+      ]
+    },
+    "s09": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The cart is muddled, with a white blob on the awning and a pot and barrel that do not read clearly, and the tile looks like brickwork rather than cobbles.",
+        "The noodle cart is muddled: the steam reads as a white splotch on the awning and the single front wheel makes the handcart hard to read."
+      ]
+    },
+    "s10": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The three shells are oddly shaped and uneven in size, so they read less clearly as a star rating, and the pool art is thin and cropped.",
+        "The shell icons are blunt, oddly squared-off shapes and the earned ones aren't labelled, so the 2-of-3 rating reads less clearly."
+      ]
+    },
+    "s11": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The gardener's face and hands are small and the tile's top row has a stray beige mortar edge that looks slightly heavier than the other courses.",
+        "The packet's top is a crimped zigzag rather than a clearly folded flap."
+      ]
+    },
+    "s12": {
+      "brief": "slides-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Text is small and sits in the top-left of mostly empty slides, and the tiny column labels and footer look under 28 px, so it will be hard to read from the back of a long room.",
+        "Many small labels (kickers, table headers, 'No change' tags, footers) fall well below 28 px and won't read from the back of a long room, and the 5 pm closing times are invented."
+      ]
+    }
+  }
+}

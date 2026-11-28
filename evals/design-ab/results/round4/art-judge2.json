@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cart's steam looks pale and faded, possibly semi-transparent, which would break the hard-alpha rule."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The lantern is a pointed onion shape rather than round, and the dark-outlined steam reads like a quill or feather."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P matches every asset to the brief more faithfully, with a truly round lantern, a well-proportioned cart and a calmer, cleanly wrapping cobble tile."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The seedlings are cramped and tangled, so the two rows of three are hard to count, and the top-right lighting is weak on the tray and packet."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The packet's top is a crimped zigzag edge rather than a clearly folded top."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's seedlings read clearly as two rows of three, and its lighting and outlines are more consistent across the set, so it holds up better on the pale wall."
+    }
+  }
+}

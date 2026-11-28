@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "mac-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The toolbar is thin, and the grey non-best stars are low-contrast and hard to read in a dim room."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "Dimming the '00:' and adding a busy waveform make the running clock slightly less dominant than it could be."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q is the more complete, believable studio tool: a real toolbar, a live waveform with markers, readable gold ratings and a clear best take, while still keeping Take 7 the focal point."
+    }
+  }
+}

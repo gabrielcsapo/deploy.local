@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "logo-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The wrench-plus-return-arrow join is awkward, the arrow head is crude, and the dark green is low contrast on the dark ground."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 2,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The tag, hole and wrench cutout are too fine and cluttered, so it turns to mush at 16 px, and the borrowing idea (a tag) is weak."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P is a bolder, simpler silhouette that stays recognisable as a wrench with a return loop at 16 px, whereas Q's detailed tag and cutout wrench blur out at small sizes."
+    }
+  }
+}

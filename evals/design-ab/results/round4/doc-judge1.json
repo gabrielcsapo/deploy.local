@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "doc-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Small, light body and detail text on the cover plan and Who to ask/plot year page feels thin, and the Site rules page leaves a gap but cover illustration is bland."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Pages are dense with tiny text, and the cover illustration tree is clipped at the right edge of the image area while footer position on page 4 is inconsistent."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q has a richer, more useful design with a fill-in box, month strip for bonfires, seasonal colour coding and a stronger cover while still meeting every constraint, whereas P is clean but plainer."
+    }
+  }
+}

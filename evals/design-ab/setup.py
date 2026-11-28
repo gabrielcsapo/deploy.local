@@ -6,9 +6,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = sys.argv[1] if len(sys.argv) > 1 else '/tmp/ab'
 # The key says which run had the pipeline; keep it out of the folder the designers and judges can read.
 KEY = sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser('~/.ab-key.json')
-PER_ARM = 2
+PER_ARM = int(os.environ.get('PER_ARM') or 2)
+# A later round may run one arm only (ARMS=A) under its own run prefix, judged against an earlier
+# round's other arm: arm B never sees the pipeline, so its runs stand.
+ARMS = os.environ.get('ARMS') or 'AB'
+PREFIX = os.environ.get('RUN_PREFIX') or 'r'
 briefs = json.load(open(os.environ.get('BRIEFS') or os.path.join(HERE, 'briefs.json')))
-kit = {'art': 'art', 'model': 'model', 'ui': 'app'}
+kit = {'art': 'art', 'model': 'model', 'ui': 'app', 'doc': 'doc', 'slides': 'slides', 'print': 'print', 'mac': 'mac', 'game': 'game', 'logo': 'logo'}
 env_notes = ("Environment: a Linux machine with no network access to package registries or CDNs. "
              "Python 3 with PIL, Node 22 and git are installed. Blender's Python module bpy is installed (python3 -c 'import bpy'). "
              "A headless Chromium is at /tmp/chromium if you want to look at a page. ")
@@ -16,11 +20,23 @@ deliver_b = {
   'art': "Deliver each of the 4 assets as its own SVG in out/sprites/ (one SVG unit per pixel, viewBox 0 0 W H, a <rect> per pixel or run of pixels, no blur or gradients).",
   'model': "Deliver the model as out/model.glb (metres, Z up in Blender terms, standing on the ground at the origin), flat colours as materials.",
   'ui': "Deliver the screen as out/screen.html, a self-contained HTML page (no external files or fonts) that renders the screen at 390 x 844 CSS pixels from the top-left corner.",
+  'game': "Deliver the screen as out/screen.html, a self-contained HTML page (no external files or fonts) that renders the screen at 390 x 844 CSS pixels from the top-left corner.",
+  'mac': "Deliver the window as out/screen.html, a self-contained HTML page (no external files or fonts) that renders the window at 1280 x 800 CSS pixels from the top-left corner.",
+  'doc': "Deliver the document as out/doc.pdf, A4 pages.",
+  'slides': "Deliver the deck as out/slides.pdf, one 1920 x 1080 page per slide.",
+  'print': "Deliver the card as out/card.pdf: the front then the back, each page the trim plus bleed (91 x 61 mm), ready for the printer.",
+  'logo': "Deliver the mark as out/mark.svg, one self-contained SVG.",
 }
 deliver_a = {
   'art': "Deliver the 4 assets as this project's design work: committed boards under design/.",
   'model': "Deliver the model as this project's design work: a committed board under design/ and its model under design/models/.",
   'ui': "Deliver the screen as this project's design work: a committed board under design/.",
+  'game': "Deliver the screen as this project's design work: a committed board under design/.",
+  'mac': "Deliver the window as this project's design work: a committed board under design/.",
+  'doc': "Deliver the document as this project's design work: committed boards under design/ (the team prints them with deploy design export).",
+  'slides': "Deliver the deck as this project's design work: committed boards under design/ (the team prints them with deploy design export).",
+  'print': "Deliver the card as this project's design work: committed boards under design/ (the team prints them with deploy design export).",
+  'logo': "Deliver the mark as this project's design work: a committed board under design/ (the team takes the SVG from deploy design export).",
 }
 def sh(cmd, cwd):
     subprocess.run(cmd, cwd=cwd, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -28,12 +44,12 @@ def main():
     if os.path.exists(ROOT + '/runs'): shutil.rmtree(ROOT + '/runs')
     runs = []
     for b in briefs:
-        for arm in 'AB':
+        for arm in ARMS:
             for n in range(1, PER_ARM + 1): runs.append({'brief': b['id'], 'kind': b['kind'], 'arm': arm, 'n': n})
     random.seed(20261128); random.shuffle(runs)
     key = {}
     for i, r in enumerate(runs, 1):
-        rid = f'r{i:02d}'
+        rid = f'{PREFIX}{i:02d}'
         b = next(x for x in briefs if x['id'] == r['brief'])
         slug = re.sub(r'[^a-z]', '', b['title'].lower().split()[0]) or 'proj'
         base = f'{ROOT}/runs/{rid}'; proj = f'{base}/{slug}'
@@ -47,14 +63,14 @@ def main():
         sh('git checkout -qb work', proj)
         if r['arm'] == 'A':
             how = ("This project's design work uses the `deploy design` command (it is on PATH as `deploy`). "
-                   "Start by reading design/README.md and follow it. " + deliver_a[r['kind']])
+                   "Start with `deploy design --help` and design/README.md. " + deliver_a[r['kind']])
         else:
             how = deliver_b[r['kind']] + " Commit your work."
         prompt = (f"You are a designer. Here is your brief.\n\n{b['brief']}\n\n"
                   f"Your project is the git repository at {proj} (on branch `work`). Work only inside that folder; do not read or change anything outside it except running the tools named here. "
                   f"{how}\n\n{env_notes}\n\n"
                   "Do the whole job yourself, to the standard you would hand to the game or app team. "
-                  "When you are done, reply in under 150 words: what you made, the file paths, and anything that got in your way, confused you or wasted your time.")
+                  "When you are done, reply in under 150 words: what you made, the file paths, the commands you ran most, and anything that got in your way, confused you or wasted your time.")
         open(f'{base}/prompt.txt', 'w').write(prompt)
         key[rid] = {**r, 'proj': proj}
     json.dump(key, open(KEY, 'w'), indent=1)

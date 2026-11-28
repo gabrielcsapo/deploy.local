@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "game-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "White status-bar time and icons sit on light sand and pale pool edge, so they lose contrast at the top."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The backdrop of two generic pools with a somewhat clumsy crab reads less as the finished Kelp Corner pool, and the Replay button looks just under 56 pt."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P shows the finished pool more convincingly, with the crab's trail and the kelp, and adds a '2 of 3 shells' caption. Its sea-and-sand palette and button hierarchy are just as calm and clear as Q's."
+    }
+  }
+}

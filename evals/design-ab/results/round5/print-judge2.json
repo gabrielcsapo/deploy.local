@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "print-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The mark's spanner breaks the wheel rim awkwardly and the spokes look like loose dashes, so the mark feels less resolved than the rest of the card."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The spanner in the mark is small and half hidden behind the wheel, so it reads mostly as a wheel."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q meets every requirement and has a cleaner, more finished spoked-wheel mark, a tidier back footer that pairs the name with the hours, and consistent safe margins, so it looks a little more polished and ready for print than P."
+    }
+  }
+}

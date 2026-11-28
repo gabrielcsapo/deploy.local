@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "doc-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "Page 4 is crowded, and the supporting text in the season and role cards looks close to or under 11 pt."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The pages feel unfinished: a weak, abstract cover illustration and large empty areas at the bottom of pages 2, 3 and 4."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P covers every requirement with a more polished cover and a stronger standalone Site rules page (month strip for the bonfire ban, hosepipe time bar, 'Pin this page' tag), and its pages are balanced throughout."
+    }
+  }
+}

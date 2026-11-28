@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "A large empty gap above the button makes the layout feel unfinished, and the deadline is set in light body weight, so it is easy to miss."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The bordered Window and copay boxes look like tappable buttons, which could confuse an older user."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q has a stronger hierarchy: a solid header band, a larger order number, emphasised window, copay and deadline, and it uses the screen fully while meeting every constraint."
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The amber Cancel alarm is the loudest element on the screen and sits above the destination, which inverts the hierarchy and invites attention to the risky action."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Snooze is bare text with no visible target, so its 56 pt hit area is unclear, and the current time looks like a system status bar."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q makes the amber 7 min clearly dominant in the dim cabin and guards Cancel alarm with press-and-hold in a hard-to-reach top corner, while Snooze stays clearly quieter."
+    }
+  }
+}

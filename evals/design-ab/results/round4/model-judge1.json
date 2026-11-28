@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The pole barely shows below the belly, so it is hard to read as the only support, and the saddle and pommel are small."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The horse is lumpy and the mane and saddle flaps add clutter, but the pole through the belly and the hatch plate read clearly."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q shows the pole passing through the body and out below the belly, with a clear hatch on the charcoal plate and a chunky saddle, so it reads better from below."
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The arm is thin edge-on and the large amber lamp sits in front of the arm pivot in the front view, muddying the arm silhouette."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The lamp is tucked behind and below the arm so it is only partly visible, and the post and footing are slim."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q has a broader, cleaner raised-arm silhouette with a visible white stripe, so clear reads faster at distance."
+    }
+  }
+}

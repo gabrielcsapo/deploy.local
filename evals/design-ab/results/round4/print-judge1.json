@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "print-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The 'Free service' label sits in the bottom line away from the tenth circle, and the circle outlines are thin for stamping."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The wrench-and-wheel mark is spindly and its overlap looks awkward, and the dark footer band and 'Free service' label sit tight to the bottom of the circle area."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P has a bolder, more resolved mark and a cleaner, better-organised back with comfortably sized blank circles and a clear Free service callout."
+    }
+  }
+}

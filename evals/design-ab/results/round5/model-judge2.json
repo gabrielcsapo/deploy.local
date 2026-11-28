@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The belly plate and hatch are small and partly crowded by the leg ends, and the brass hatch blends with the pole disc when seen from below."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The pole sticks a long way out below the belly with a finial, which pulls attention from the hatch when seen from below."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q has a clearer saddle with pommel, a charcoal mane and bridle that make the forward-facing head read better, and a crisp hatch rectangle on a well-framed black belly plate."
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The amber lamp is a lumpy, spiky blob hidden behind the arm, so it does not read as a round housing from the cab."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The large lamp cylinder sits in front of the pivot and covers the iron boss in the front view."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's clean round amber lamp, clearly raised striped arm and solid tapered footing read at a distance, while P's lamp is a messy, hidden shape."
+    }
+  }
+}

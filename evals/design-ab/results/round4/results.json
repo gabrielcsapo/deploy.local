@@ -1,0 +1,459 @@
+{
+  "kinds": {
+    "art": {
+      "by_judge": {
+        "judge1": [1, 1],
+        "judge2": [1, 1]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "art-1": [0, 1, 0],
+        "art-2": [1, 0, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.5,
+          "reads": 3.75,
+          "craft": 3.5,
+          "ready": 3.25
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 4.0,
+          "craft": 3.75,
+          "ready": 3.5
+        }
+      }
+    },
+    "doc": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "doc-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 5.0,
+          "reads": 4.0,
+          "craft": 3.5,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 4.0,
+          "craft": 4.5,
+          "ready": 4.0
+        }
+      }
+    },
+    "game": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 0,
+      "split": 1,
+      "per_brief": {
+        "game-1": [0, 0, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 5.0,
+          "reads": 4.5,
+          "craft": 4.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 5.0,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        }
+      }
+    },
+    "logo": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [1, 0]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 0,
+      "split": 1,
+      "per_brief": {
+        "logo-1": [0, 0, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.0,
+          "reads": 2.5,
+          "craft": 4.0,
+          "ready": 3.0
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 3.5,
+          "craft": 3.0,
+          "ready": 2.5
+        }
+      }
+    },
+    "mac": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 0,
+      "split": 1,
+      "per_brief": {
+        "mac-1": [0, 0, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 5.0,
+          "craft": 4.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 4.5,
+          "reads": 4.0,
+          "craft": 4.5,
+          "ready": 4.0
+        }
+      }
+    },
+    "model": {
+      "by_judge": {
+        "judge1": [2, 0],
+        "judge2": [2, 0]
+      },
+      "pipeline_wins": 2,
+      "pipeline_losses": 0,
+      "split": 0,
+      "per_brief": {
+        "model-1": [1, 0, 0],
+        "model-2": [1, 0, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.25,
+          "reads": 4.0,
+          "craft": 4.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 3.75,
+          "reads": 3.25,
+          "craft": 3.5,
+          "ready": 3.25
+        }
+      }
+    },
+    "print": {
+      "by_judge": {
+        "judge1": [1, 0],
+        "judge2": [1, 0]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 0,
+      "split": 0,
+      "per_brief": {
+        "print-1": [1, 0, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 5.0,
+          "reads": 4.5,
+          "craft": 5.0,
+          "ready": 4.0
+        },
+        "B": {
+          "fulfils": 4.5,
+          "reads": 4.5,
+          "craft": 4.0,
+          "ready": 3.5
+        }
+      }
+    },
+    "slides": {
+      "by_judge": {
+        "judge1": [0, 1],
+        "judge2": [0, 1]
+      },
+      "pipeline_wins": 0,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "slides-1": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.5,
+          "reads": 3.0,
+          "craft": 4.0,
+          "ready": 3.0
+        },
+        "B": {
+          "fulfils": 4.0,
+          "reads": 4.5,
+          "craft": 4.5,
+          "ready": 4.0
+        }
+      }
+    },
+    "ui": {
+      "by_judge": {
+        "judge1": [1, 1],
+        "judge2": [1, 1]
+      },
+      "pipeline_wins": 1,
+      "pipeline_losses": 1,
+      "split": 0,
+      "per_brief": {
+        "ui-1": [1, 0, 0],
+        "ui-2": [0, 1, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 4.5,
+          "craft": 4.0,
+          "ready": 3.5
+        },
+        "B": {
+          "fulfils": 4.5,
+          "reads": 4.25,
+          "craft": 3.75,
+          "ready": 3.75
+        }
+      }
+    }
+  },
+  "runs": {
+    "r01": {
+      "brief": "mac-1",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "The take table runs close to the bottom status bar and the panel is plainer, with no waveform or other mid-session context.",
+        "The toolbar is thin, and the grey non-best stars are low-contrast and hard to read in a dim room."
+      ]
+    },
+    "r02": {
+      "brief": "ui-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "A large empty gap sits above the button, and the order number is set with odd spacing as 'RX - 48213', so the key data looks loose.",
+        "A large empty gap above the button makes the layout feel unfinished, and the deadline is set in light body weight, so it is easy to miss."
+      ]
+    },
+    "r03": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The lamp is tucked behind and below the arm so it is only partly visible, and the post and footing are slim.",
+        "The arm overlaps the lamp housing from the front, partly hiding where the lamp sits."
+      ]
+    },
+    "r04": {
+      "brief": "game-1",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "The pool illustration is flat and the crab is slightly cramped against the pool edge, with the status bar sitting on plain sand.",
+        "The backdrop of two generic pools with a somewhat clumsy crab reads less as the finished Kelp Corner pool, and the Replay button looks just under 56 pt."
+      ]
+    },
+    "r05": {
+      "brief": "ui-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The white-on-dark header band and the three styles of detail row (plain, boxed, bold) are slightly inconsistent, though still clear.",
+        "The bordered Window and copay boxes look like tappable buttons, which could confuse an older user."
+      ]
+    },
+    "r06": {
+      "brief": "doc-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "Pages are dense with tiny text, and the cover illustration tree is clipped at the right edge of the image area while footer position on page 4 is inconsistent.",
+        "Page 4 is crowded, and the supporting text in the season and role cards looks close to or under 11 pt."
+      ]
+    },
+    "r07": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The gardener's arm and apron are a bit blocky and the hat is thinly outlined.",
+        "The packet's top is a crimped zigzag edge rather than a clearly folded top."
+      ]
+    },
+    "r08": {
+      "brief": "model-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The horse is lumpy and the mane and saddle flaps add clutter, but the pole through the belly and the hatch plate read clearly.",
+        "The pole pokes out below the belly plate in an odd arrow-shaped spike."
+      ]
+    },
+    "r09": {
+      "brief": "logo-1",
+      "arm": "B",
+      "positions": [0, 1],
+      "flaws": [
+        "The wrench-plus-return-arrow join is awkward, the arrow head is crude, and the dark green is low contrast on the dark ground.",
+        "The composition is lopsided and generic, a refresh arrow bolted to a wrench by a thin neck with a crude arrowhead, and it has weak contrast on dark."
+      ]
+    },
+    "r10": {
+      "brief": "game-1",
+      "arm": "B",
+      "positions": [1, 0],
+      "flaws": [
+        "White status bar icons sit on a light sandy strip with weak contrast, and the Replay button is faint with a bit of an awkward gap above Next pool.",
+        "White status-bar time and icons sit on light sand and pale pool edge, so they lose contrast at the top."
+      ]
+    },
+    "r11": {
+      "brief": "slides-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The table shows only opening times with a 'Closes' column of notes, so the full old and new hours for each day are not shown (for example, the Thursday close changes from 7 pm to 8 pm but the old close is not shown).",
+        "Slide 2 shows weekday closing times only as 'No change', so the full old and new hours are never stated and the small legend and column labels sit near the 28 px floor."
+      ]
+    },
+    "r12": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Cancel is a large, easy-to-hit amber button with only a short gap above Snooze, and it needs no hold, so a sleepy thumb can trigger it by accident.",
+        "The amber Cancel alarm is the loudest element on the screen and sits above the destination, which inverts the hierarchy and invites attention to the risky action."
+      ]
+    },
+    "r13": {
+      "brief": "print-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "The 'Free service' label sits in the bottom line away from the tenth circle, and the circle outlines are thin for stamping.",
+        "The 'Free service' label sits on the hours baseline, so it reads as part of the footer more than as the tenth circle's label."
+      ]
+    },
+    "r14": {
+      "brief": "model-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The pole barely shows below the belly, so it is hard to read as the only support, and the saddle and pommel are small.",
+        "Plainer horse with no mane, so the head and neck read less strongly from below."
+      ]
+    },
+    "r15": {
+      "brief": "print-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The wrench-and-wheel mark is spindly and its overlap looks awkward, and the dark footer band and 'Free service' label sit tight to the bottom of the circle area.",
+        "The thin-spoked mark with its broken rim reads more like a compass or ship's wheel than a bike wheel, and the heavy bottom band makes the back feel split."
+      ]
+    },
+    "r16": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The arm is thin edge-on and the large amber lamp sits in front of the arm pivot in the front view, muddying the arm silhouette.",
+        "The red arm is too thin to meet the 0.25 m minimum and gets lost at 12 to 15 metres."
+      ]
+    },
+    "r17": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The cart is small and a little cluttered at play size, and the steam is faint.",
+        "The cart's steam looks pale and faded, possibly semi-transparent, which would break the hard-alpha rule."
+      ]
+    },
+    "r18": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "Cancel and Snooze sit side by side at the top, and Snooze is a bare text link whose tap area is hard to judge.",
+        "Snooze is bare text with no visible target, so its 56 pt hit area is unclear, and the current time looks like a system status bar."
+      ]
+    },
+    "r19": {
+      "brief": "mac-1",
+      "arm": "B",
+      "positions": [1, 0],
+      "flaws": [
+        "Much secondary text (meter labels, sidebar sublines, ruler ticks) looks near or under 13 pt and the dimmed '00:' weakens the clock's legibility.",
+        "Dimming the '00:' and adding a busy waveform make the running clock slightly less dominant than it could be."
+      ]
+    },
+    "r20": {
+      "brief": "doc-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Small, light body and detail text on the cover plan and Who to ask/plot year page feels thin, and the Site rules page leaves a gap but cover illustration is bland.",
+        "The pages feel unfinished: a weak, abstract cover illustration and large empty areas at the bottom of pages 2, 3 and 4."
+      ]
+    },
+    "r21": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "The noodle cart is muddled, with one visible wheel and a steam plume that looks like a feather, and the busy cobble tile is noisy.",
+        "The lantern is a pointed onion shape rather than round, and the dark-outlined steam reads like a quill or feather."
+      ]
+    },
+    "r22": {
+      "brief": "logo-1",
+      "arm": "A",
+      "positions": [1, 0],
+      "flaws": [
+        "The tag, hole and wrench cutout are too fine and cluttered, so it turns to mush at 16 px, and the borrowing idea (a tag) is weak.",
+        "At 16 px the wrench cut-out and detached tag ring collapse into a small blob, and dark green nearly vanishes on the dark ground."
+      ]
+    },
+    "r23": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The yellow seed packet reads more like a jar than a paper packet with a folded top.",
+        "The seedlings are cramped and tangled, so the two rows of three are hard to count, and the top-right lighting is weak on the tray and packet."
+      ]
+    },
+    "r24": {
+      "brief": "slides-1",
+      "arm": "A",
+      "positions": [1, 1],
+      "flaws": [
+        "Kicker labels, table headers, 'No change' tags and footers look to be under 28 px, which breaks the hard limit and is hard to read from the back of the room.",
+        "Kicker labels ('Staff briefing', 'Why'), the slide 2 overline, the 'No change' notes and footers are visibly below 28 px and would be unreadable from the back of a long room."
+      ]
+    }
+  }
+}

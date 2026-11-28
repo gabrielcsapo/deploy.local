@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The order number is set as 'RX - 48213' with odd spacing around the hyphen, and a large empty gap sits above the button."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The deadline is split into a lighter 'Held until' label and a bold date line, and the secondary text is a softer grey on the green tint."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q groups the data into clear cards with a boxed, hyphen-correct order number and a tighter layout, while P has a spaced hyphen and a dead gap."
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Cancel alarm is a plain tap at the top with only a fixed 34 pt gap from a bordered Snooze that is not much quieter, so an accidental hit is still possible."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The 2:10 am clock is small and low in contrast at the top, and the cancel and snooze controls still sit close together in the same top row."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q makes Cancel alarm press-and-hold, which guards against a sleeping thumb, and shows Snooze as a quiet borderless control, so it meets the accidental-tap brief better."
+    }
+  }
+}

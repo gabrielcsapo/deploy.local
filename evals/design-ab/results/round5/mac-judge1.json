@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "mac-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The toolbar and waveform axis labels are small and low-contrast for a dim control room."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The dimmed '00:' in the running clock weakens the most important element, and the secondary text is small and faint."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P's clock is fully bright, large and unbroken, so Take 7 is clearly the most visible thing, and the window is clean and consistent."
+    }
+  }
+}

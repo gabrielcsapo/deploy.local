@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The cart's steam wisps look faint and possibly semi-transparent in the close-up, which risks breaking the hard-alpha rule."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The noodle cart is muddled: the steam reads as a white splotch on the awning and the single front wheel makes the handcart hard to read."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P delivers all four assets clearly, with a believable organic cobble tile and a cart that reads at a glance as a wheeled handcart with an awning and a steaming pot."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The packet's top is a crimped zigzag rather than a clearly folded flap."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The seedlings in the tray overlap into a cluttered clump, so the two neat rows of three are hard to count."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P's sprites are cleaner and more legible, especially the tray, where six seedlings sit plainly in two rows of three, and its seamless running-bond tile is consistent."
+    }
+  }
+}

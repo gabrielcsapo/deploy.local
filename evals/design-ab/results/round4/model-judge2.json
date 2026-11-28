@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The pole pokes out below the belly plate in an odd arrow-shaped spike."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Plainer horse with no mane, so the head and neck read less strongly from below."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P has a more characterful horse with mane, bridle and clear pole-through-body read while still meeting the budget, size and closed hatched belly."
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The red arm is too thin to meet the 0.25 m minimum and gets lost at 12 to 15 metres."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The arm overlaps the lamp housing from the front, partly hiding where the lamp sits."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's chunky, clearly raised red arm with its white stripe reads as clear from cab distance, which is the core purpose of the prop."
+    }
+  }
+}

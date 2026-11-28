@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "slides-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Kicker labels, table headers, 'No change' tags and footers look to be under 28 px, which breaks the hard limit and is hard to read from the back of the room."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The table shows only opening times with a 'Closes' column of notes, so the full old and new hours for each day are not shown (for example, the Thursday close changes from 7 pm to 8 pm but the old close is not shown)."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q's high-contrast navy and yellow slides, its large type and its highlighted changed cells make the change obvious from the back of a projected room, while P's small secondary text breaks the 28 px minimum."
+    }
+  }
+}

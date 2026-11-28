@@ -729,7 +729,7 @@ export function guideLines({ top, designSystem, all = false }) {
     );
   if (open)
     lines.push(
-      '  Limits from the brief go in the head too, and the check holds the board to them: size= and tris= (model), tile= and play= (art), pages= (doc), contrast=aa (low contrast stops the check).',
+      '  Limits from the brief go in the head too, and the check holds the board to them: size= and tris= (model), tile= and play= (art), pages= (doc), min-text=28 or 11pt (any board), contrast=aa (low contrast stops the check).',
       '  Anything that must scroll sideways says so (overflow-x: auto or data-scroll-x); the rest ends inside its edge (cut_off_side).',
     );
   else

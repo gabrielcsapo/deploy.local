@@ -1,0 +1,44 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Pole is hidden behind the saddle in places and the belly hatch is small and low contrast."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Brass pole is short with a bare underside stub and the saddle and pommel are small, so the pole-through-back reads weakly."
+        }
+      },
+      "ranking": ["P", "Q"],
+      "why_top": "P has a clearer saddle, bridle and chunkier legs plus a well-defined hatch on the closed charcoal belly plate, so it reads better from below."
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 2,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The amber lamp is a blobby, partly hidden shape behind the arm and the arm is a thin sliver from the front, so it barely reads at distance."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The arm is raised on the wrong visual side relative to the lamp and the footing is slightly oversized, but the lamp and arm are clearly readable."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q shows a clear round amber lamp beside a red striped arm raised at 45 degrees on a clean lattice post, with sizes inside the limits and good silhouette contrast."
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "briefs": {
+    "doc-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Page 4 is crowded with small text, and the cover illustration looks generic and plan-like."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Page 4 text is small and dense, and the page number sits lower than on other pages."
+        }
+      },
+      "ranking": ["Q", "P"],
+      "why_top": "Q adds an explicit how-to-reach note, a month strip for bonfires, a fill-in box and a more polished cover, while keeping the Site rules page standalone."
+    }
+  }
+}
