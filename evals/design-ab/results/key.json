@@ -1,0 +1,170 @@
+{
+  "r01": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r01/trailhead"
+  },
+  "r02": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r02/rooftop"
+  },
+  "r03": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r03/frostbyte"
+  },
+  "r04": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r04/shift"
+  },
+  "r05": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r05/rooftop"
+  },
+  "r06": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r06/derelict"
+  },
+  "r07": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r07/salt"
+  },
+  "r08": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r08/frostbyte"
+  },
+  "r09": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r09/shift"
+  },
+  "r10": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r10/shift"
+  },
+  "r11": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r11/derelict"
+  },
+  "r12": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r12/rooftop"
+  },
+  "r13": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r13/trailhead"
+  },
+  "r14": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r14/frostbyte"
+  },
+  "r15": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r15/trailhead"
+  },
+  "r16": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r16/frostbyte"
+  },
+  "r17": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r17/salt"
+  },
+  "r18": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r18/rooftop"
+  },
+  "r19": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r19/trailhead"
+  },
+  "r20": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r20/derelict"
+  },
+  "r21": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r21/salt"
+  },
+  "r22": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r22/shift"
+  },
+  "r23": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab/runs/r23/salt"
+  },
+  "r24": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab/runs/r24/derelict"
+  }
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "art-1",
+    "kind": "art",
+    "title": "Salt Flat Courier",
+    "brief": "Salt Flat Courier is a side-scrolling platformer about a messenger hauling parcels across a cracked desert on a rusty hoverboard. Camera: side view, flat orthographic. Sprite size: 16x16 pixels. Palette: at most 12 colours total across all assets, shared. Make exactly 4 assets: (1) the courier player character in an idle pose, with a scarf and satchel; (2) a dust-beetle enemy, one frame, readable at a glance; (3) a cracked sandstone ground tile that repeats seamlessly horizontally and vertically; (4) a sealed parcel pickup with a small glint. In play the sprites sit on a flat pale-orange sky background with distant dark-purple mesa silhouettes, so outlines must separate from warm mid-tones. No anti-aliasing, no gradients, hard pixel edges only."
+  },
+  {
+    "id": "art-2",
+    "kind": "art",
+    "title": "Frostbyte Depths",
+    "brief": "Frostbyte Depths is a top-down dungeon crawler set inside an abandoned arctic research station overrun by frozen machines. Camera: top-down three-quarter view, as in classic handheld adventures. Sprite size: 32x32 pixels. Palette: at most 16 colours, shared across everything. Make exactly 4 assets: (1) a parka-wearing technician hero facing down, holding a flare gun; (2) a frost-golem enemy built from ice-crusted pipes and a glowing core; (3) a metal grating floor tile that repeats seamlessly in all directions; (4) a battery-cell pickup that gives the player energy. The sprites will be shown over a near-black navy floor with faint blue tile seams, so they need strong silhouettes and a clear light source from the upper left. Keep outlines one pixel wide and consistent."
+  },
+  {
+    "id": "model-1",
+    "kind": "model",
+    "title": "Rooftop Water Tower",
+    "name": "WaterTower",
+    "box": "3x3x5.5",
+    "tris": 900,
+    "brief": "Design a low-poly rooftop water tower prop for a rain-soaked city rescue game. Real size: 3.0 x 3.0 x 5.5 metres, including four angled steel legs and a cone-roofed barrel. Triangle budget: 900 maximum. Style: flat-coloured, no textures, faceted shading, no image maps. Allowed colours, no others: weathered cedar brown, steel grey, rust orange, dull black, off-white and safety yellow. The player sees it from 60 metres away on a skyline and must instantly read that it is a climbable tower, which side the access ladder is on, and that the yellow-striped hatch on the barrel can be opened. Keep legs thick enough to read as supports at that distance."
+  },
+  {
+    "id": "model-2",
+    "kind": "model",
+    "title": "Derelict Satellite Dish",
+    "name": "SatelliteDish",
+    "box": "4.2x3.6x2.4",
+    "tris": 600,
+    "brief": "Make a low-poly crashed satellite dish prop for a sci-fi salvage game set on a barren moon. Real size: 4.2 x 3.6 x 2.4 metres, a tilted parabolic dish half-buried at an angle on a broken pedestal with one snapped strut. Triangle budget: 600 maximum. Style: flat-coloured, no textures, no vertex-colour gradients. Allowed colours: bone white, scorched black, signal red, steel blue, dust beige, and burnt orange. From 40 metres away the player must read three things: that it is a dish pointing at the sky, that it is damaged and no longer working, and that the red-painted junction box at the base is the salvageable part. Avoid thin parts below 10 centimetres."
+  },
+  {
+    "id": "ui-1",
+    "kind": "ui",
+    "title": "Trailhead Check-In",
+    "brief": "Trailhead Check-In is an app that lets solo hikers log their route and a safe-return time with a trusted contact. Design the single screen shown right before someone starts walking, on a 390 x 844 point phone. The user is a hiker standing at a trailhead at 6:40 AM, often wearing gloves and holding trekking poles. It must show: trail name Eagle Ridge Loop, 11.4 km, estimated 5 h 30 min, expected return 12:30 PM, sunrise 6:52 AM, weather 4 degrees C with wind 22 km/h, battery 87 percent, and emergency contact Priya Raman. The main action is a large Start Hike and Notify Priya button. Constraint: must be fully usable one-handed with a gloved thumb, so all tap targets are at least 56 points and sit in the lower half."
+  },
+  {
+    "id": "ui-2",
+    "kind": "ui",
+    "title": "Shift Board",
+    "brief": "Shift Board is an app for hospital nurses to swap and claim shifts. Design the single screen called Open Shifts, on a 390 x 844 point phone. The user is a night-shift nurse, Dana Okafor, scrolling on a bus at 5:15 PM before her next shift. It must show a list of five open shifts with concrete data, for example Thursday 28 Nov, 7:00 PM to 7:00 AM, Ward 4B Cardiac, bonus rate 1.5x, 12 hours; Friday 29 Nov, 7:00 PM to 7:00 AM, Ward 2A Surgical, 1.25x; Saturday 30 Nov, 7:00 AM to 7:00 PM, Emergency, 2.0x. It must also show a filter row for ward and a weekly hours total of 36 of 40. The main action is a Claim Shift button on each card. Constraint: must stay readable in bright sunlight, so high contrast and no pale grey text."
+  }
+]

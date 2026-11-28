@@ -1,0 +1,70 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "A plain, generic settings-style list with grey values and a text-only dark button that carries no visual weight, and the contact and button are the only items in the lower half."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "A generic grey list with low-contrast values and a large empty gap, and it shows no stand-out return time or outdoor-ready contrast."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The wind reading is cramped in a small tile and wraps to two lines, and the return-time stepper and Change link add unrequested controls."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "A large empty middle band, and the small footnote and secondary text are low in size."
+        }
+      },
+      "ranking": ["S", "R", "Q", "P"]
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The ward filter chip row is cut off at the right edge, and the card layout is dense with heavy borders."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The ward filter is a single dropdown row, and the ward names on the cards are in grey text, which the brief forbids."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The Claim Shift button text is thin and small, the Emergency chip is cut off, and the cards are tall, so only three shifts are visible."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Ward names are grey text, the ward filter is tiny and low contrast, and the bonus rate is not labelled."
+        }
+      },
+      "ranking": ["P", "R", "S", "Q"]
+    }
+  }
+}

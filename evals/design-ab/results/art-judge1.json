@@ -1,0 +1,70 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The ground tile has diagonal cracks that look like a repeating stripe pattern with visible seams, and the courier's hoverboard and satchel are hard to read."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The courier is small and its scarf and satchel are weak, and the pickup glint is tiny."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The ground tile is busy noisy speckle with weak crack structure, and the pickup is a faint small bundle that disappears against the sky."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The courier is a cramped blob with an unclear pose, and the tile's purple crack looks like a single scribble that makes a clear repeating pattern when tiled."
+        }
+      },
+      "ranking": ["Q", "P", "S", "R"]
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The floor tile is a plain repeating grid of pits rather than metal grating, the hero has no readable flare gun and no clear upper-left light, and the golem has no ice crust."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The floor tile is a brick-like pattern that reads more as masonry than grating, and the hero's flare gun is barely visible."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The grid tile is bright and high contrast, so it may compete with the sprites on the dark navy floor."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The hero reads as a Santa figure with no flare gun, and the busy dark grating tile with scattered white specks blends into the navy floor."
+        }
+      },
+      "ranking": ["R", "Q", "P", "S"]
+    }
+  }
+}

@@ -1,0 +1,291 @@
+{
+  "kinds": {
+    "art": {
+      "pipeline_wins": 0,
+      "pipeline_losses": 6,
+      "split": 2,
+      "per_brief": {
+        "art-1": [0, 3, 1],
+        "art-2": [0, 3, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.62,
+          "reads": 3.5,
+          "craft": 3.25,
+          "ready": 3.0
+        },
+        "B": {
+          "fulfils": 4.25,
+          "reads": 4.12,
+          "craft": 4.0,
+          "ready": 3.62
+        }
+      }
+    },
+    "model": {
+      "pipeline_wins": 2,
+      "pipeline_losses": 6,
+      "split": 0,
+      "per_brief": {
+        "model-1": [2, 2, 0],
+        "model-2": [0, 4, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.12,
+          "reads": 2.75,
+          "craft": 3.0,
+          "ready": 2.62
+        },
+        "B": {
+          "fulfils": 3.62,
+          "reads": 3.75,
+          "craft": 3.5,
+          "ready": 3.12
+        }
+      }
+    },
+    "ui": {
+      "pipeline_wins": 0,
+      "pipeline_losses": 7,
+      "split": 1,
+      "per_brief": {
+        "ui-1": [0, 4, 0],
+        "ui-2": [0, 3, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.25,
+          "reads": 2.88,
+          "craft": 3.25,
+          "ready": 2.62
+        },
+        "B": {
+          "fulfils": 4.62,
+          "reads": 4.38,
+          "craft": 4.12,
+          "ready": 3.62
+        }
+      }
+    }
+  },
+  "runs": {
+    "r01": {
+      "brief": "ui-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The yellow return card is bright and slightly crowds the top, and the green and yellow accents compete for attention.",
+        "A large empty middle band, and the small footnote and secondary text are low in size."
+      ]
+    },
+    "r02": {
+      "brief": "model-1",
+      "arm": "A",
+      "positions": [2, 1],
+      "flaws": [
+        "The hatch stripes are crowded black slashes that read poorly, the front cross-bracing is missing or broken, and the model is 2.86 m wide.",
+        "The yellow hatch has only loose black slashes rather than clear stripes, and the ladder runs over the hatch, so it reads less clearly as an openable hatch."
+      ]
+    },
+    "r03": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [2, 1],
+      "flaws": [
+        "The floor tile is a plain repeating grid of pits rather than metal grating, the hero has no readable flare gun and no clear upper-left light, and the golem has no ice crust.",
+        "The hero's flare gun is a tiny stub that is hard to spot, and the tile is more of a bolted panel than grating."
+      ]
+    },
+    "r04": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [1, 2],
+      "flaws": [
+        "Grey secondary text is pale for sunlight, and only the first Claim Shift button is filled while the other cards are outlined.",
+        "Ward names are grey text, the ward filter is tiny and low contrast, and the bonus rate is not labelled."
+      ]
+    },
+    "r05": {
+      "brief": "model-1",
+      "arm": "A",
+      "positions": [1, 2],
+      "flaws": [
+        "The hatch's yellow panel has only thin black slashes rather than clear stripes, and the ladder is a thin off-white line that is weak at 60 m.",
+        "The hatch has only two sparse black slashes, so the yellow stripes and the openable hatch read weakly from far away."
+      ]
+    },
+    "r06": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [3, 3],
+      "flaws": [
+        "It is a jumble of shapes where the dish does not read as pointing at the sky, and a large black slab and loose pieces confuse the silhouette.",
+        "The dish is a jumbled, fragmented mass that does not read as a dish pointing at the sky, and the red box is lost in the clutter."
+      ]
+    },
+    "r07": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The courier is small and its scarf and satchel are weak, and the pickup glint is tiny.",
+        "The ground tile is busy with speckle and cracks, which competes with the sprites in play."
+      ]
+    },
+    "r08": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [3, 3],
+      "flaws": [
+        "The hero reads as a Santa figure with no flare gun, and the busy dark grating tile with scattered white specks blends into the navy floor.",
+        "The hero looks like a Santa figure with no clear flare gun, and the floor tile has scattered pixel noise."
+      ]
+    },
+    "r09": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [2, 1],
+      "flaws": [
+        "The Claim Shift label is thin and small and the Emergency chip is cut off, which weakens sunlight legibility.",
+        "The Claim Shift button text is thin and small, the Emergency chip is cut off, and the cards are tall, so only three shifts are visible."
+      ]
+    },
+    "r10": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [3, 3],
+      "flaws": [
+        "The grey ward names are weak in sunlight and the ward filter is a single dropdown row, which makes a ward filter slow to use.",
+        "The ward filter is a single dropdown row, and the ward names on the cards are in grey text, which the brief forbids."
+      ]
+    },
+    "r11": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The red junction box is a plain block with a small dark top, and the burial mound and strut damage are only subtly shown.",
+        "The dish's concave face is not clearly aimed at the sky and the broken pedestal and snapped strut are only loosely suggested."
+      ]
+    },
+    "r12": {
+      "brief": "model-1",
+      "arm": "B",
+      "positions": [3, 3],
+      "flaws": [
+        "The ladder and the yellow-striped hatch are on a side face and are tiny and thin, the ladder is nearly invisible against the legs, and the bright orange roof and light-grey legs look off-palette.",
+        "The hatch is a thin striped panel on the side with no ladder in front of it, the ladder is washed out against the front, and the light orange roof and light-grey legs drift off the palette."
+      ]
+    },
+    "r13": {
+      "brief": "ui-1",
+      "arm": "A",
+      "positions": [3, 2],
+      "flaws": [
+        "Plain settings-style list with grey values, no hierarchy, and the contact row sits in the top half of the screen.",
+        "A generic grey list with low-contrast values and a large empty gap, and it shows no stand-out return time or outdoor-ready contrast."
+      ]
+    },
+    "r14": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [1, 2],
+      "flaws": [
+        "The floor tile is a brick-like pattern that reads more as masonry than grating, and the hero's flare gun is barely visible.",
+        "The floor tile looks like a brick or vent wall rather than a metal grating, and the hero's flare gun is barely visible."
+      ]
+    },
+    "r15": {
+      "brief": "ui-1",
+      "arm": "A",
+      "positions": [2, 3],
+      "flaws": [
+        "Generic list with grey value text, and the contact row is a card with no clear tap target.",
+        "A plain, generic settings-style list with grey values and a text-only dark button that carries no visual weight, and the contact and button are the only items in the lower half."
+      ]
+    },
+    "r16": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The grid tile is bright and high contrast, so it may compete with the sprites on the dark navy floor.",
+        "The very bright grating tile is high-contrast against the near-black navy floor and may be too loud."
+      ]
+    },
+    "r17": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [2, 3],
+      "flaws": [
+        "The courier is a cramped blob with an unclear pose, and the tile's purple crack looks like a single scribble that makes a clear repeating pattern when tiled.",
+        "The courier's pose is muddled, and the tile's cracks are faint and look scattered when repeated."
+      ]
+    },
+    "r18": {
+      "brief": "model-1",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The ladder rails are thin and the lower legs are cluttered with rust bracing, but the large black-and-yellow hazard hatch is clear.",
+        "The ladder stops in front of the hatch and its thin rails fade out at distance, but the bold black and yellow hatch and the ladder side still read clearly."
+      ]
+    },
+    "r19": {
+      "brief": "ui-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "Wind is crammed into a tiny wrapped tile, and the +/- return-time stepper is an unrequested control whose buttons are not clearly labelled.",
+        "The wind reading is cramped in a small tile and wraps to two lines, and the return-time stepper and Change link add unrequested controls."
+      ]
+    },
+    "r20": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [2, 2],
+      "flaws": [
+        "The dish lies nearly flat and reads as a bowl on the ground, with a messy pile of black, blue and orange bits in the centre and a stray cone.",
+        "The dish sits low and flat with a tangle of overlapping parts and thin bars, so it reads as a pile of debris rather than a tilted dish."
+      ]
+    },
+    "r21": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [3, 1],
+      "flaws": [
+        "The ground tile is busy noisy speckle with weak crack structure, and the pickup is a faint small bundle that disappears against the sky.",
+        "The pickup is small and its glint is almost invisible, and the ground tile reads as streaks more than cracks."
+      ]
+    },
+    "r22": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "The ward filter chips are clipped at the right edge and the header block eats vertical space so only about 2.5 cards show.",
+        "The ward filter chip row is cut off at the right edge, and the card layout is dense with heavy borders."
+      ]
+    },
+    "r23": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [1, 2],
+      "flaws": [
+        "The ground tile has diagonal cracks that look like a repeating stripe pattern with visible seams, and the courier's hoverboard and satchel are hard to read.",
+        "The purple beetle blends into the purple mesa silhouettes, and the tile repeats as an obvious diagonal pattern."
+      ]
+    },
+    "r24": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "The dish looks flat and distorted from some angles, and the broken strut is a long, thin blue bar lying on the ground that does not read clearly as snapped.",
+        "The blue strut lying on the ground and the thin orange feed arm are very slim and look like stray pieces."
+      ]
+    }
+  }
+}

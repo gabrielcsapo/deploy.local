@@ -1,0 +1,70 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The ground tile is busy with speckle and cracks, which competes with the sprites in play."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The pickup is small and its glint is almost invisible, and the ground tile reads as streaks more than cracks."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The purple beetle blends into the purple mesa silhouettes, and the tile repeats as an obvious diagonal pattern."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The courier's pose is muddled, and the tile's cracks are faint and look scattered when repeated."
+        }
+      },
+      "ranking": ["P", "Q", "R", "S"]
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The hero's flare gun is a tiny stub that is hard to spot, and the tile is more of a bolted panel than grating."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The floor tile looks like a brick or vent wall rather than a metal grating, and the hero's flare gun is barely visible."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The very bright grating tile is high-contrast against the near-black navy floor and may be too loud."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The hero looks like a Santa figure with no clear flare gun, and the floor tile has scattered pixel noise."
+        }
+      },
+      "ranking": ["R", "P", "Q", "S"]
+    }
+  }
+}

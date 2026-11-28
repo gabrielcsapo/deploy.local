@@ -1,0 +1,70 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The hatch's yellow panel has only thin black slashes rather than clear stripes, and the ladder is a thin off-white line that is weak at 60 m."
+        },
+        "Q": {
+          "fulfils": 2,
+          "reads": 2,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The ladder and the yellow-striped hatch are on a side face and are tiny and thin, the ladder is nearly invisible against the legs, and the bright orange roof and light-grey legs look off-palette."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The ladder rails are thin and the lower legs are cluttered with rust bracing, but the large black-and-yellow hazard hatch is clear."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The hatch stripes are crowded black slashes that read poorly, the front cross-bracing is missing or broken, and the model is 2.86 m wide."
+        }
+      },
+      "ranking": ["R", "P", "S", "Q"]
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The dish looks flat and distorted from some angles, and the broken strut is a long, thin blue bar lying on the ground that does not read clearly as snapped."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The red junction box is a plain block with a small dark top, and the burial mound and strut damage are only subtly shown."
+        },
+        "R": {
+          "fulfils": 2,
+          "reads": 2,
+          "craft": 2,
+          "ready": 2,
+          "flaw": "It is a jumble of shapes where the dish does not read as pointing at the sky, and a large black slab and loose pieces confuse the silhouette."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 2,
+          "ready": 2,
+          "flaw": "The dish lies nearly flat and reads as a bowl on the ground, with a messy pile of black, blue and orange bits in the centre and a stray cone."
+        }
+      },
+      "ranking": ["Q", "P", "S", "R"]
+    }
+  }
+}

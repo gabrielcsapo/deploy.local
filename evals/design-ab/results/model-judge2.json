@@ -1,0 +1,70 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The yellow hatch has only loose black slashes rather than clear stripes, and the ladder runs over the hatch, so it reads less clearly as an openable hatch."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The hatch has only two sparse black slashes, so the yellow stripes and the openable hatch read weakly from far away."
+        },
+        "R": {
+          "fulfils": 2,
+          "reads": 2,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The hatch is a thin striped panel on the side with no ladder in front of it, the ladder is washed out against the front, and the light orange roof and light-grey legs drift off the palette."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The ladder stops in front of the hatch and its thin rails fade out at distance, but the bold black and yellow hatch and the ladder side still read clearly."
+        }
+      },
+      "ranking": ["S", "P", "Q", "R"]
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 2,
+          "reads": 1,
+          "craft": 2,
+          "ready": 1,
+          "flaw": "The dish is a jumbled, fragmented mass that does not read as a dish pointing at the sky, and the red box is lost in the clutter."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The dish's concave face is not clearly aimed at the sky and the broken pedestal and snapped strut are only loosely suggested."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The blue strut lying on the ground and the thin orange feed arm are very slim and look like stray pieces."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The dish sits low and flat with a tangle of overlapping parts and thin bars, so it reads as a pile of debris rather than a tilted dish."
+        }
+      },
+      "ranking": ["Q", "R", "S", "P"]
+    }
+  }
+}

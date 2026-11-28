@@ -1,0 +1,70 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Wind is crammed into a tiny wrapped tile, and the +/- return-time stepper is an unrequested control whose buttons are not clearly labelled."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 2,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Plain settings-style list with grey values, no hierarchy, and the contact row sits in the top half of the screen."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Generic list with grey value text, and the contact row is a card with no clear tap target."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "The yellow return card is bright and slightly crowds the top, and the green and yellow accents compete for attention."
+        }
+      },
+      "ranking": ["S", "P", "R", "Q"]
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The grey ward names are weak in sunlight and the ward filter is a single dropdown row, which makes a ward filter slow to use."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 3,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Grey secondary text is pale for sunlight, and only the first Claim Shift button is filled while the other cards are outlined."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The ward filter chips are clipped at the right edge and the header block eats vertical space so only about 2.5 cards show."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The Claim Shift label is thin and small and the Emergency chip is cut off, which weakens sunlight legibility."
+        }
+      },
+      "ranking": ["R", "Q", "S", "P"]
+    }
+  }
+}
