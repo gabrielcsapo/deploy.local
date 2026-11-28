@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 5,
+          "ready": 5,
+          "flaw": "Muted grey labels and a low-key beige warning are weaker in rain and glare than the numbers."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Large dead gap above the button, and the battery warning is small and buried inside the Park Street card."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 2,
+          "ready": 2,
+          "flaw": "Adds 'bikes - none' text, wraps 'free slots' onto two lines, and leaves empty space inside each card."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The strikethrough on the 0 collides with the glyph, and a large empty gap sits mid-screen with no status bar or title."
+        }
+      },
+      "ranking": ["P", "Q", "S", "R"],
+      "why_top": "P delivers every required item with big high-contrast numbers, clear hierarchy, a tall button and no visible defects."
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The tall header curve collides with the 'Session' label, and add-on labels are altered to '+$6 per guest'."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "A large empty gap under the header wastes space, though all controls stay in the lower part of the screen."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "The guest stepper is bare minus and plus glyphs with tap targets that look well under 48 pt."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "A big blank gap sits mid-screen and the add-ons are not labelled optional."
+        }
+      },
+      "ranking": ["Q", "S", "P", "R"],
+      "why_top": "Q meets the thumb-zone and 48 pt rules with clear grouping, an optional add-ons label and a live $91 total."
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Ratchet gear is on the left and no pawl is visible, and the crank handle is a flat box that reads poorly."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Crank, gear and handle are tiny and dark, so the grab point is hard to read from 4 m."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Washed-out pale colours drift from the specified dark wood brown, and the crank arm is thin."
+        },
+        "S": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Pawl is hard to pick out and the wood is a lighter brown than dark wood brown."
+        }
+      },
+      "ranking": ["S", "R", "Q", "P"],
+      "why_top": "S shows the clear toothed ratchet gear, the round brass handle on the right and a well-wrapped drum while using the full size and staying under budget."
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "The thick grey bottom band hides the flared open rim, so the open bottom reads weakly."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The big green lower band and the grey cage-like struts look odd and muddy the brass bell."
+        },
+        "R": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "The struts are thin and arched rather than chunky, and the flare is modest."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 2,
+          "ready": 2,
+          "flaw": "The rim shows noisy speckled texture-like artifacts and the struts are flat slabs."
+        }
+      },
+      "ranking": ["R", "Q", "P", "S"],
+      "why_top": "R shows a clear hatch ring with the hinge on the left, chunky glass-blue portholes, a clear top eye with cable stub, and a flared green open bottom that reads at distance."
+    }
+  }
+}

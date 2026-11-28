@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "ui-1": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 3,
+          "ready": 4,
+          "flaw": "Cards have large dead gaps and '0 bikes - none' wraps awkwardly inside its chip."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Grey unit labels are low-contrast, the warning is small and tucked in the card, and a big empty gap sits above the button."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Battery warning is a small low-emphasis strip near the bottom, so it is easy to miss at a glance."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 2,
+          "ready": 3,
+          "flaw": "The struck-through 0 collides with its glyph and hurts legibility, and a large empty gap sits mid-screen."
+        }
+      },
+      "ranking": ["P", "S", "R", "Q"],
+      "why_top": "P gives the biggest high-contrast numbers in white chips, a bold warning banner and a huge button, best suited to one-second glances in rain."
+    },
+    "ui-2": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Awkward empty band under the header and a redundant 'Guests' label, with the first session row sitting right at the 40 percent boundary."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 5,
+          "flaw": "A large empty gap between title and the controls, though it keeps all controls in thumb reach."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "The 'Session' label collides with the hero panel's curved edge, and 'per guest' was added to add-on prices."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Guest stepper is bare minus/plus glyphs with no visible 48 pt targets, and the title wraps with an orphaned 'hours'."
+        }
+      },
+      "ranking": ["Q", "P", "R", "S"],
+      "why_top": "Q keeps every control in the lower part of the screen with clear 48pt-plus rows, shows the live $91 total, and is clean and consistent."
+    }
+  }
+}

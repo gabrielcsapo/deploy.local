@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Ground tile shows visible horizontal seam lines and bright edge pixels when repeated."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Ground tile is noisy and near navy, reading as speckle rather than basalt with a few cracks."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Keeper is small and plain with weak form, and the tile is navy-like and busy."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Pale glass on the beacon may read as lit, and the tile is navy-toned."
+        }
+      },
+      "ranking": ["S", "Q", "P", "R"],
+      "why_top": "S has the most polished, readable keeper and beacon plus a tile that wraps cleanly with distinct cracks."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Robot has no real tank treads, only a teal fringe, and the oversized chevrons dominate."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "Chevron marks are thin and the dark grey belt is slightly bluish."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Mushroom spots are blocky squares and the robot treads are dark and murky."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Robot sits on a flat plinth with squares instead of tank treads and the eye is muddy."
+        }
+      },
+      "ranking": ["Q", "R", "S", "P"],
+      "why_top": "Q delivers a clearly boxy teal robot with real treads, a pipe-stub valve and a chevron belt that lines up across the join."
+    }
+  }
+}

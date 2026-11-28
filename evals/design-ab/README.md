@@ -35,9 +35,28 @@ nothing the other arm got wrong.
 
 Raw judgements, the unblinding key and `results.json` (ranks and every flaw line) are in `results/`.
 
+## Round 2 (2026-11-28, after the fixes in a81574af)
+
+Fixes from round 1: art and model start almost empty on the kit's sample palette, with the
+starter's layer names free to change; the README and review questions ask what the brief needs
+instead of the kit's phone look; models gain `lathe` and `beam` and the check names parts past the
+box; init ignores output/. Six new briefs from a fresh writer (`briefs-round2.json`, no round-1
+themes), same harness and judges, results in `results/round2/`.
+
+| kind  | pipeline won | lost | split | mean "ready" A / B | round 1 won / lost |
+| ----- | -----------: | ---: | ----: | -----------------: | -----------------: |
+| art   |            4 |    3 |     1 |        3.38 / 2.88 |              0 / 6 |
+| model |            0 |    5 |     3 |        2.75 / 3.38 |              2 / 6 |
+| ui    |            4 |    0 |     4 |        3.88 / 2.88 |              0 / 7 |
+
+Caveats: 8 pairs a kind is small, and the two UI judges disagreed often on ui-1 (all 4 pairs split).
+Several arm-B designers could not get a screenshot from /tmp/chromium and checked by arithmetic,
+while arm A's check drew its pictures for it; round 1 had the same environment notes.
+
 ## Rerun
 
-    python3 setup.py /tmp/ab ~/.ab-key.json      # then run each /tmp/ab/runs/rNN/prompt.txt in a fresh agent
+    BRIEFS=briefs-round2.json python3 setup.py /tmp/ab ~/.ab-key.json   # BRIEFS picks a briefs file for setup, render and make_blind
+         # then run each /tmp/ab/runs/rNN/prompt.txt in a fresh agent
     # arm A: (cd <proj> && deploy design export)
     DEPLOY_CHROMIUM=/tmp/chromium node evals/design-ab/render_pages.mjs ~/.ab-key.json /tmp/ab/render
     python3 render_models.py ~/.ab-key.json /tmp/ab/render

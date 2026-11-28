@@ -1,0 +1,170 @@
+{
+  "r01": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r01/bike"
+  },
+  "r02": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r02/handcranked"
+  },
+  "r03": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r03/mushroom"
+  },
+  "r04": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r04/sourdough"
+  },
+  "r05": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r05/handcranked"
+  },
+  "r06": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r06/underwater"
+  },
+  "r07": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r07/lighthouse"
+  },
+  "r08": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r08/mushroom"
+  },
+  "r09": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r09/sourdough"
+  },
+  "r10": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r10/sourdough"
+  },
+  "r11": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r11/underwater"
+  },
+  "r12": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r12/handcranked"
+  },
+  "r13": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r13/bike"
+  },
+  "r14": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r14/mushroom"
+  },
+  "r15": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r15/bike"
+  },
+  "r16": {
+    "brief": "art-2",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r16/mushroom"
+  },
+  "r17": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r17/lighthouse"
+  },
+  "r18": {
+    "brief": "model-1",
+    "kind": "model",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r18/handcranked"
+  },
+  "r19": {
+    "brief": "ui-1",
+    "kind": "ui",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r19/bike"
+  },
+  "r20": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r20/underwater"
+  },
+  "r21": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "A",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r21/lighthouse"
+  },
+  "r22": {
+    "brief": "ui-2",
+    "kind": "ui",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r22/sourdough"
+  },
+  "r23": {
+    "brief": "art-1",
+    "kind": "art",
+    "arm": "B",
+    "n": 2,
+    "proj": "/tmp/ab2/runs/r23/lighthouse"
+  },
+  "r24": {
+    "brief": "model-2",
+    "kind": "model",
+    "arm": "B",
+    "n": 1,
+    "proj": "/tmp/ab2/runs/r24/underwater"
+  }
+}

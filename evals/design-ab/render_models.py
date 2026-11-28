@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUNNER = os.path.join(HERE, '..', '..', 'bin', 'design-blender.py')
 key = json.load(open(sys.argv[1])); OUT = sys.argv[2]
-briefs = {b['id']: b for b in json.load(open(os.path.join(HERE, 'briefs.json')))}
+briefs = {b['id']: b for b in json.load(open(os.environ.get('BRIEFS') or os.path.join(HERE, 'briefs.json')))}
 def glb_of(r):
     if r['arm'] == 'B': return os.path.join(r['proj'], 'out', 'model.glb')
     d = os.path.join(r['proj'], 'output', 'design', 'models')

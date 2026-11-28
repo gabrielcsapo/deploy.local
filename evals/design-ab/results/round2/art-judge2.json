@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "art-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Ground tile is busy noise with cracks that do not read as a few pale cracks."
+        },
+        "Q": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Keeper is small and the beacon is a hollow frame that barely reads as a brass lantern."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Tile shows a visible horizontal seam band when repeated and the keeper silhouette is lumpy."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Plank and beacon use a navy-toned outline that sits close to the sea colour."
+        }
+      },
+      "ranking": ["S", "P", "R", "Q"],
+      "why_top": "S has the clearest silhouettes against the navy, a believable glass-and-brass lantern, and a clean wrapping tile with sparse pale cracks."
+    },
+    "art-2": {
+      "scores": {
+        "P": {
+          "fulfils": 3,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Robot treads are a ragged teal blob that does not read as tank treads."
+        },
+        "Q": {
+          "fulfils": 5,
+          "reads": 4,
+          "craft": 5,
+          "ready": 4,
+          "flaw": "Chevrons on the belt are thin and low-contrast compared with the sprites."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Robot treads are dark and murky with little contrast."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Robot has square pads instead of tank treads and the eye is a messy dark blob."
+        }
+      },
+      "ranking": ["Q", "R", "P", "S"],
+      "why_top": "Q has clear tank treads, a valve on a proper pipe stub, consistent top-left lighting and a belt whose chevrons align across the join."
+    }
+  }
+}

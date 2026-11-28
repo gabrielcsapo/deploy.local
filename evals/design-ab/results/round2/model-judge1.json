@@ -1,0 +1,72 @@
+{
+  "briefs": {
+    "model-1": {
+      "scores": {
+        "P": {
+          "fulfils": 4,
+          "reads": 3,
+          "craft": 4,
+          "ready": 3,
+          "flaw": "Crank handle is a tiny brass block and the whole prop is thin at distance."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Wood is a light tan-brown rather than dark wood brown, close to the rope colour."
+        },
+        "R": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 3,
+          "ready": 2,
+          "flaw": "Long iron axle stub sticks out on the left, muddying the silhouette and sitting oddly beside the drum."
+        },
+        "S": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Two separate posts with a left-side gear make the frame thin and the pawl hard to see."
+        }
+      },
+      "ranking": ["S", "Q", "P", "R"],
+      "why_top": "S has dark wood, a clear right-side crank with a big brass handle and a distinct drum, and clean separate A-frames."
+    },
+    "model-2": {
+      "scores": {
+        "P": {
+          "fulfils": 5,
+          "reads": 5,
+          "craft": 4,
+          "ready": 4,
+          "flaw": "Seaweed spikes are tiny noisy bits and the flared rim is grey steel not brass."
+        },
+        "Q": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Large green flare base and crowded top with portholes against the struts look cluttered."
+        },
+        "R": {
+          "fulfils": 4,
+          "reads": 4,
+          "craft": 3,
+          "ready": 3,
+          "flaw": "Struts are flat slabs and the lifting eye is a faceted ring that looks odd."
+        },
+        "S": {
+          "fulfils": 3,
+          "reads": 3,
+          "craft": 2,
+          "ready": 2,
+          "flaw": "Rust-orange bottom rim shows noisy speckled artifacts and one porthole is hidden from the front."
+        }
+      },
+      "ranking": ["P", "Q", "R", "S"],
+      "why_top": "P reads clearly as a brass bell with a flared open bottom, chunky arched struts, a hinged hatch on the left, two blue portholes and a clear top eye with cable."
+    }
+  }
+}

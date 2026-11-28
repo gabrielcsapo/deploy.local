@@ -1,0 +1,291 @@
+{
+  "kinds": {
+    "art": {
+      "pipeline_wins": 4,
+      "pipeline_losses": 3,
+      "split": 1,
+      "per_brief": {
+        "art-1": [2, 2, 0],
+        "art-2": [2, 1, 1]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.75,
+          "reads": 3.75,
+          "craft": 3.75,
+          "ready": 3.38
+        },
+        "B": {
+          "fulfils": 3.5,
+          "reads": 4.12,
+          "craft": 3.25,
+          "ready": 2.88
+        }
+      }
+    },
+    "model": {
+      "pipeline_wins": 0,
+      "pipeline_losses": 5,
+      "split": 3,
+      "per_brief": {
+        "model-1": [0, 1, 3],
+        "model-2": [0, 4, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 3.62,
+          "reads": 3.38,
+          "craft": 3.12,
+          "ready": 2.75
+        },
+        "B": {
+          "fulfils": 4.25,
+          "reads": 4.12,
+          "craft": 3.62,
+          "ready": 3.38
+        }
+      }
+    },
+    "ui": {
+      "pipeline_wins": 4,
+      "pipeline_losses": 0,
+      "split": 4,
+      "per_brief": {
+        "ui-1": [0, 0, 4],
+        "ui-2": [4, 0, 0]
+      },
+      "mean_scores": {
+        "A": {
+          "fulfils": 4.5,
+          "reads": 3.88,
+          "craft": 3.88,
+          "ready": 3.88
+        },
+        "B": {
+          "fulfils": 3.5,
+          "reads": 3.88,
+          "craft": 2.75,
+          "ready": 2.88
+        }
+      }
+    }
+  },
+  "runs": {
+    "r01": {
+      "brief": "ui-1",
+      "arm": "B",
+      "positions": [1, 2],
+      "flaws": [
+        "The struck-through 0 collides with its glyph and hurts legibility, and a large empty gap sits mid-screen.",
+        "The strikethrough on the 0 collides with the glyph, and a large empty gap sits mid-screen with no status bar or title."
+      ]
+    },
+    "r02": {
+      "brief": "model-1",
+      "arm": "A",
+      "positions": [0, 3],
+      "flaws": [
+        "Two separate posts with a left-side gear make the frame thin and the pawl hard to see.",
+        "Ratchet gear is on the left and no pawl is visible, and the crank handle is a flat box that reads poorly."
+      ]
+    },
+    "r03": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [3, 2],
+      "flaws": [
+        "Robot has no real tank treads, only a teal fringe, and the oversized chevrons dominate.",
+        "Robot treads are a ragged teal blob that does not read as tank treads."
+      ]
+    },
+    "r04": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [0, 1],
+      "flaws": [
+        "A large empty gap between title and the controls, though it keeps all controls in thumb reach.",
+        "A big blank gap sits mid-screen and the add-ons are not labelled optional."
+      ]
+    },
+    "r05": {
+      "brief": "model-1",
+      "arm": "A",
+      "positions": [2, 2],
+      "flaws": [
+        "Crank handle is a tiny brass block and the whole prop is thin at distance.",
+        "Crank, gear and handle are tiny and dark, so the grab point is hard to read from 4 m."
+      ]
+    },
+    "r06": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [2, 2],
+      "flaws": [
+        "Struts are flat slabs and the lifting eye is a faceted ring that looks odd.",
+        "The thick grey bottom band hides the flared open rim, so the open bottom reads weakly."
+      ]
+    },
+    "r07": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "Ground tile is noisy and near navy, reading as speckle rather than basalt with a few cracks.",
+        "Ground tile is busy noise with cracks that do not read as a few pale cracks."
+      ]
+    },
+    "r08": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [2, 3],
+      "flaws": [
+        "Robot sits on a flat plinth with squares instead of tank treads and the eye is muddy.",
+        "Robot has square pads instead of tank treads and the eye is a messy dark blob."
+      ]
+    },
+    "r09": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [3, 3],
+      "flaws": [
+        "Guest stepper is bare minus/plus glyphs with no visible 48 pt targets, and the title wraps with an orphaned 'hours'.",
+        "The guest stepper is bare minus and plus glyphs with tap targets that look well under 48 pt."
+      ]
+    },
+    "r10": {
+      "brief": "ui-2",
+      "arm": "A",
+      "positions": [1, 0],
+      "flaws": [
+        "Awkward empty band under the header and a redundant 'Guests' label, with the first session row sitting right at the 40 percent boundary.",
+        "A large empty gap under the header wastes space, though all controls stay in the lower part of the screen."
+      ]
+    },
+    "r11": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "Large green flare base and crowded top with portholes against the struts look cluttered.",
+        "The big green lower band and the grey cage-like struts look odd and muddy the brass bell."
+      ]
+    },
+    "r12": {
+      "brief": "model-1",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "Wood is a light tan-brown rather than dark wood brown, close to the rope colour.",
+        "Washed-out pale colours drift from the specified dark wood brown, and the crank arm is thin."
+      ]
+    },
+    "r13": {
+      "brief": "ui-1",
+      "arm": "A",
+      "positions": [3, 1],
+      "flaws": [
+        "Grey unit labels are low-contrast, the warning is small and tucked in the card, and a big empty gap sits above the button.",
+        "Large dead gap above the button, and the battery warning is small and buried inside the Park Street card."
+      ]
+    },
+    "r14": {
+      "brief": "art-2",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "Chevron marks are thin and the dark grey belt is slightly bluish.",
+        "Chevrons on the belt are thin and low-contrast compared with the sprites."
+      ]
+    },
+    "r15": {
+      "brief": "ui-1",
+      "arm": "A",
+      "positions": [2, 0],
+      "flaws": [
+        "Battery warning is a small low-emphasis strip near the bottom, so it is easy to miss at a glance.",
+        "Muted grey labels and a low-key beige warning are weaker in rain and glare than the numbers."
+      ]
+    },
+    "r16": {
+      "brief": "art-2",
+      "arm": "B",
+      "positions": [1, 1],
+      "flaws": [
+        "Mushroom spots are blocky squares and the robot treads are dark and murky.",
+        "Robot treads are dark and murky with little contrast."
+      ]
+    },
+    "r17": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [0, 0],
+      "flaws": [
+        "Pale glass on the beacon may read as lit, and the tile is navy-toned.",
+        "Plank and beacon use a navy-toned outline that sits close to the sea colour."
+      ]
+    },
+    "r18": {
+      "brief": "model-1",
+      "arm": "B",
+      "positions": [3, 0],
+      "flaws": [
+        "Long iron axle stub sticks out on the left, muddying the silhouette and sitting oddly beside the drum.",
+        "Pawl is hard to pick out and the wood is a lighter brown than dark wood brown."
+      ]
+    },
+    "r19": {
+      "brief": "ui-1",
+      "arm": "B",
+      "positions": [0, 3],
+      "flaws": [
+        "Cards have large dead gaps and '0 bikes - none' wraps awkwardly inside its chip.",
+        "Adds 'bikes - none' text, wraps 'free slots' onto two lines, and leaves empty space inside each card."
+      ]
+    },
+    "r20": {
+      "brief": "model-2",
+      "arm": "A",
+      "positions": [3, 3],
+      "flaws": [
+        "Rust-orange bottom rim shows noisy speckled artifacts and one porthole is hidden from the front.",
+        "The rim shows noisy speckled texture-like artifacts and the struts are flat slabs."
+      ]
+    },
+    "r21": {
+      "brief": "art-1",
+      "arm": "A",
+      "positions": [3, 3],
+      "flaws": [
+        "Keeper is small and plain with weak form, and the tile is navy-like and busy.",
+        "Keeper is small and the beacon is a hollow frame that barely reads as a brass lantern."
+      ]
+    },
+    "r22": {
+      "brief": "ui-2",
+      "arm": "B",
+      "positions": [2, 2],
+      "flaws": [
+        "The 'Session' label collides with the hero panel's curved edge, and 'per guest' was added to add-on prices.",
+        "The tall header curve collides with the 'Session' label, and add-on labels are altered to '+$6 per guest'."
+      ]
+    },
+    "r23": {
+      "brief": "art-1",
+      "arm": "B",
+      "positions": [2, 2],
+      "flaws": [
+        "Ground tile shows visible horizontal seam lines and bright edge pixels when repeated.",
+        "Tile shows a visible horizontal seam band when repeated and the keeper silhouette is lumpy."
+      ]
+    },
+    "r24": {
+      "brief": "model-2",
+      "arm": "B",
+      "positions": [0, 0],
+      "flaws": [
+        "Seaweed spikes are tiny noisy bits and the flared rim is grey steel not brass.",
+        "The struts are thin and arched rather than chunky, and the flare is modest."
+      ]
+    }
+  }
+}

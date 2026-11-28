@@ -7,7 +7,7 @@ ROOT = sys.argv[1] if len(sys.argv) > 1 else '/tmp/ab'
 # The key says which run had the pipeline; keep it out of the folder the designers and judges can read.
 KEY = sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser('~/.ab-key.json')
 PER_ARM = 2
-briefs = json.load(open(os.path.join(HERE, 'briefs.json')))
+briefs = json.load(open(os.environ.get('BRIEFS') or os.path.join(HERE, 'briefs.json')))
 kit = {'art': 'art', 'model': 'model', 'ui': 'app'}
 env_notes = ("Environment: a Linux machine with no network access to package registries or CDNs. "
              "Python 3 with PIL, Node 22 and git are installed. Blender's Python module bpy is installed (python3 -c 'import bpy'). "

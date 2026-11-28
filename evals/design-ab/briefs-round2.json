@@ -1,0 +1,66 @@
+[
+  {
+    "id": "art-1",
+    "kind": "art",
+    "title": "Lighthouse Keeper's Storm Night: Coastal Cliff Sprites",
+    "brief": "Game: 'Ember Tide', a top-down 2D action-puzzler where the player is a lighthouse keeper relighting beacons along a rocky coast during a storm; camera is a fixed top-down view with a 3/4 tilt. All sprites are 16x16 pixels, drawn with a single shared palette of at most 12 colours across all four assets, no anti-aliasing, no gradients, 1px dark outline allowed only in the darkest palette colour, and no semi-transparent pixels (hard alpha, on or off). Exactly 4 named assets: (1) KeeperWalkDown, the keeper in a yellow oilskin coat and hat, one standing frame facing the camera; (2) LampBeacon, a brass lantern on a short iron post that is unlit; (3) WetRockTile, a seamlessly repeating ground tile of dark wet basalt with a few pale cracks, edges must wrap on all four sides with no visible seam when tiled 4x4; (4) DriftwoodPlank, a single horizontal plank with two nail dots. Sprites are played on a flat dark navy (#0b1424) sea background with faint 1px horizontal wave lines in a slightly lighter navy, so the sprites must stay readable against it and no asset may use that navy as its main fill.",
+    "render": {
+      "roles": [
+        ["keeper", "keeper|walk|player|hero"],
+        ["beacon", "lamp|beacon|lantern"],
+        ["tile", "rock|tile|ground"],
+        ["plank", "plank|driftwood|wood"]
+      ],
+      "ground": "background-color:#0b1424;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc({z}px*11),#16233a calc({z}px*11),#16233a calc({z}px*12))",
+      "dark": true,
+      "width": 900
+    }
+  },
+  {
+    "id": "art-2",
+    "kind": "art",
+    "title": "Mushroom Cannery Conveyor: Factory Floor Sprites",
+    "brief": "Game: 'Spore Line', a side-view 2D platformer set inside a cheerful underground mushroom cannery, where the player is a small robot sorting mushrooms on moving belts; camera is a side-on view, one screen at a time. All sprites are 32x32 pixels, drawn with one shared palette of at most 16 colours across all four assets, no anti-aliasing, no dithering, hard-edged pixels only, and light comes from the top left on every asset. Exactly 4 named assets: (1) SorterBot, a boxy teal robot with a single round eye and tank treads, one idle frame facing right; (2) RedCapMushroom, a red-capped mushroom with white spots on a cream stem, standing upright; (3) ConveyorTile, a seamlessly repeating belt tile of dark grey rubber with diagonal yellow chevron marks, must tile horizontally with no visible seam and the chevrons must line up across the join; (4) SteamValve, a round brass valve wheel on a short pipe stub. Sprites are played on a flat warm cream-grey (#cfc6b4) tiled wall background with a faint 1px grid line every 32 pixels, so sprites need a dark outline to stay readable and no asset may use the wall colour as its main fill.",
+    "render": {
+      "roles": [
+        ["robot", "sorter|bot|robot"],
+        ["mushroom", "mushroom|cap"],
+        ["tile", "conveyor|belt|tile"],
+        ["valve", "valve|steam"]
+      ],
+      "ground": "background-color:#cfc6b4;background-image:linear-gradient(#b9af9b {z}px,transparent {z}px),linear-gradient(90deg,#b9af9b {z}px,transparent {z}px);background-size:calc({z}px*32) calc({z}px*32)",
+      "dark": false,
+      "width": 1300
+    }
+  },
+  {
+    "id": "model-1",
+    "kind": "model",
+    "name": "LanternWinch",
+    "box": "0.8x0.6x1.4",
+    "tris": 900,
+    "title": "Hand-Cranked Cave Winch for a Mining Puzzle Game",
+    "brief": "Game: 'Deepfold', a third-person cave exploration puzzler. Prop: LanternWinch, a hand-cranked winch standing over a mine shaft, used to lower a lantern on a rope. Real size is 0.8 x 0.6 x 1.4 metres (width x depth x height) and the triangle budget is 900 triangles maximum. Flat colours only, no textures, from this list: dark wood brown, iron grey, rope tan, and brass yellow. Build it from two upright A-frame wooden posts joined by a horizontal round drum (cylinder with rope tan wraps), a side crank with a round brass handle on an iron arm, and a small iron ratchet gear with one visible pawl. The player sees it from about 4 metres away, standing, at a three-quarter angle, so the silhouette must show that the crank is on the right side (as seen facing the shaft), which is the side the player turns it from, that the drum is the part the rope winds on, and that the brass handle is the grab point. Round parts need at least 8 segments to read as round at that distance."
+  },
+  {
+    "id": "model-2",
+    "kind": "model",
+    "name": "CoralDivingBell",
+    "box": "1.6x1.6x2.2",
+    "tris": 1400,
+    "title": "Underwater Diving Bell with Hatch and Struts",
+    "brief": "Game: 'Tidebound', a first-person underwater salvage game. Prop: CoralDivingBell, a bell-shaped brass diving chamber hung from a crane cable, used as the player's safe air pocket. Real size is 1.6 x 1.6 x 2.2 metres and the triangle budget is 1400 triangles maximum. Flat colours only, no textures, from this list: brass yellow, rust orange, seaweed green, steel grey and glass blue. Shape: a domed cylinder body with a flared open bottom rim, three vertical steel struts around the outside, a round hatch ring on one side with a visible hinge, two small round porthole windows in glass blue, and a lifting eye on top with a short cable stub. The player sees it from 8 to 10 metres away while swimming, so from that distance they must be able to read that the open bottom is where to swim up into it, that the hatch ring side is the entrance and the hinge is on its left, and that the top eye is where the cable attaches. Keep the struts and portholes chunky enough to stay visible at that range."
+  },
+  {
+    "id": "ui-1",
+    "kind": "ui",
+    "title": "Bike Share Dock Status While Riding Home",
+    "brief": "App: 'Dockwatch', a bike-share app that shows live availability at nearby docks. Design one screen, the Nearby Docks status screen, for a 390 x 844 point phone. User: Priya, a commuter riding home at 6:40 pm on a rainy Thursday, glancing at the phone mounted on her handlebars for about one second at a time, hands on the bars, so the screen must be glanceable status only. The screen must show exactly this data: Park Street Dock, 0.2 km, 3 bikes and 9 free slots; Mill Lane Dock, 0.5 km, 0 bikes and 12 free slots; Station Square Dock, 0.8 km, 11 bikes and 1 free slot; plus a header line 'Updated 6:39 pm' and a battery warning 'E-bikes at Park Street: 2 of 3'. Main action: a single large 'Navigate to Park Street' button. Hard constraint: the key numbers (bikes and free slots) must be at least 32 pt and have a contrast ratio of at least 7:1 against their background, so they are readable in rain and glare, and the main button must be at least 64 pt tall."
+  },
+  {
+    "id": "ui-2",
+    "kind": "ui",
+    "title": "Sourdough Class Booking: Pick a Session and Add-ons",
+    "brief": "App: 'Crumb', an app for booking small baking classes at a neighbourhood bakery. Design one screen, the Book Your Class form, for a 390 x 844 point phone. User: Marcus, a first-time customer on his sofa at 8:15 pm on a Sunday, holding the phone in one hand with the other holding a mug, choosing carefully. The screen must show exactly this data: class title 'Beginner Sourdough, 3 hours'; three session options to choose between: Sat 6 Dec 9:00 am (4 spots left), Sat 6 Dec 2:00 pm (Full, waitlist), Sun 7 Dec 10:00 am (7 spots left); a guest stepper for 1 to 4 guests defaulting to 1; two optional add-ons as toggles: 'Take-home starter jar +$6' and 'Apron +$14'; price at $85 per guest; and a live total that updates, for example $91 with one guest and the starter jar. Main action: a 'Reserve spot' button showing the total. Hard constraint: one-handed use, so every tappable control must be at least 48 x 48 pt and all controls must sit in the lower 60 percent of the screen, within thumb reach."
+  }
+]
